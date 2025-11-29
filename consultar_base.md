@@ -96,3 +96,6 @@
   docker logs sath_bot_live --tail 100
 
   docker logs -f sath_bot_live
+
+
+  rm -f logs/*.log && docker compose -f docker-compose.live.yml down && docker compose -f docker-compose.live.yml up -d --build
