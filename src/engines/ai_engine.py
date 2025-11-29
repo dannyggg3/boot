@@ -529,7 +529,8 @@ SÉ EXTREMADAMENTE CONSERVADOR. Mejor perder una oportunidad que perder dinero.
         volatility = market_data.get('volatility_level', 'media')
 
         # Detectar baja volatilidad (NO OPERAR)
-        if atr_percent < self.min_volatility_percent or volatility == 'baja':
+        # SOLO usamos el porcentaje configurado, ignoramos la etiqueta 'baja'
+        if atr_percent < self.min_volatility_percent:
             return 'low_volatility'
 
         # Detectar condiciones de reversión (RSI extremo)
