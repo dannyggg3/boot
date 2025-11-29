@@ -10,6 +10,7 @@ Versión: 1.0
 
 import os
 import logging
+import time
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 import ccxt
@@ -45,8 +46,24 @@ class MarketEngine:
         self.positions = {}
         self.balance = {}
 
+        # Configuración de protección contra slippage
+        trading_config = self.config.get('trading', {})
+
+        # Verificación pre-ejecución
+        price_verification = trading_config.get('price_verification', {})
+        self.price_verification_enabled = price_verification.get('enabled', True)
+        self.max_price_deviation = price_verification.get('max_deviation_percent', 0.5) / 100
+
+        # Órdenes limit
+        order_execution = trading_config.get('order_execution', {})
+        self.use_limit_orders = order_execution.get('use_limit_orders', True)
+        self.max_slippage = order_execution.get('max_slippage_percent', 0.3) / 100
+        self.limit_order_timeout = order_execution.get('limit_order_timeout', 30)
+        self.on_timeout = order_execution.get('on_timeout', 'cancel')
+
         self._initialize_connection()
         logger.info(f"Market Engine inicializado: {self.market_type} - Modo: {self.mode}")
+        logger.info(f"Protección slippage: verificación={self.price_verification_enabled}, limit_orders={self.use_limit_orders}")
 
     def _load_config(self, config_path: str) -> Dict[str, Any]:
         """Carga la configuración desde el archivo YAML."""
@@ -171,6 +188,89 @@ class MarketEngine:
             logger.error(f"Error obteniendo precio de {symbol}: {e}")
             return None
 
+    def verify_price_for_execution(
+        self,
+        symbol: str,
+        analysis_price: float,
+        side: str
+    ) -> Dict[str, Any]:
+        """
+        Verifica si el precio actual está dentro del rango aceptable para ejecutar.
+
+        Args:
+            symbol: Símbolo del activo
+            analysis_price: Precio al momento del análisis
+            side: 'buy' o 'sell'
+
+        Returns:
+            Dict con 'approved', 'current_price', 'deviation_percent', 'reason'
+        """
+        if not self.price_verification_enabled:
+            return {
+                'approved': True,
+                'current_price': analysis_price,
+                'deviation_percent': 0,
+                'reason': 'Verificación deshabilitada'
+            }
+
+        current_price = self.get_current_price(symbol)
+
+        if current_price is None:
+            return {
+                'approved': False,
+                'current_price': None,
+                'deviation_percent': None,
+                'reason': 'No se pudo obtener precio actual'
+            }
+
+        # Calcular desviación
+        deviation = (current_price - analysis_price) / analysis_price
+        deviation_percent = abs(deviation) * 100
+
+        # Para COMPRA: precio subió mucho = malo (comprarías más caro)
+        # Para VENTA: precio bajó mucho = malo (venderías más barato)
+        is_unfavorable = (side == 'buy' and deviation > 0) or (side == 'sell' and deviation < 0)
+
+        if abs(deviation) > self.max_price_deviation:
+            direction = "subió" if deviation > 0 else "bajó"
+            return {
+                'approved': False,
+                'current_price': current_price,
+                'deviation_percent': deviation_percent,
+                'reason': f'Precio {direction} {deviation_percent:.2f}% (máx: {self.max_price_deviation*100:.2f}%)',
+                'is_unfavorable': is_unfavorable
+            }
+
+        return {
+            'approved': True,
+            'current_price': current_price,
+            'deviation_percent': deviation_percent,
+            'reason': f'Desviación aceptable: {deviation_percent:.2f}%',
+            'is_unfavorable': is_unfavorable
+        }
+
+    def calculate_limit_price(
+        self,
+        current_price: float,
+        side: str
+    ) -> float:
+        """
+        Calcula el precio límite con slippage para la orden.
+
+        Args:
+            current_price: Precio actual del mercado
+            side: 'buy' o 'sell'
+
+        Returns:
+            Precio límite ajustado
+        """
+        if side == 'buy':
+            # Para compra: dispuestos a pagar un poco más
+            return current_price * (1 + self.max_slippage)
+        else:
+            # Para venta: dispuestos a recibir un poco menos
+            return current_price * (1 - self.max_slippage)
+
     def get_historical_data(
         self,
         symbol: str,
@@ -231,17 +331,19 @@ class MarketEngine:
         side: str,
         amount: float,
         order_type: str = 'market',
-        price: Optional[float] = None
+        price: Optional[float] = None,
+        analysis_price: Optional[float] = None
     ) -> Optional[Dict[str, Any]]:
         """
-        Ejecuta una orden en el mercado.
+        Ejecuta una orden en el mercado con protección contra slippage.
 
         Args:
             symbol: Símbolo del activo
             side: 'buy' o 'sell'
             amount: Cantidad a operar
-            order_type: 'market' o 'limit'
-            price: Precio límite (solo para órdenes limit)
+            order_type: 'market' o 'limit' (se puede sobrescribir por config)
+            price: Precio límite (solo para órdenes limit manuales)
+            analysis_price: Precio al momento del análisis (para verificación)
 
         Returns:
             Información de la orden ejecutada
@@ -256,15 +358,133 @@ class MarketEngine:
                 'status': 'simulated'
             }
 
+        # Verificación pre-ejecución de precio
+        if analysis_price and self.price_verification_enabled:
+            verification = self.verify_price_for_execution(symbol, analysis_price, side)
+            if not verification['approved']:
+                logger.warning(f"⚠️ ORDEN ABORTADA: {verification['reason']}")
+                logger.warning(f"Precio análisis: {analysis_price} | Precio actual: {verification['current_price']}")
+                return {
+                    'id': None,
+                    'symbol': symbol,
+                    'side': side,
+                    'amount': amount,
+                    'status': 'aborted',
+                    'reason': verification['reason'],
+                    'price_deviation': verification['deviation_percent']
+                }
+            logger.info(f"✅ Verificación de precio OK: {verification['reason']}")
+
+        # Determinar tipo de orden final
+        final_order_type = order_type
+        limit_price = price
+
+        # Si está configurado para usar limit orders y no se especificó precio
+        if self.use_limit_orders and order_type == 'market' and price is None:
+            final_order_type = 'limit'
+            current_price = self.get_current_price(symbol)
+            if current_price:
+                limit_price = self.calculate_limit_price(current_price, side)
+                logger.info(f"Convirtiendo a orden LIMIT: precio={limit_price:.8f} (slippage={self.max_slippage*100:.2f}%)")
+
         try:
             if self.market_type == 'crypto':
-                return self._execute_crypto_order(symbol, side, amount, order_type, price)
+                result = self._execute_crypto_order(symbol, side, amount, final_order_type, limit_price)
+
+                # Si es orden limit, monitorear hasta que se llene o timeout
+                if final_order_type == 'limit' and result and result.get('id'):
+                    result = self._monitor_limit_order(symbol, result['id'], side, amount)
+
+                return result
+
             elif self.market_type == 'forex_stocks':
-                return self._execute_ib_order(symbol, side, amount, order_type, price)
+                return self._execute_ib_order(symbol, side, amount, final_order_type, limit_price)
 
         except Exception as e:
             logger.error(f"Error ejecutando orden: {e}")
             return None
+
+    def _monitor_limit_order(
+        self,
+        symbol: str,
+        order_id: str,
+        side: str,
+        amount: float
+    ) -> Dict[str, Any]:
+        """
+        Monitorea una orden limit hasta que se llene o expire.
+
+        Args:
+            symbol: Símbolo del activo
+            order_id: ID de la orden
+            side: 'buy' o 'sell'
+            amount: Cantidad ordenada
+
+        Returns:
+            Estado final de la orden
+        """
+        start_time = time.time()
+        logger.info(f"Monitoreando orden limit {order_id} (timeout: {self.limit_order_timeout}s)")
+
+        while time.time() - start_time < self.limit_order_timeout:
+            try:
+                order = self.connection.fetch_order(order_id, symbol)
+                status = order.get('status', 'unknown')
+
+                if status == 'closed':
+                    logger.info(f"✅ Orden limit {order_id} ejecutada completamente")
+                    return order
+
+                if status == 'canceled':
+                    logger.warning(f"❌ Orden limit {order_id} cancelada externamente")
+                    return order
+
+                # Orden parcialmente llena
+                filled = order.get('filled', 0)
+                if filled > 0:
+                    logger.info(f"Orden {order_id}: {filled}/{amount} llenada...")
+
+                time.sleep(2)  # Esperar 2 segundos antes de verificar de nuevo
+
+            except Exception as e:
+                logger.error(f"Error monitoreando orden: {e}")
+                break
+
+        # Timeout alcanzado
+        logger.warning(f"⏱️ Timeout alcanzado para orden {order_id}")
+
+        if self.on_timeout == 'cancel':
+            try:
+                self.connection.cancel_order(order_id, symbol)
+                logger.info(f"Orden {order_id} cancelada por timeout")
+                return {
+                    'id': order_id,
+                    'symbol': symbol,
+                    'side': side,
+                    'amount': amount,
+                    'status': 'canceled',
+                    'reason': 'timeout'
+                }
+            except Exception as e:
+                logger.error(f"Error cancelando orden: {e}")
+
+        elif self.on_timeout == 'market':
+            logger.info(f"Convirtiendo orden {order_id} a MARKET")
+            try:
+                # Cancelar orden limit
+                self.connection.cancel_order(order_id, symbol)
+                # Ejecutar como market
+                return self._execute_crypto_order(symbol, side, amount, 'market', None)
+            except Exception as e:
+                logger.error(f"Error convirtiendo a market: {e}")
+
+        return {
+            'id': order_id,
+            'symbol': symbol,
+            'side': side,
+            'amount': amount,
+            'status': 'timeout'
+        }
 
     def _execute_crypto_order(
         self,

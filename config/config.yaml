@@ -31,9 +31,19 @@ market_type: "crypto"
 # ===== CONFIGURACIÓN DE TRADING =====
 trading:
   # Activos a operar (lista de símbolos)
+  # TIER 1: Máxima liquidez y patrones técnicos claros
+  # TIER 2: Buena liquidez, mayor volatilidad = más oportunidades
   symbols:
-    - "BTC/USDT"
-    - "ETH/USDT"
+    # TIER 1 - Core (siempre incluir)
+    - "BTC/USDT"    # Rey de la liquidez, patrones muy respetados
+    - "ETH/USDT"    # Segunda más líquida, más volátil que BTC
+    # TIER 1 - Extendido
+    - "SOL/USDT"    # Alta volatilidad, excelente para swing trading
+    - "XRP/USDT"    # Muy líquido, movimientos direccionales claros
+    # TIER 2 - Opcional (descomentar para más diversificación)
+    # - "BNB/USDT"  # Correlación mercado, menos volátil
+    # - "AVAX/USDT" # Más volátil, buenos movimientos tendenciales
+    # - "LINK/USDT" # Buen actor en mercados alcistas
 
   # Timeframe para análisis (1m, 5m, 15m, 1h, 4h, 1d)
   timeframe: "1h"
@@ -43,6 +53,29 @@ trading:
 
   # Modo de operación: "live", "paper", "backtest"
   mode: "paper"
+
+  # ===== MEJORAS DE LATENCIA =====
+  # Análisis paralelo de múltiples símbolos (recomendado si tienes >2 símbolos)
+  parallel_analysis: true
+  max_parallel_workers: 4  # Número máximo de análisis simultáneos
+
+  # ===== PROTECCIÓN CONTRA SLIPPAGE =====
+  # Verificación pre-ejecución: aborta si el precio cambió demasiado desde el análisis
+  price_verification:
+    enabled: true
+    max_deviation_percent: 0.5  # Abortar si precio cambió más de 0.5%
+
+  # Órdenes limit en lugar de market (reduce slippage)
+  order_execution:
+    use_limit_orders: true
+    # Slippage máximo permitido para órdenes limit (% sobre precio de análisis)
+    # COMPRA: precio_limit = precio_analisis * (1 + slippage)
+    # VENTA: precio_limit = precio_analisis * (1 - slippage)
+    max_slippage_percent: 0.3
+    # Tiempo máximo para que se llene la orden limit (segundos)
+    limit_order_timeout: 30
+    # Si la orden limit no se llena, ¿cancelar o convertir a market?
+    on_timeout: "cancel"  # "cancel" o "market"
 
 # ===== GESTIÓN DE RIESGO =====
 risk_management:

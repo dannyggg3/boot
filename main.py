@@ -14,9 +14,10 @@ import os
 import time
 import logging
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import yaml
 import signal
-from typing import Dict, Any
+from typing import Dict, Any, List
 
 # Agregar el directorio src al path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
@@ -61,9 +62,15 @@ class TradingBot:
             self.scan_interval = self.config['trading']['scan_interval']
             self.mode = self.config['trading']['mode']
 
+            # Configuración de análisis paralelo
+            trading_config = self.config['trading']
+            self.parallel_analysis = trading_config.get('parallel_analysis', True)
+            self.max_workers = trading_config.get('max_parallel_workers', 4)
+
             logger.info(f"Modo de operación: {self.mode.upper()}")
             logger.info(f"Símbolos a operar: {', '.join(self.symbols)}")
             logger.info(f"Intervalo de escaneo: {self.scan_interval}s")
+            logger.info(f"Análisis paralelo: {'HABILITADO' if self.parallel_analysis else 'SECUENCIAL'}")
             logger.info("=" * 60)
 
             # Configurar manejadores de señales para apagado limpio
@@ -149,13 +156,16 @@ class TradingBot:
                     logger.info("💓 Heartbeat - Bot operando normalmente")
                     self._print_status()
 
-                # Escanear cada símbolo
-                for symbol in self.symbols:
-                    try:
-                        self._analyze_and_trade(symbol)
-                    except Exception as e:
-                        logger.error(f"Error procesando {symbol}: {e}")
-                        continue
+                # Escanear símbolos (paralelo o secuencial)
+                if self.parallel_analysis and len(self.symbols) > 1:
+                    self._analyze_symbols_parallel()
+                else:
+                    for symbol in self.symbols:
+                        try:
+                            self._analyze_and_trade(symbol)
+                        except Exception as e:
+                            logger.error(f"Error procesando {symbol}: {e}")
+                            continue
 
                 # Esperar hasta el siguiente ciclo
                 logger.debug(f"Esperando {self.scan_interval}s hasta el próximo escaneo...")
@@ -170,6 +180,36 @@ class TradingBot:
 
         # Apagado limpio
         self._shutdown()
+
+    def _analyze_symbols_parallel(self):
+        """
+        Analiza todos los símbolos en paralelo usando ThreadPoolExecutor.
+        Reduce significativamente el tiempo de análisis cuando hay múltiples símbolos.
+        """
+        logger.info(f"🔄 Iniciando análisis PARALELO de {len(self.symbols)} símbolos...")
+        start_time = time.time()
+
+        results = {}
+        with ThreadPoolExecutor(max_workers=min(self.max_workers, len(self.symbols))) as executor:
+            # Enviar todos los análisis en paralelo
+            future_to_symbol = {
+                executor.submit(self._analyze_and_trade, symbol): symbol
+                for symbol in self.symbols
+            }
+
+            # Recoger resultados a medida que terminan
+            for future in as_completed(future_to_symbol):
+                symbol = future_to_symbol[future]
+                try:
+                    future.result()  # Obtener resultado o excepción
+                    results[symbol] = 'OK'
+                except Exception as e:
+                    logger.error(f"Error en análisis paralelo de {symbol}: {e}")
+                    results[symbol] = f'ERROR: {e}'
+
+        elapsed = time.time() - start_time
+        logger.info(f"✅ Análisis paralelo completado en {elapsed:.2f}s")
+        logger.info(f"   Resultados: {results}")
 
     def _analyze_and_trade(self, symbol: str):
         """
@@ -261,16 +301,23 @@ class TradingBot:
 
         # 6. Ejecutar operación
         logger.info(f"✅ Operación APROBADA por Risk Manager")
-        self._execute_trade(symbol, decision, risk_validation)
+        self._execute_trade(symbol, decision, risk_validation, current_price)
 
-    def _execute_trade(self, symbol: str, decision: str, risk_params: Dict[str, Any]):
+    def _execute_trade(
+        self,
+        symbol: str,
+        decision: str,
+        risk_params: Dict[str, Any],
+        analysis_price: float
+    ):
         """
-        Ejecuta una operación de trading.
+        Ejecuta una operación de trading con protección contra slippage.
 
         Args:
             symbol: Símbolo del activo
             decision: COMPRA o VENTA
             risk_params: Parámetros validados por el risk manager
+            analysis_price: Precio al momento del análisis (para verificación pre-ejecución)
         """
         side = 'buy' if decision == 'COMPRA' else 'sell'
         amount = risk_params['position_size']
@@ -279,6 +326,7 @@ class TradingBot:
 
         logger.info(f"\n{'=' * 60}")
         logger.info(f"EJECUTANDO ORDEN: {decision} {amount} {symbol}")
+        logger.info(f"Precio de análisis: {analysis_price}")
         logger.info(f"Stop Loss: {stop_loss}")
         logger.info(f"Take Profit: {take_profit}")
         logger.info(f"{'=' * 60}\n")
@@ -288,17 +336,31 @@ class TradingBot:
             return
 
         try:
-            # Ejecutar orden de mercado
+            # Ejecutar orden con verificación de precio y protección slippage
             order = self.market_engine.execute_order(
                 symbol=symbol,
                 side=side,
                 amount=amount,
-                order_type='market'
+                order_type='market',  # Se convertirá a limit si está configurado
+                analysis_price=analysis_price
             )
 
             if order:
+                order_status = order.get('status', 'unknown')
+
+                if order_status == 'aborted':
+                    # Orden abortada por verificación de precio
+                    logger.warning(f"⚠️ Orden ABORTADA: {order.get('reason', 'Precio cambió demasiado')}")
+                    logger.warning(f"Desviación de precio: {order.get('price_deviation', 'N/A'):.2f}%")
+                    return
+
+                if order_status in ['canceled', 'timeout']:
+                    logger.warning(f"⏱️ Orden no ejecutada: {order_status}")
+                    return
+
                 logger.info(f"✅ Orden ejecutada exitosamente")
                 logger.info(f"Order ID: {order.get('id', 'N/A')}")
+                logger.info(f"Estado: {order_status}")
 
                 # TODO: Implementar tracking de la orden
                 # - Monitorear precio vs stop loss / take profit
