@@ -433,7 +433,8 @@ class RiskManager:
             'daily_pnl': self.daily_pnl,
             'today': str(self.today),
             'kill_switch_active': self.kill_switch_active,
-            'open_trades': self.open_trades
+            'open_trades': self.open_trades,
+            'trade_history': self.trade_history  # v1.4: Persistir historial para Kelly
         }
 
         state_file = 'data/risk_manager_state.json'
@@ -462,6 +463,13 @@ class RiskManager:
             self.daily_pnl = state.get('daily_pnl', 0.0)
             self.kill_switch_active = state.get('kill_switch_active', False)
             self.open_trades = state.get('open_trades', [])
+            # v1.4: Cargar historial para Kelly Criterion
+            self.trade_history = state.get('trade_history', {
+                'wins': 0,
+                'losses': 0,
+                'total_win_amount': 0.0,
+                'total_loss_amount': 0.0
+            })
 
             # Verificar si es un nuevo día
             saved_date = datetime.strptime(state.get('today', str(self.today)), '%Y-%m-%d').date()
