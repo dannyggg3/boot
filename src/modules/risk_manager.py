@@ -40,10 +40,12 @@ class RiskManager:
         self.trailing_stop_percentage = self.config.get('trailing_stop_percentage', 3.0)
         self.initial_capital = self.config.get('initial_capital', 10000)
 
-        # Kelly Criterion para sizing dinámico
-        self.use_kelly_criterion = self.config.get('use_kelly_criterion', True)
-        self.kelly_fraction = self.config.get('kelly_fraction', 0.25)  # Fracción de Kelly (conservador)
-        self.min_confidence_to_trade = self.config.get('min_confidence_to_trade', 0.5)
+        # Kelly Criterion para sizing dinámico (v1.3)
+        kelly_config = self.config.get('kelly_criterion', {})
+        self.use_kelly_criterion = kelly_config.get('enabled', True)
+        self.kelly_fraction = kelly_config.get('fraction', 0.25)  # Fracción de Kelly (conservador)
+        self.min_confidence_to_trade = kelly_config.get('min_confidence', 0.5)
+        self.max_kelly_risk = kelly_config.get('max_risk_cap', 3.0)  # Riesgo máximo con Kelly
 
         # Historial para cálculo de Kelly
         self.trade_history = {
@@ -77,7 +79,8 @@ class RiskManager:
         current_price: float,
         suggested_stop_loss: Optional[float] = None,
         suggested_take_profit: Optional[float] = None,
-        market_data: Optional[Dict[str, Any]] = None
+        market_data: Optional[Dict[str, Any]] = None,
+        confidence: float = 0.5
     ) -> Dict[str, Any]:
         """
         Valida si una operación es segura y permitida.
@@ -89,6 +92,7 @@ class RiskManager:
             suggested_stop_loss: Stop loss sugerido por la IA
             suggested_take_profit: Take profit sugerido
             market_data: Datos adicionales del mercado (volatilidad, etc.)
+            confidence: Nivel de confianza de la IA (0-1) para Kelly Criterion
 
         Returns:
             Diccionario con validación y parámetros ajustados
@@ -110,11 +114,19 @@ class RiskManager:
                 symbol
             )
 
-        # 3. Calcular tamaño de posición
-        position_size = self._calculate_position_size(
-            current_price,
-            suggested_stop_loss
-        )
+        # 3. Calcular tamaño de posición (Kelly Criterion si está habilitado)
+        if self.use_kelly_criterion and confidence >= self.min_confidence_to_trade:
+            position_size = self.calculate_kelly_position_size(
+                confidence=confidence,
+                current_price=current_price,
+                stop_loss=suggested_stop_loss
+            )
+            logger.info(f"Kelly Sizing: confianza={confidence:.2f}, risk={self.get_dynamic_risk_percentage(confidence):.1f}%")
+        else:
+            position_size = self._calculate_position_size(
+                current_price,
+                suggested_stop_loss
+            )
 
         if position_size <= 0:
             return self._reject_trade(

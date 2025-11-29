@@ -12,7 +12,17 @@ import logging
 from typing import Dict, Any, List, Optional
 import numpy as np
 import pandas as pd
-import pandas_ta as ta
+
+# Intentar importar pandas_ta, si no está disponible usar ta como fallback
+try:
+    import pandas_ta as ta
+    TA_LIBRARY = "pandas_ta"
+except ImportError:
+    try:
+        import ta as ta_lib
+        TA_LIBRARY = "ta"
+    except ImportError:
+        TA_LIBRARY = "none"
 
 logger = logging.getLogger(__name__)
 
@@ -123,7 +133,18 @@ class TechnicalAnalyzer:
         overbought = config.get('overbought', 70)
         oversold = config.get('oversold', 30)
 
-        rsi = ta.rsi(df['close'], length=period)
+        if TA_LIBRARY == "pandas_ta":
+            rsi = ta.rsi(df['close'], length=period)
+        elif TA_LIBRARY == "ta":
+            from ta.momentum import RSIIndicator
+            rsi = RSIIndicator(df['close'], window=period).rsi()
+        else:
+            # Cálculo manual de RSI
+            delta = df['close'].diff()
+            gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+            loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+            rs = gain / loss
+            rsi = 100 - (100 / (1 + rs))
         current_rsi = float(rsi.iloc[-1])
 
         # Determinar estado
@@ -153,8 +174,16 @@ class TechnicalAnalyzer:
         short_period = config.get('short_period', 50)
         long_period = config.get('long_period', 200)
 
-        ema_short = ta.ema(df['close'], length=short_period)
-        ema_long = ta.ema(df['close'], length=long_period)
+        if TA_LIBRARY == "pandas_ta":
+            ema_short = ta.ema(df['close'], length=short_period)
+            ema_long = ta.ema(df['close'], length=long_period)
+        elif TA_LIBRARY == "ta":
+            from ta.trend import EMAIndicator
+            ema_short = EMAIndicator(df['close'], window=short_period).ema_indicator()
+            ema_long = EMAIndicator(df['close'], window=long_period).ema_indicator()
+        else:
+            ema_short = df['close'].ewm(span=short_period, adjust=False).mean()
+            ema_long = df['close'].ewm(span=long_period, adjust=False).mean()
 
         current_price = float(df['close'].iloc[-1])
         current_ema_50 = float(ema_short.iloc[-1])
@@ -188,17 +217,27 @@ class TechnicalAnalyzer:
         period = config.get('period', 20)
         std_dev = config.get('std_dev', 2)
 
-        bbands = ta.bbands(df['close'], length=period, std=std_dev)
-
-        # Buscar columnas de forma robusta (maneja diferentes versiones de pandas-ta)
-        upper_col = [col for col in bbands.columns if 'BBU' in col][0]
-        middle_col = [col for col in bbands.columns if 'BBM' in col][0]
-        lower_col = [col for col in bbands.columns if 'BBL' in col][0]
+        if TA_LIBRARY == "pandas_ta":
+            bbands = ta.bbands(df['close'], length=period, std=std_dev)
+            upper_col = [col for col in bbands.columns if 'BBU' in col][0]
+            middle_col = [col for col in bbands.columns if 'BBM' in col][0]
+            lower_col = [col for col in bbands.columns if 'BBL' in col][0]
+            upper_band = float(bbands[upper_col].iloc[-1])
+            middle_band = float(bbands[middle_col].iloc[-1])
+            lower_band = float(bbands[lower_col].iloc[-1])
+        elif TA_LIBRARY == "ta":
+            from ta.volatility import BollingerBands
+            bb = BollingerBands(df['close'], window=period, window_dev=std_dev)
+            upper_band = float(bb.bollinger_hband().iloc[-1])
+            middle_band = float(bb.bollinger_mavg().iloc[-1])
+            lower_band = float(bb.bollinger_lband().iloc[-1])
+        else:
+            middle_band = float(df['close'].rolling(window=period).mean().iloc[-1])
+            std = df['close'].rolling(window=period).std().iloc[-1]
+            upper_band = middle_band + (std_dev * std)
+            lower_band = middle_band - (std_dev * std)
 
         current_price = float(df['close'].iloc[-1])
-        upper_band = float(bbands[upper_col].iloc[-1])
-        middle_band = float(bbands[middle_col].iloc[-1])
-        lower_band = float(bbands[lower_col].iloc[-1])
 
         # Determinar posición del precio
         if current_price > upper_band:
@@ -232,11 +271,25 @@ class TechnicalAnalyzer:
         slow = config.get('slow_period', 26)
         signal = config.get('signal_period', 9)
 
-        macd = ta.macd(df['close'], fast=fast, slow=slow, signal=signal)
-
-        current_macd = float(macd[f'MACD_{fast}_{slow}_{signal}'].iloc[-1])
-        current_signal = float(macd[f'MACDs_{fast}_{slow}_{signal}'].iloc[-1])
-        current_histogram = float(macd[f'MACDh_{fast}_{slow}_{signal}'].iloc[-1])
+        if TA_LIBRARY == "pandas_ta":
+            macd_result = ta.macd(df['close'], fast=fast, slow=slow, signal=signal)
+            current_macd = float(macd_result[f'MACD_{fast}_{slow}_{signal}'].iloc[-1])
+            current_signal = float(macd_result[f'MACDs_{fast}_{slow}_{signal}'].iloc[-1])
+            current_histogram = float(macd_result[f'MACDh_{fast}_{slow}_{signal}'].iloc[-1])
+        elif TA_LIBRARY == "ta":
+            from ta.trend import MACD
+            macd_ind = MACD(df['close'], window_slow=slow, window_fast=fast, window_sign=signal)
+            current_macd = float(macd_ind.macd().iloc[-1])
+            current_signal = float(macd_ind.macd_signal().iloc[-1])
+            current_histogram = float(macd_ind.macd_diff().iloc[-1])
+        else:
+            ema_fast = df['close'].ewm(span=fast, adjust=False).mean()
+            ema_slow = df['close'].ewm(span=slow, adjust=False).mean()
+            macd_line = ema_fast - ema_slow
+            signal_line = macd_line.ewm(span=signal, adjust=False).mean()
+            current_macd = float(macd_line.iloc[-1])
+            current_signal = float(signal_line.iloc[-1])
+            current_histogram = current_macd - current_signal
 
         # Señal de cruce
         cross_signal = "neutral"
@@ -265,8 +318,21 @@ class TechnicalAnalyzer:
         config = self.indicators_config.get('atr', {})
         period = config.get('period', 14)
 
-        atr = ta.atr(df['high'], df['low'], df['close'], length=period)
-        current_atr = float(atr.iloc[-1])
+        if TA_LIBRARY == "pandas_ta":
+            atr = ta.atr(df['high'], df['low'], df['close'], length=period)
+            current_atr = float(atr.iloc[-1])
+        elif TA_LIBRARY == "ta":
+            from ta.volatility import AverageTrueRange
+            atr_ind = AverageTrueRange(df['high'], df['low'], df['close'], window=period)
+            current_atr = float(atr_ind.average_true_range().iloc[-1])
+        else:
+            # Cálculo manual de ATR
+            high_low = df['high'] - df['low']
+            high_close = abs(df['high'] - df['close'].shift())
+            low_close = abs(df['low'] - df['close'].shift())
+            true_range = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
+            current_atr = float(true_range.rolling(window=period).mean().iloc[-1])
+
         current_price = float(df['close'].iloc[-1])
 
         # ATR como porcentaje del precio (volatilidad normalizada)

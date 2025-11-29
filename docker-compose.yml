@@ -1,5 +1,3 @@
-version: '3.8'
-
 # ============================================
 # SATH - Sistema Autónomo de Trading Híbrido
 # Docker Compose para Despliegue en Producción
@@ -22,12 +20,14 @@ services:
       - DOCKER_INFLUXDB_INIT_PASSWORD=${INFLUXDB_PASSWORD:-sath_secure_password_2024}
       - DOCKER_INFLUXDB_INIT_ORG=trading_bot
       - DOCKER_INFLUXDB_INIT_BUCKET=trading_decisions
-      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${INFLUXDB_TOKEN:-sath_token_change_in_production}
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${INFLUXDB_TOKEN:-your_influxdb_token}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8086/health"]
       interval: 30s
       timeout: 10s
       retries: 3
+    networks:
+      - sath_network
 
   # ===== Bot de Trading SATH =====
   trading_bot:
@@ -46,7 +46,7 @@ services:
       - ./.env:/app/.env:ro
     environment:
       - INFLUXDB_URL=http://influxdb:8086
-      - INFLUXDB_TOKEN=${INFLUXDB_TOKEN:-sath_token_change_in_production}
+      - INFLUXDB_TOKEN=${INFLUXDB_TOKEN:-your_influxdb_token}
       - INFLUXDB_ORG=trading_bot
       - INFLUXDB_BUCKET=trading_decisions
       - TZ=UTC

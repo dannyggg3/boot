@@ -27,6 +27,7 @@ from engines.ai_engine import AIEngine
 from engines.market_engine import MarketEngine
 from modules.technical_analysis import TechnicalAnalyzer
 from modules.risk_manager import RiskManager
+from modules.data_logger import DataLogger  # v1.3: Logging de decisiones en InfluxDB
 
 
 class TradingBot:
@@ -57,6 +58,7 @@ class TradingBot:
             self.market_engine = MarketEngine(config_path)
             self.technical_analyzer = TechnicalAnalyzer(self.config)
             self.risk_manager = RiskManager(self.config)
+            self.data_logger = DataLogger(self.config)  # v1.3: InfluxDB logging
 
             self.symbols = self.config['trading']['symbols']
             self.scan_interval = self.config['trading']['scan_interval']
@@ -294,6 +296,19 @@ class TradingBot:
         logger.info(f"Tipo de análisis: {analysis_type}")
         logger.info(f"Razonamiento: {reasoning}")
 
+        # v1.3: Registrar decisión en InfluxDB para análisis posterior
+        agent_type = ai_decision.get('agent_type', 'general')
+        self.data_logger.log_decision(
+            symbol=symbol,
+            decision=decision,
+            confidence=confidence,
+            agent_type=agent_type,
+            analysis_type=analysis_type,
+            market_data=technical_data,
+            advanced_data=advanced_data,
+            reasoning=reasoning[:500] if reasoning else ""
+        )
+
         # 4. Si la decisión es esperar, no hacer nada
         if decision == 'ESPERA':
             logger.info(f"✋ ESPERAR - No hay oportunidad clara en {symbol}")
@@ -323,7 +338,8 @@ class TradingBot:
             current_price=current_price,
             suggested_stop_loss=suggested_sl,
             suggested_take_profit=suggested_tp,
-            market_data=technical_data
+            market_data=technical_data,
+            confidence=confidence  # v1.3: Para Kelly Criterion
         )
 
         if not risk_validation['approved']:

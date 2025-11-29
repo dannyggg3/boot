@@ -10,7 +10,13 @@
       "Bash(python:*)",
       "Bash(cat:*)",
       "Bash(timeout 120 python:*)",
-      "Bash(pkill:*)"
+      "Bash(pkill:*)",
+      "Bash(docker --version:*)",
+      "Bash(docker compose:*)",
+      "Bash(docker exec:*)",
+      "Bash(docker ps:*)",
+      "Bash(docker logs:*)",
+      "Bash(curl:*)"
     ],
     "deny": [],
     "ask": []

@@ -14,9 +14,16 @@ import time
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 import ccxt
-from ib_insync import IB, Stock, Forex, MarketOrder, LimitOrder, util
 from dotenv import load_dotenv
 import yaml
+
+# ib_insync es opcional (para Interactive Brokers)
+try:
+    from ib_insync import IB, Stock, Forex, MarketOrder, LimitOrder, util
+    IB_AVAILABLE = True
+except ImportError:
+    IB_AVAILABLE = False
+    IB = None
 
 # Cargar variables de entorno
 load_dotenv()
@@ -141,6 +148,9 @@ class MarketEngine:
 
     def _initialize_interactive_brokers(self):
         """Inicializa la conexión con Interactive Brokers."""
+        if not IB_AVAILABLE:
+            raise ImportError("ib_insync no está instalado. Instálalo con: pip install ib_insync")
+
         ib_config = self.config.get('interactive_brokers', {})
 
         if not ib_config.get('enabled', False):

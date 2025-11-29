@@ -7,16 +7,16 @@ openai>=1.0.0                    # Para DeepSeek y OpenAI
 google-generativeai>=0.3.0       # Para Google Gemini
 
 # ===== Exchanges y Brokers =====
-ccxt>=4.2.0                      # Conexión con exchanges de crypto (Binance, Bybit, etc.)
-ccxt[async]>=4.2.0               # Soporte async para WebSockets (ccxt.pro)
+ccxt[async]>=4.2.0               # Conexión con exchanges + soporte async/WebSockets
 aiohttp>=3.9.0                   # HTTP async para WebSockets
-ib_insync>=0.9.86                # Interactive Brokers para acciones y forex
+# ib_insync>=0.9.86              # Interactive Brokers (descomentar si se usa)
 
 # ===== Análisis Técnico =====
 pandas>=2.0.0                    # Manipulación de datos temporales
 numpy>=1.24.0                    # Cálculos numéricos
-pandas-ta>=0.3.14b               # Indicadores técnicos (RSI, MACD, EMA, etc.)
-ta-lib>=0.4.28                   # Biblioteca avanzada de análisis técnico (opcional)
+ta>=0.11.0                       # Indicadores técnicos (compatible con todas las plataformas)
+# pandas-ta>=0.3.14b             # Alternativa local (pip install pandas-ta)
+# ta-lib>=0.4.28                 # Requiere librería C de TA-Lib
 
 # ===== Configuración y Variables de Entorno =====
 python-dotenv>=1.0.0             # Gestión de variables de entorno
@@ -42,14 +42,14 @@ flake8>=6.1.0                    # Linting
 # ===== Logging Avanzado (Opcional) =====
 colorlog>=6.7.0                  # Logs con colores en terminal
 
-# ===== Backtesting (Opcional) =====
-backtrader>=1.9.78.123           # Framework de backtesting
-vectorbt>=0.25.0                 # Backtesting vectorizado de alta velocidad
+# ===== Backtesting (Opcional - descomentar si se necesita) =====
+# backtrader>=1.9.78.123         # Framework de backtesting
+# vectorbt>=0.25.0               # Backtesting vectorizado de alta velocidad
 
-# ===== Visualización (Opcional) =====
-matplotlib>=3.7.0                # Gráficos
-plotly>=5.17.0                   # Gráficos interactivos
-mplfinance>=0.12.10b             # Gráficos financieros
+# ===== Visualización (Opcional - descomentar si se necesita) =====
+# matplotlib>=3.7.0              # Gráficos
+# plotly>=5.17.0                 # Gráficos interactivos
+# mplfinance>=0.12.10b           # Gráficos financieros
 
 # ===== Monitoreo de Performance (Opcional) =====
 psutil>=5.9.0                    # Monitoreo de recursos del sistema
