@@ -45,6 +45,12 @@ class AIEngine:
         self.model_deep = self.config.get('ai_model_deep', self.model)  # DeepSeek-R1/reasoner
         self.use_hybrid = self.config.get('ai_use_hybrid_analysis', False)
 
+        # Sistema de Agentes Especializados (v1.2)
+        self.agents_config = self.config.get('ai_agents', {})
+        self.use_specialized_agents = self.agents_config.get('enabled', True)
+        self.min_volatility_percent = self.agents_config.get('min_volatility_percent', 0.5)
+        self.min_volume_ratio = self.agents_config.get('min_volume_ratio', 0.8)
+
         self.client = None
 
         self._initialize_provider()
@@ -228,14 +234,50 @@ RESPONDE AHORA:
         Returns:
             Diccionario con la decisión parseada
         """
-        try:
-            # Intentar encontrar el JSON en la respuesta
-            # Algunas IAs agregan texto antes o después del JSON
-            start_idx = response_text.find('{')
-            end_idx = response_text.rfind('}') + 1
+        import re
 
-            if start_idx == -1 or end_idx == 0:
+        try:
+            # 1. Intentar extraer JSON de bloques de código markdown
+            json_block_pattern = r'```(?:json)?\s*([\s\S]*?)```'
+            json_blocks = re.findall(json_block_pattern, response_text)
+
+            json_str = None
+
+            # Buscar en bloques de código primero
+            for block in json_blocks:
+                block = block.strip()
+                if block.startswith('{') and block.endswith('}'):
+                    try:
+                        json.loads(block)  # Validar que es JSON válido
+                        json_str = block
+                        break
+                    except json.JSONDecodeError:
+                        continue
+
+            # 2. Si no se encontró en bloques, buscar JSON raw
+            if not json_str:
+                # Buscar el último JSON completo en el texto (modelos reasoner ponen JSON al final)
+                json_pattern = r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}'
+                json_matches = re.findall(json_pattern, response_text)
+
+                for match in reversed(json_matches):  # Empezar por el final
+                    try:
+                        json.loads(match)
+                        json_str = match
+                        break
+                    except json.JSONDecodeError:
+                        continue
+
+            # 3. Fallback: método simple de encontrar { y }
+            if not json_str:
+                start_idx = response_text.find('{')
+                end_idx = response_text.rfind('}') + 1
+                if start_idx != -1 and end_idx > start_idx:
+                    json_str = response_text[start_idx:end_idx]
+
+            if not json_str:
                 logger.warning("No se encontró JSON en la respuesta de la IA")
+                logger.warning(f"Respuesta completa ({len(response_text)} chars): {response_text[:1000]}...")
                 return {
                     "decision": "ESPERA",
                     "confidence": 0.0,
@@ -243,7 +285,6 @@ RESPONDE AHORA:
                     "alertas": ["Formato de respuesta inválido"]
                 }
 
-            json_str = response_text[start_idx:end_idx]
             decision_data = json.loads(json_str)
 
             # Validar campos requeridos
@@ -468,6 +509,359 @@ SÉ EXTREMADAMENTE CONSERVADOR. Mejor perder una oportunidad que perder dinero.
             "score": 0.0,
             "sources": []
         }
+
+    # ========================================================================
+    # SISTEMA DE AGENTES ESPECIALIZADOS (v1.2)
+    # ========================================================================
+
+    def determine_market_regime(self, market_data: Dict[str, Any]) -> str:
+        """
+        Determina el régimen de mercado actual para seleccionar el agente apropiado.
+
+        Returns:
+            'trending' | 'reversal' | 'ranging' | 'volatile' | 'low_volatility'
+        """
+        rsi = market_data.get('rsi', 50)
+        ema_50 = market_data.get('ema_50', 0)
+        ema_200 = market_data.get('ema_200', 0)
+        current_price = market_data.get('current_price', 0)
+        atr_percent = market_data.get('atr_percent', 0)
+        volatility = market_data.get('volatility_level', 'media')
+
+        # Detectar baja volatilidad (NO OPERAR)
+        if atr_percent < self.min_volatility_percent or volatility == 'baja':
+            return 'low_volatility'
+
+        # Detectar condiciones de reversión (RSI extremo)
+        if rsi <= 30 or rsi >= 70:
+            return 'reversal'
+
+        # Detectar tendencia fuerte
+        if ema_50 and ema_200 and current_price:
+            price_above_ema200 = current_price > ema_200
+            ema_50_above_200 = ema_50 > ema_200
+
+            if price_above_ema200 and ema_50_above_200:
+                return 'trending'  # Tendencia alcista
+            elif not price_above_ema200 and not ema_50_above_200:
+                return 'trending'  # Tendencia bajista
+
+        # Mercado lateral/ranging
+        return 'ranging'
+
+    def analyze_with_specialized_agent(
+        self,
+        market_data: Dict[str, Any],
+        advanced_data: Optional[Dict[str, Any]] = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Análisis con agentes especializados según el régimen de mercado.
+
+        Args:
+            market_data: Datos técnicos del mercado
+            advanced_data: Datos avanzados (order book, open interest, correlaciones)
+
+        Returns:
+            Decisión del agente especializado
+        """
+        # Determinar régimen de mercado
+        regime = self.determine_market_regime(market_data)
+        logger.info(f"📊 Régimen de mercado detectado: {regime.upper()}")
+
+        # FILTRO CRÍTICO: No operar en baja volatilidad
+        if regime == 'low_volatility':
+            logger.info("⏸️ BAJA VOLATILIDAD - No hay movimientos explosivos. Esperando...")
+            return {
+                "decision": "ESPERA",
+                "confidence": 0.1,
+                "razonamiento": "Volatilidad demasiado baja. Sin movimientos explosivos.",
+                "analysis_type": "volatility_filter",
+                "regime": regime
+            }
+
+        # FILTRO: Mercado lateral sin dirección clara
+        if regime == 'ranging':
+            logger.info("↔️ MERCADO LATERAL - Sin tendencia clara. Esperando breakout...")
+            return {
+                "decision": "ESPERA",
+                "confidence": 0.2,
+                "razonamiento": "Mercado lateral sin dirección clara. Esperando ruptura.",
+                "analysis_type": "ranging_filter",
+                "regime": regime
+            }
+
+        # Seleccionar agente especializado
+        if regime == 'trending':
+            return self._trend_agent_analysis(market_data, advanced_data)
+        elif regime == 'reversal':
+            return self._reversal_agent_analysis(market_data, advanced_data)
+
+        return None
+
+    def _trend_agent_analysis(
+        self,
+        market_data: Dict[str, Any],
+        advanced_data: Optional[Dict[str, Any]] = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        AGENTE DE TENDENCIA: Busca entradas de continuación en retrocesos.
+        Solo opera cuando el precio está en tendencia clara (sobre/bajo EMA 200).
+        """
+        symbol = market_data.get('symbol', 'N/A')
+        logger.info(f"🚀 AGENTE DE TENDENCIA activado para {symbol}")
+
+        # Construir contexto de datos avanzados
+        advanced_context = self._build_advanced_context(advanced_data)
+
+        prompt = f"""
+Eres un AGENTE DE TENDENCIA especializado. Tu ÚNICA misión es encontrar entradas de CONTINUACIÓN de tendencia en RETROCESOS.
+
+=== REGLAS INQUEBRANTABLES ===
+1. SOLO operas a FAVOR de la tendencia (precio sobre EMA 200 = COMPRA, bajo EMA 200 = VENTA)
+2. NUNCA operas contra la tendencia principal
+3. Buscas RETROCESOS hacia EMA 50 como zona de entrada
+4. Si el RSI está sobrecomprado (>70) en tendencia alcista, ESPERAS el retroceso
+5. REQUIERES confirmación de volumen (volumen actual > promedio)
+
+=== DATOS DEL MERCADO: {symbol} ===
+Precio Actual: {market_data.get('current_price')}
+EMA 50: {market_data.get('ema_50')} | EMA 200: {market_data.get('ema_200')}
+RSI (14): {market_data.get('rsi')}
+MACD: {market_data.get('macd')} (Señal: {market_data.get('macd_signal')})
+ATR: {market_data.get('atr')} ({market_data.get('atr_percent', 0):.2f}%)
+Volumen 24h: {market_data.get('volume_24h')}
+Tendencia: {market_data.get('trend_analysis')}
+
+{advanced_context}
+
+=== ANÁLISIS REQUERIDO ===
+1. ¿El precio está en tendencia clara? (Sobre/bajo EMA 200)
+2. ¿Estamos en zona de retroceso? (Cerca de EMA 50)
+3. ¿El volumen confirma la continuación?
+4. ¿El RSI permite entrada? (No sobrecomprado/sobrevendido extremo)
+
+Responde SOLO en JSON:
+{{
+    "decision": "COMPRA" | "VENTA" | "ESPERA",
+    "confidence": 0.0-1.0,
+    "razonamiento": "Análisis paso a paso de tendencia y retroceso",
+    "stop_loss_sugerido": precio_numérico,
+    "take_profit_sugerido": precio_numérico,
+    "tamaño_posicion_sugerido": 1-3,
+    "tipo_entrada": "continuacion_tendencia" | "retroceso_ema50" | "breakout",
+    "alertas": ["riesgos identificados"]
+}}
+
+CRÍTICO: Si NO hay retroceso claro hacia EMA 50, responde ESPERA. Paciencia = Profits.
+"""
+
+        return self._execute_agent_prompt(prompt, "trend_agent")
+
+    def _reversal_agent_analysis(
+        self,
+        market_data: Dict[str, Any],
+        advanced_data: Optional[Dict[str, Any]] = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        AGENTE DE REVERSIÓN: Busca divergencias y agotamiento de tendencia.
+        Solo opera cuando RSI está en extremos (<30 o >70).
+        """
+        symbol = market_data.get('symbol', 'N/A')
+        rsi = market_data.get('rsi', 50)
+
+        logger.info(f"🔄 AGENTE DE REVERSIÓN activado para {symbol} (RSI: {rsi})")
+
+        # Construir contexto de datos avanzados
+        advanced_context = self._build_advanced_context(advanced_data)
+
+        # Determinar dirección esperada de reversión
+        reversal_direction = "COMPRA" if rsi <= 30 else "VENTA"
+
+        prompt = f"""
+Eres un AGENTE DE REVERSIÓN especializado. Tu ÚNICA misión es detectar AGOTAMIENTO de tendencia y puntos de GIRO.
+
+=== REGLAS INQUEBRANTABLES ===
+1. SOLO operas en EXTREMOS de RSI (< 30 sobrevendido = buscar COMPRA, > 70 sobrecomprado = buscar VENTA)
+2. REQUIERES confirmación de DIVERGENCIA (precio hace nuevo mínimo pero RSI no)
+3. BUSCAS velas de rechazo/agotamiento (martillos, dojis, envolventes)
+4. NUNCA entras sin confirmación - el cuchillo que cae puede seguir cayendo
+5. Stop loss MUY AJUSTADO porque operas contra la tendencia
+
+=== DATOS DEL MERCADO: {symbol} ===
+Precio Actual: {market_data.get('current_price')}
+RSI (14): {rsi} {'(SOBREVENDIDO)' if rsi <= 30 else '(SOBRECOMPRADO)'}
+EMA 50: {market_data.get('ema_50')} | EMA 200: {market_data.get('ema_200')}
+MACD: {market_data.get('macd')} (Señal: {market_data.get('macd_signal')})
+Bandas Bollinger: {market_data.get('bollinger_bands')}
+ATR: {market_data.get('atr')} ({market_data.get('atr_percent', 0):.2f}%)
+Volumen 24h: {market_data.get('volume_24h')}
+
+{advanced_context}
+
+=== ANÁLISIS REQUERIDO ===
+1. ¿Hay DIVERGENCIA entre precio y RSI? (Crítico para reversión)
+2. ¿El precio tocó banda de Bollinger inferior/superior?
+3. ¿Hay señales de agotamiento? (Velas de rechazo, volumen decreciente)
+4. ¿El MACD muestra cruce o divergencia?
+
+DIRECCIÓN ESPERADA: {reversal_direction} (porque RSI está en {'sobrevendido' if rsi <= 30 else 'sobrecomprado'})
+
+Responde SOLO en JSON:
+{{
+    "decision": "COMPRA" | "VENTA" | "ESPERA",
+    "confidence": 0.0-1.0,
+    "razonamiento": "Análisis de divergencia y agotamiento paso a paso",
+    "stop_loss_sugerido": precio_numérico,
+    "take_profit_sugerido": precio_numérico,
+    "tamaño_posicion_sugerido": 1-2,
+    "tipo_entrada": "divergencia_rsi" | "banda_bollinger" | "agotamiento",
+    "divergencia_detectada": true | false,
+    "alertas": ["riesgos - ALTO RIESGO por operar contra tendencia"]
+}}
+
+CRÍTICO: Las reversiones son ALTO RIESGO. Sin divergencia CLARA = ESPERA. Posición PEQUEÑA.
+"""
+
+        return self._execute_agent_prompt(prompt, "reversal_agent")
+
+    def _build_advanced_context(self, advanced_data: Optional[Dict[str, Any]]) -> str:
+        """Construye el contexto de datos avanzados para el prompt."""
+        if not advanced_data:
+            return ""
+
+        context_parts = ["=== DATOS AVANZADOS ==="]
+
+        # Order Book
+        if 'order_book' in advanced_data:
+            ob = advanced_data['order_book']
+            context_parts.append(f"Order Book - Bid Wall: {ob.get('bid_wall', 'N/A')} | Ask Wall: {ob.get('ask_wall', 'N/A')}")
+            context_parts.append(f"Imbalance: {ob.get('imbalance', 'N/A')}")
+
+        # Open Interest
+        if 'open_interest' in advanced_data:
+            oi = advanced_data['open_interest']
+            context_parts.append(f"Open Interest: {oi.get('value', 'N/A')} (Cambio 24h: {oi.get('change_24h', 'N/A')}%)")
+
+        # Funding Rate
+        if 'funding_rate' in advanced_data:
+            context_parts.append(f"Funding Rate: {advanced_data['funding_rate']}%")
+
+        # Correlaciones
+        if 'correlations' in advanced_data:
+            corr = advanced_data['correlations']
+            context_parts.append(f"Correlación BTC: {corr.get('btc', 'N/A')} | S&P500: {corr.get('sp500', 'N/A')}")
+
+        return "\n".join(context_parts) if len(context_parts) > 1 else ""
+
+    def _execute_agent_prompt(self, prompt: str, agent_type: str) -> Optional[Dict[str, Any]]:
+        """Ejecuta el prompt del agente y parsea la respuesta."""
+        try:
+            if self.provider in ['deepseek', 'openai']:
+                # Usar modelo profundo para agentes especializados
+                model = self.model_deep if self.use_hybrid else self.model
+                is_reasoner = 'reasoner' in model.lower() or 'r1' in model.lower()
+
+                # Construir parámetros según el tipo de modelo
+                api_params = {
+                    "model": model,
+                    "messages": [
+                        {
+                            "role": "system",
+                            "content": f"Eres un {agent_type.upper()} de trading profesional. Solo respondes en JSON válido. Eres EXTREMADAMENTE selectivo."
+                        },
+                        {"role": "user", "content": prompt}
+                    ],
+                    "max_tokens": 4000 if is_reasoner else 800
+                }
+
+                # Reasoner no soporta temperature
+                if not is_reasoner:
+                    api_params["temperature"] = 0.1
+
+                logger.debug(f"Llamando a {model} (reasoner={is_reasoner})...")
+                response = self.client.chat.completions.create(**api_params)
+
+                # Extraer contenido de la respuesta
+                message = response.choices[0].message
+                content = message.content or ""
+
+                # Si content está vacío, intentar reasoning_content (DeepSeek R1)
+                if not content:
+                    if hasattr(message, 'reasoning_content') and message.reasoning_content:
+                        content = message.reasoning_content
+                        logger.info(f"Usando reasoning_content ({len(content)} chars)")
+                    else:
+                        # Intentar model_dump como último recurso
+                        try:
+                            msg_dict = message.model_dump() if hasattr(message, 'model_dump') else {}
+                            content = msg_dict.get('content', '') or msg_dict.get('reasoning_content', '')
+                        except Exception:
+                            pass
+
+                if not content:
+                    logger.warning(f"Respuesta vacía del modelo {model}")
+                    return None
+
+                logger.debug(f"Respuesta recibida ({len(content)} chars)")
+                result = self._parse_ai_response(content)
+
+                if result:
+                    result['agent_type'] = agent_type
+                    result['analysis_type'] = 'specialized_agent'
+
+                return result
+
+        except Exception as e:
+            logger.error(f"Error en agente {agent_type}: {e}")
+            return None
+
+    def analyze_market_v2(
+        self,
+        market_data: Dict[str, Any],
+        advanced_data: Optional[Dict[str, Any]] = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Análisis de mercado v2 con agentes especializados y filtros avanzados.
+
+        Flujo:
+        1. Pre-filtro de volatilidad (rechaza baja volatilidad)
+        2. Detección de régimen de mercado
+        3. Agente especializado según régimen
+        4. Validación con arquitectura híbrida si está habilitada
+
+        Args:
+            market_data: Datos técnicos del mercado
+            advanced_data: Datos avanzados opcionales
+
+        Returns:
+            Decisión final del análisis
+        """
+        symbol = market_data.get('symbol', 'N/A')
+        logger.info(f"=== ANÁLISIS v2 CON AGENTES ESPECIALIZADOS: {symbol} ===")
+
+        # Pre-filtro de volatilidad
+        atr_percent = market_data.get('atr_percent', 0)
+        if atr_percent < self.min_volatility_percent:
+            logger.info(f"⏸️ ATR {atr_percent:.2f}% < mínimo {self.min_volatility_percent}% - SIN MOVIMIENTO EXPLOSIVO")
+            return {
+                "decision": "ESPERA",
+                "confidence": 0.1,
+                "razonamiento": f"Volatilidad muy baja (ATR: {atr_percent:.2f}%). Esperando movimientos explosivos.",
+                "analysis_type": "volatility_pre_filter"
+            }
+
+        # Análisis con agentes especializados
+        if self.use_specialized_agents:
+            result = self.analyze_with_specialized_agent(market_data, advanced_data)
+            if result:
+                return result
+
+        # Fallback a análisis híbrido tradicional
+        if self.use_hybrid:
+            return self.analyze_market_hybrid(market_data)
+
+        # Fallback a análisis simple
+        return self.analyze_market(market_data)
 
 
 if __name__ == "__main__":

@@ -24,6 +24,22 @@ ai_model_fast: "deepseek-chat"
 # Solo se ejecuta cuando el filtro detecta oportunidad
 ai_model_deep: "deepseek-reasoner"
 
+# ===== AGENTES ESPECIALIZADOS (v1.2) =====
+# Sistema de agentes que selecciona estrategia según régimen de mercado
+ai_agents:
+  enabled: true
+
+  # Volatilidad mínima para operar (ATR como % del precio)
+  # Si ATR < este valor, el bot NO opera (mercado "muerto")
+  min_volatility_percent: 0.5
+
+  # Ratio mínimo de volumen vs promedio para confirmar señales
+  min_volume_ratio: 0.8
+
+  # Agentes disponibles:
+  # - trend_agent: Opera continuación de tendencia en retrocesos
+  # - reversal_agent: Opera reversiones en RSI extremo con divergencias
+
 # ===== SELECCIÓN DE MERCADO =====
 # Opciones: "crypto", "forex_stocks"
 market_type: "crypto"
@@ -76,6 +92,24 @@ trading:
     limit_order_timeout: 30
     # Si la orden limit no se llena, ¿cancelar o convertir a market?
     on_timeout: "cancel"  # "cancel" o "market"
+
+  # ===== DATOS AVANZADOS DE MERCADO (v1.2) =====
+  # Datos adicionales que mejoran la calidad de las decisiones
+  advanced_data:
+    enabled: true
+
+    # Order Book: Detecta muros de compra/venta y presión del mercado
+    order_book: true
+
+    # Funding Rate: Sentimiento del mercado de futuros (solo perpetuos)
+    # Funding extremo puede indicar reversión inminente
+    funding_rate: true
+
+    # Open Interest: Dinero nuevo entrando/saliendo del mercado
+    open_interest: true
+
+    # Correlaciones: Relación con BTC y mercados tradicionales
+    correlations: true
 
 # ===== GESTIÓN DE RIESGO =====
 risk_management:

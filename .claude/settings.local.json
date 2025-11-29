@@ -8,7 +8,9 @@
       "Bash([ -d venv ])",
       "Bash(source venv/bin/activate)",
       "Bash(python:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(timeout 120 python:*)",
+      "Bash(pkill:*)"
     ],
     "deny": [],
     "ask": []

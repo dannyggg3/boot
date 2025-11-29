@@ -67,10 +67,18 @@ class TradingBot:
             self.parallel_analysis = trading_config.get('parallel_analysis', True)
             self.max_workers = trading_config.get('max_parallel_workers', 4)
 
+            # Configuración de datos avanzados (v1.2)
+            advanced_data_config = trading_config.get('advanced_data', {})
+            self.use_advanced_data = advanced_data_config.get('enabled', True)
+            self.use_order_book = advanced_data_config.get('order_book', True)
+            self.use_funding_rate = advanced_data_config.get('funding_rate', True)
+            self.use_correlations = advanced_data_config.get('correlations', True)
+
             logger.info(f"Modo de operación: {self.mode.upper()}")
             logger.info(f"Símbolos a operar: {', '.join(self.symbols)}")
             logger.info(f"Intervalo de escaneo: {self.scan_interval}s")
             logger.info(f"Análisis paralelo: {'HABILITADO' if self.parallel_analysis else 'SECUENCIAL'}")
+            logger.info(f"Datos avanzados: {'HABILITADO' if self.use_advanced_data else 'DESHABILITADO'}")
             logger.info("=" * 60)
 
             # Configurar manejadores de señales para apagado limpio
@@ -241,8 +249,32 @@ class TradingBot:
         technical_data['symbol'] = symbol
         technical_data['market_type'] = self.market_engine.market_type
 
-        # 3. Consultar a la IA (Híbrido o Simple)
-        if self.ai_engine.use_hybrid:
+        # 2.5 Obtener datos avanzados (Order Book, Funding Rate, etc.)
+        advanced_data = None
+        if self.use_advanced_data:
+            advanced_data = self.market_engine.get_advanced_market_data(symbol)
+
+            # Log de datos avanzados relevantes
+            if advanced_data:
+                if 'order_book' in advanced_data:
+                    ob = advanced_data['order_book']
+                    logger.info(f"📊 Order Book: Imbalance {ob['imbalance']}% ({ob['pressure']})")
+
+                if 'funding_rate' in advanced_data:
+                    logger.info(f"💰 Funding Rate: {advanced_data['funding_rate']}%")
+                    if advanced_data.get('funding_warning'):
+                        logger.warning(f"⚠️ {advanced_data['funding_warning']}")
+
+                if 'correlations' in advanced_data:
+                    corr = advanced_data['correlations']
+                    if 'btc' in corr:
+                        logger.info(f"🔗 Correlación BTC: {corr['btc']}")
+
+        # 3. Consultar a la IA (Agentes Especializados v1.2 o Híbrido o Simple)
+        if self.ai_engine.use_specialized_agents:
+            logger.info("Usando AGENTES ESPECIALIZADOS v1.2")
+            ai_decision = self.ai_engine.analyze_market_v2(technical_data, advanced_data)
+        elif self.ai_engine.use_hybrid:
             logger.info("Usando análisis HÍBRIDO (2 niveles)")
             ai_decision = self.ai_engine.analyze_market_hybrid(technical_data)
         else:

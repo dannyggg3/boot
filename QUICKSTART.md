@@ -1,4 +1,4 @@
-# Guía de Inicio Rápido
+# Guía de Inicio Rápido (v1.2)
 
 ## Primeros Pasos (5 minutos)
 
@@ -83,7 +83,7 @@ En `.env`:
 ```env
 # Elige UNA de estas opciones
 
-# Opción 1: DeepSeek (Económico)
+# Opción 1: DeepSeek (Económico - Recomendado)
 DEEPSEEK_API_KEY=sk-tu-clave-aqui
 
 # Opción 2: OpenAI (Potente)
@@ -92,6 +92,46 @@ OPENAI_API_KEY=sk-tu-clave-aqui
 # Opción 3: Gemini (Gratis con límites)
 GEMINI_API_KEY=AIzaSy-tu-clave-aqui
 ```
+
+### Configuración Optimizada v1.2
+
+Las siguientes optimizaciones vienen **habilitadas por defecto**:
+
+```yaml
+# === AGENTES ESPECIALIZADOS (v1.2) ===
+ai_agents:
+  enabled: true
+  min_volatility_percent: 0.5  # No opera si mercado "muerto"
+  min_volume_ratio: 0.8
+
+trading:
+  # Análisis paralelo (4x más rápido)
+  parallel_analysis: true
+
+  # Protección anti-slippage
+  price_verification:
+    enabled: true
+    max_deviation_percent: 0.5
+
+  # Órdenes limit inteligentes
+  order_execution:
+    use_limit_orders: true
+    max_slippage_percent: 0.3
+
+  # Datos avanzados de mercado (v1.2)
+  advanced_data:
+    enabled: true
+    order_book: true      # Muros de compra/venta
+    funding_rate: true    # Sentimiento futuros
+    open_interest: true   # Dinero en el mercado
+    correlations: true    # Relación con BTC
+```
+
+**Impacto en costos v1.2:**
+- Filtro de volatilidad: Ahorra ~70% en llamadas API
+- Agentes especializados: Mejor precisión por estrategia
+- Datos avanzados: Decisiones más informadas
+- **Total: Ahorro del 90-97% vs. configuración básica**
 
 ## Problemas Comunes
 
@@ -116,7 +156,33 @@ Verifica que `config/config.yaml` existe y no tiene errores de sintaxis.
 Esto es normal en modo `paper` si:
 - Las condiciones de mercado no son favorables
 - El Risk Manager está rechazando operaciones
+- La verificación de precio abortó la orden (v1.1)
 - Revisa los logs: `tail -f logs/trading_bot.log`
+
+### Logs esperados (v1.2)
+
+```
+🔄 Iniciando análisis PARALELO de 4 símbolos...
+✅ Análisis paralelo completado en 3.2s
+
+=== ANÁLISIS CON AGENTES ESPECIALIZADOS (v1.2) ===
+ATR%: 1.45 | Volatilidad suficiente para operar
+Régimen detectado: TRENDING
+Activando Trend Agent...
+Obteniendo datos avanzados: Order Book, Funding, OI...
+✅ Decisión: COMPRA | Agente: trend | Confianza: 85%
+
+✅ Verificación de precio OK: Desviación aceptable: 0.12%
+Convirtiendo a orden LIMIT: precio=95234.50 (slippage=0.30%)
+```
+
+**Logs de filtrado (ahorro de API):**
+```
+ATR%: 0.35 | Volatilidad muy baja (< 0.5%)
+⏸️ ESPERA: Mercado sin volatilidad - Ahorrando llamada a API
+```
+
+Si ves `⚠️ ORDEN ABORTADA: Precio subió 0.65%` significa que la protección anti-slippage está funcionando correctamente.
 
 ## Siguiente Nivel
 

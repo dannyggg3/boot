@@ -626,6 +626,306 @@ class MarketEngine:
         }
         return mapping.get(timeframe, '1 hour')
 
+    # ========================================================================
+    # DATOS AVANZADOS DE MERCADO (v1.2)
+    # ========================================================================
+
+    def get_order_book(
+        self,
+        symbol: str,
+        limit: int = 20
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Obtiene el order book (libro de órdenes) del mercado.
+        Detecta muros de compra/venta y desequilibrio.
+
+        Args:
+            symbol: Símbolo del activo
+            limit: Profundidad del order book
+
+        Returns:
+            Diccionario con análisis del order book
+        """
+        try:
+            if self.market_type != 'crypto':
+                return None
+
+            orderbook = self.connection.fetch_order_book(symbol, limit=limit)
+
+            bids = orderbook.get('bids', [])  # Órdenes de compra
+            asks = orderbook.get('asks', [])  # Órdenes de venta
+
+            if not bids or not asks:
+                return None
+
+            # Calcular volumen total de cada lado
+            bid_volume = sum([bid[1] for bid in bids])
+            ask_volume = sum([ask[1] for ask in asks])
+
+            # Detectar muros (órdenes grandes)
+            avg_bid_size = bid_volume / len(bids) if bids else 0
+            avg_ask_size = ask_volume / len(asks) if asks else 0
+
+            # Muro = orden 3x más grande que el promedio
+            bid_walls = [bid for bid in bids if bid[1] > avg_bid_size * 3]
+            ask_walls = [ask for ask in asks if ask[1] > avg_ask_size * 3]
+
+            # Imbalance: ratio entre bid y ask volume
+            total_volume = bid_volume + ask_volume
+            imbalance = ((bid_volume - ask_volume) / total_volume) * 100 if total_volume > 0 else 0
+
+            # Spread
+            best_bid = bids[0][0] if bids else 0
+            best_ask = asks[0][0] if asks else 0
+            spread = ((best_ask - best_bid) / best_bid) * 100 if best_bid > 0 else 0
+
+            result = {
+                'bid_volume': round(bid_volume, 4),
+                'ask_volume': round(ask_volume, 4),
+                'imbalance': round(imbalance, 2),  # Positivo = más compradores
+                'spread_percent': round(spread, 4),
+                'bid_wall': bid_walls[0] if bid_walls else None,  # [precio, cantidad]
+                'ask_wall': ask_walls[0] if ask_walls else None,
+                'bid_wall_count': len(bid_walls),
+                'ask_wall_count': len(ask_walls),
+                'pressure': 'bullish' if imbalance > 10 else ('bearish' if imbalance < -10 else 'neutral')
+            }
+
+            logger.debug(f"Order Book {symbol}: Imbalance {imbalance:.1f}%, Spread {spread:.4f}%")
+            return result
+
+        except Exception as e:
+            logger.error(f"Error obteniendo order book de {symbol}: {e}")
+            return None
+
+    def get_funding_rate(self, symbol: str) -> Optional[Dict[str, Any]]:
+        """
+        Obtiene el funding rate para contratos perpetuos.
+        Solo disponible en mercados de futuros.
+
+        Args:
+            symbol: Símbolo del activo (ej: 'BTC/USDT')
+
+        Returns:
+            Diccionario con funding rate y análisis
+        """
+        try:
+            if self.market_type != 'crypto':
+                return None
+
+            # Convertir a símbolo de futuros perpetuos si es necesario
+            perp_symbol = symbol
+            if not symbol.endswith(':USDT'):
+                perp_symbol = symbol.replace('/USDT', '/USDT:USDT')
+
+            # Intentar obtener funding rate
+            try:
+                funding = self.connection.fetch_funding_rate(perp_symbol)
+
+                if funding:
+                    rate = funding.get('fundingRate', 0) * 100  # Convertir a porcentaje
+
+                    # Interpretar el funding rate
+                    # Positivo = longs pagan a shorts (mercado alcista)
+                    # Negativo = shorts pagan a longs (mercado bajista)
+                    # Extremo (>0.1% o <-0.1%) = posible reversión
+                    if rate > 0.1:
+                        sentiment = 'extremely_bullish'
+                        warning = 'Posible tope - demasiados longs'
+                    elif rate > 0.03:
+                        sentiment = 'bullish'
+                        warning = None
+                    elif rate < -0.1:
+                        sentiment = 'extremely_bearish'
+                        warning = 'Posible suelo - demasiados shorts'
+                    elif rate < -0.03:
+                        sentiment = 'bearish'
+                        warning = None
+                    else:
+                        sentiment = 'neutral'
+                        warning = None
+
+                    return {
+                        'funding_rate': round(rate, 4),
+                        'sentiment': sentiment,
+                        'warning': warning,
+                        'next_funding_time': funding.get('fundingTimestamp')
+                    }
+
+            except Exception:
+                # Exchange no soporta funding rate o símbolo no es perpetuo
+                pass
+
+            return None
+
+        except Exception as e:
+            logger.debug(f"Funding rate no disponible para {symbol}: {e}")
+            return None
+
+    def get_open_interest(self, symbol: str) -> Optional[Dict[str, Any]]:
+        """
+        Obtiene el Open Interest (interés abierto) del mercado de futuros.
+        Indica cuánto dinero nuevo está entrando al mercado.
+
+        Args:
+            symbol: Símbolo del activo
+
+        Returns:
+            Diccionario con open interest y cambio
+        """
+        try:
+            if self.market_type != 'crypto':
+                return None
+
+            # Convertir a símbolo de futuros
+            perp_symbol = symbol
+            if not symbol.endswith(':USDT'):
+                perp_symbol = symbol.replace('/USDT', '/USDT:USDT')
+
+            try:
+                # Intentar obtener open interest
+                oi_data = self.connection.fetch_open_interest(perp_symbol)
+
+                if oi_data:
+                    oi_value = oi_data.get('openInterestAmount', 0)
+
+                    # Obtener datos históricos para calcular cambio
+                    oi_history = self.connection.fetch_open_interest_history(
+                        perp_symbol,
+                        timeframe='1h',
+                        limit=24
+                    )
+
+                    change_24h = 0
+                    if oi_history and len(oi_history) > 1:
+                        oi_24h_ago = oi_history[0].get('openInterestAmount', oi_value)
+                        if oi_24h_ago > 0:
+                            change_24h = ((oi_value - oi_24h_ago) / oi_24h_ago) * 100
+
+                    # Interpretar
+                    # OI subiendo + precio subiendo = tendencia fuerte alcista
+                    # OI subiendo + precio bajando = tendencia fuerte bajista
+                    # OI bajando = posiciones cerrándose, posible reversión
+
+                    return {
+                        'value': oi_value,
+                        'change_24h': round(change_24h, 2),
+                        'trend': 'increasing' if change_24h > 5 else ('decreasing' if change_24h < -5 else 'stable')
+                    }
+
+            except Exception:
+                # Exchange no soporta open interest
+                pass
+
+            return None
+
+        except Exception as e:
+            logger.debug(f"Open interest no disponible para {symbol}: {e}")
+            return None
+
+    def get_market_correlation(self, symbol: str) -> Optional[Dict[str, Any]]:
+        """
+        Calcula correlación con BTC y mercados tradicionales.
+        Útil para filtrar operaciones cuando hay divergencia con mercado general.
+
+        Args:
+            symbol: Símbolo del activo
+
+        Returns:
+            Diccionario con correlaciones
+        """
+        try:
+            correlations = {}
+
+            # 1. Correlación con BTC (si no es BTC)
+            if 'BTC' not in symbol and self.market_type == 'crypto':
+                try:
+                    # Obtener datos de ambos activos
+                    symbol_data = self.connection.fetch_ohlcv(symbol, timeframe='1h', limit=24)
+                    btc_data = self.connection.fetch_ohlcv('BTC/USDT', timeframe='1h', limit=24)
+
+                    if symbol_data and btc_data and len(symbol_data) == len(btc_data):
+                        # Calcular retornos
+                        symbol_returns = [(symbol_data[i][4] - symbol_data[i-1][4]) / symbol_data[i-1][4]
+                                         for i in range(1, len(symbol_data))]
+                        btc_returns = [(btc_data[i][4] - btc_data[i-1][4]) / btc_data[i-1][4]
+                                      for i in range(1, len(btc_data))]
+
+                        # Correlación simple
+                        if len(symbol_returns) > 0 and len(btc_returns) > 0:
+                            import numpy as np
+                            correlation = np.corrcoef(symbol_returns, btc_returns)[0, 1]
+                            correlations['btc'] = round(correlation, 2)
+
+                except Exception as e:
+                    logger.debug(f"Error calculando correlación BTC: {e}")
+
+            # 2. Obtener datos del S&P500 si IB está disponible
+            # (Solo si tienes configurado Interactive Brokers)
+            if hasattr(self, 'ib_connection') and self.ib_connection:
+                try:
+                    # Placeholder - requiere conexión IB activa
+                    correlations['sp500'] = None
+                except Exception:
+                    pass
+
+            if correlations:
+                return correlations
+
+            return None
+
+        except Exception as e:
+            logger.debug(f"Error calculando correlaciones: {e}")
+            return None
+
+    def get_advanced_market_data(self, symbol: str) -> Dict[str, Any]:
+        """
+        Obtiene todos los datos avanzados del mercado en una sola llamada.
+
+        Args:
+            symbol: Símbolo del activo
+
+        Returns:
+            Diccionario con todos los datos avanzados disponibles
+        """
+        logger.info(f"📊 Obteniendo datos avanzados para {symbol}...")
+
+        advanced_data = {}
+
+        # Order Book
+        order_book = self.get_order_book(symbol)
+        if order_book:
+            advanced_data['order_book'] = order_book
+            logger.debug(f"Order Book: Imbalance {order_book['imbalance']}%")
+
+        # Funding Rate (solo futuros)
+        funding = self.get_funding_rate(symbol)
+        if funding:
+            advanced_data['funding_rate'] = funding['funding_rate']
+            advanced_data['funding_sentiment'] = funding['sentiment']
+            if funding.get('warning'):
+                advanced_data['funding_warning'] = funding['warning']
+            logger.debug(f"Funding Rate: {funding['funding_rate']}%")
+
+        # Open Interest (solo futuros)
+        oi = self.get_open_interest(symbol)
+        if oi:
+            advanced_data['open_interest'] = oi
+            logger.debug(f"Open Interest: {oi['change_24h']}% change")
+
+        # Correlaciones
+        correlations = self.get_market_correlation(symbol)
+        if correlations:
+            advanced_data['correlations'] = correlations
+            logger.debug(f"Correlaciones: {correlations}")
+
+        if advanced_data:
+            logger.info(f"✅ Datos avanzados obtenidos: {list(advanced_data.keys())}")
+        else:
+            logger.debug("No hay datos avanzados disponibles para este símbolo")
+
+        return advanced_data
+
     def close_connection(self):
         """Cierra la conexión con el mercado."""
         try:

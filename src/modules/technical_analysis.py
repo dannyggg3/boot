@@ -282,7 +282,8 @@ class TechnicalAnalyzer:
 
         return {
             'atr': round(current_atr, 2),
-            'atr_percentage': round(atr_percentage, 2),
+            'atr_percent': round(atr_percentage, 2),  # Usado por agentes especializados
+            'atr_percentage': round(atr_percentage, 2),  # Compatibilidad
             'volatility_level': volatility_level
         }
 
