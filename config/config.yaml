@@ -1,0 +1,156 @@
+# ============================================
+# CONFIGURACIÓN DEL SISTEMA DE TRADING AUTÓNOMO
+# ============================================
+
+# ===== SELECCIÓN DE PROVEEDOR DE IA =====
+# Opciones: "deepseek", "openai", "gemini"
+ai_provider: "deepseek"
+
+# Modelos disponibles según proveedor:
+# - DeepSeek: "deepseek-chat" (V3 - Rápido), "deepseek-reasoner" (R1 - Razonamiento profundo)
+# - OpenAI: "gpt-4o-mini" (Rápido), "gpt-4o" (Potente), "o1-mini" (Razonamiento)
+# - Gemini: "gemini-1.5-pro", "gemini-1.5-flash"
+ai_model: "deepseek-chat"
+
+# ===== ARQUITECTURA HÍBRIDA (RECOMENDADO PARA REDUCIR COSTOS) =====
+# Usa dos modelos: uno rápido para filtrado, uno profundo para decisión final
+ai_use_hybrid_analysis: true  # true = modo híbrido (ahorra costos), false = modelo único
+
+# Modelo para filtrado rápido (DeepSeek-V3, gpt-4o-mini)
+# Se ejecuta cada ciclo para detectar oportunidades
+ai_model_fast: "deepseek-chat"
+
+# Modelo para razonamiento profundo (DeepSeek-R1, o1-mini)
+# Solo se ejecuta cuando el filtro detecta oportunidad
+ai_model_deep: "deepseek-reasoner"
+
+# ===== SELECCIÓN DE MERCADO =====
+# Opciones: "crypto", "forex_stocks"
+market_type: "crypto"
+
+# ===== CONFIGURACIÓN DE TRADING =====
+trading:
+  # Activos a operar (lista de símbolos)
+  symbols:
+    - "BTC/USDT"
+    - "ETH/USDT"
+
+  # Timeframe para análisis (1m, 5m, 15m, 1h, 4h, 1d)
+  timeframe: "1h"
+
+  # Intervalo de escaneo en segundos
+  scan_interval: 300  # 5 minutos (testing)
+
+  # Modo de operación: "live", "paper", "backtest"
+  mode: "paper"
+
+# ===== GESTIÓN DE RIESGO =====
+risk_management:
+  # Riesgo máximo por operación (% del capital total)
+  max_risk_per_trade: 2.0
+
+  # Drawdown máximo diario permitido (%)
+  max_daily_drawdown: 5.0
+
+  # Ratio mínimo riesgo/beneficio
+  min_risk_reward_ratio: 1.5
+
+  # Stop loss dinámico (trailing stop)
+  use_trailing_stop: true
+  trailing_stop_percentage: 3.0
+
+  # Capital inicial para paper trading
+  initial_capital: 10000
+
+  # Apalancamiento (solo para algunos exchanges)
+  leverage: 1
+
+# ===== ANÁLISIS TÉCNICO =====
+technical_analysis:
+  # Indicadores a utilizar
+  indicators:
+    rsi:
+      enabled: true
+      period: 14
+      overbought: 70
+      oversold: 30
+
+    ema:
+      enabled: true
+      short_period: 50
+      long_period: 200
+
+    bollinger_bands:
+      enabled: true
+      period: 20
+      std_dev: 2
+
+    atr:
+      enabled: true
+      period: 14
+
+    macd:
+      enabled: true
+      fast_period: 12
+      slow_period: 26
+      signal_period: 9
+
+# ===== CONFIGURACIÓN DE EXCHANGES =====
+exchanges:
+  binance:
+    enabled: true
+    testnet: false
+    # Las credenciales se cargan desde .env
+
+  bybit:
+    enabled: false
+    testnet: false
+
+# ===== CONFIGURACIÓN DE INTERACTIVE BROKERS =====
+# (Para trading de acciones y forex)
+interactive_brokers:
+  enabled: false
+  host: "127.0.0.1"
+  port: 7497  # 7497 para TWS paper, 7496 para TWS live
+  client_id: 1
+
+# ===== SISTEMA DE NOTIFICACIONES =====
+notifications:
+  telegram:
+    enabled: false
+    # El token y chat_id se cargan desde .env
+
+  email:
+    enabled: false
+    # Las credenciales se cargan desde .env
+
+# ===== LOGGING Y MONITOREO =====
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  file: "logs/trading_bot.log"
+  max_file_size_mb: 10
+  backup_count: 5
+
+  # Heartbeat - verificación de que el bot está vivo
+  heartbeat_interval: 60  # segundos
+
+# ===== SEGURIDAD =====
+security:
+  # Kill switch - apaga el bot si se cumple
+  kill_switch:
+    enabled: true
+    max_loss_percentage: 5.0  # % del capital total
+    cooldown_period_hours: 24
+
+  # API rate limiting
+  api_rate_limit:
+    requests_per_minute: 60
+    wait_on_limit: true
+
+# ===== BACKTESTING =====
+backtesting:
+  start_date: "2024-01-01"
+  end_date: "2024-12-31"
+  initial_capital: 10000
+  commission: 0.001  # 0.1%
+  slippage: 0.0005   # 0.05%
