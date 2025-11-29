@@ -132,6 +132,18 @@ risk_management:
   # Apalancamiento (solo para algunos exchanges)
   leverage: 1
 
+  # ===== KELLY CRITERION (v1.3) =====
+  # Posicionamiento dinámico basado en confianza de la señal
+  kelly_criterion:
+    enabled: true
+    # Fracción de Kelly a usar (0.25 = 1/4 Kelly, conservador)
+    # Valores típicos: 0.25 (conservador), 0.5 (moderado), 1.0 (agresivo)
+    fraction: 0.25
+    # Confianza mínima para operar (0-1)
+    min_confidence: 0.5
+    # Riesgo máximo permitido incluso con alta confianza
+    max_risk_cap: 3.0
+
 # ===== ANÁLISIS TÉCNICO =====
 technical_analysis:
   # Indicadores a utilizar
@@ -190,6 +202,24 @@ notifications:
   email:
     enabled: false
     # Las credenciales se cargan desde .env
+
+# ===== DATA LOGGING CON INFLUXDB (v1.3) =====
+# Almacenamiento de decisiones para análisis y aprendizaje
+data_logging:
+  enabled: true
+  # Las credenciales se cargan desde .env:
+  # INFLUXDB_URL, INFLUXDB_TOKEN, INFLUXDB_ORG, INFLUXDB_BUCKET
+
+# ===== WEBSOCKETS (v1.3) =====
+# Datos en tiempo real con menor latencia que HTTP polling
+websockets:
+  enabled: false  # Cambiar a true para usar WebSockets en lugar de REST
+  # Streams a suscribir (solo activos si enabled: true)
+  orderbook: true
+  ticker: true
+  trades: true
+  # Profundidad del order book (5, 10, 20)
+  orderbook_depth: 10
 
 # ===== LOGGING Y MONITOREO =====
 logging:

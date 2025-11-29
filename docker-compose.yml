@@ -1,0 +1,89 @@
+version: '3.8'
+
+# ============================================
+# SATH - Sistema Autónomo de Trading Híbrido
+# Docker Compose para Despliegue en Producción
+# ============================================
+
+services:
+  # ===== Base de Datos InfluxDB =====
+  influxdb:
+    image: influxdb:2.7
+    container_name: sath_influxdb
+    restart: unless-stopped
+    ports:
+      - "8086:8086"
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+      - influxdb_config:/etc/influxdb2
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=admin
+      - DOCKER_INFLUXDB_INIT_PASSWORD=${INFLUXDB_PASSWORD:-sath_secure_password_2024}
+      - DOCKER_INFLUXDB_INIT_ORG=trading_bot
+      - DOCKER_INFLUXDB_INIT_BUCKET=trading_decisions
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${INFLUXDB_TOKEN:-sath_token_change_in_production}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8086/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ===== Bot de Trading SATH =====
+  trading_bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sath_bot
+    restart: unless-stopped
+    depends_on:
+      influxdb:
+        condition: service_healthy
+    volumes:
+      - ./config:/app/config:ro
+      - ./logs:/app/logs
+      - ./data:/app/data
+      - ./.env:/app/.env:ro
+    environment:
+      - INFLUXDB_URL=http://influxdb:8086
+      - INFLUXDB_TOKEN=${INFLUXDB_TOKEN:-sath_token_change_in_production}
+      - INFLUXDB_ORG=trading_bot
+      - INFLUXDB_BUCKET=trading_decisions
+      - TZ=UTC
+    networks:
+      - sath_network
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # ===== Grafana para Visualización (Opcional) =====
+  grafana:
+    image: grafana/grafana:latest
+    container_name: sath_grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-sath_grafana_2024}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    depends_on:
+      - influxdb
+    networks:
+      - sath_network
+    profiles:
+      - monitoring
+
+networks:
+  sath_network:
+    driver: bridge
+
+volumes:
+  influxdb_data:
+  influxdb_config:
+  grafana_data:

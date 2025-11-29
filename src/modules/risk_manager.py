@@ -10,7 +10,7 @@ Versión: 1.0
 
 import logging
 from typing import Dict, Any, Optional
-from datetime import datetime, timedelta
+from datetime import datetime
 import json
 import os
 
@@ -39,6 +39,19 @@ class RiskManager:
         self.use_trailing_stop = self.config.get('use_trailing_stop', True)
         self.trailing_stop_percentage = self.config.get('trailing_stop_percentage', 3.0)
         self.initial_capital = self.config.get('initial_capital', 10000)
+
+        # Kelly Criterion para sizing dinámico
+        self.use_kelly_criterion = self.config.get('use_kelly_criterion', True)
+        self.kelly_fraction = self.config.get('kelly_fraction', 0.25)  # Fracción de Kelly (conservador)
+        self.min_confidence_to_trade = self.config.get('min_confidence_to_trade', 0.5)
+
+        # Historial para cálculo de Kelly
+        self.trade_history = {
+            'wins': 0,
+            'losses': 0,
+            'total_win_amount': 0.0,
+            'total_loss_amount': 0.0
+        }
 
         # Estado del sistema
         self.current_capital = self.initial_capital
@@ -457,8 +470,175 @@ class RiskManager:
             'kill_switch_active': self.kill_switch_active,
             'open_trades_count': len(self.open_trades),
             'risk_per_trade': self.max_risk_per_trade,
-            'max_daily_drawdown': self.max_daily_drawdown
+            'max_daily_drawdown': self.max_daily_drawdown,
+            'kelly_criterion': self.use_kelly_criterion,
+            'win_rate': self._get_win_rate()
         }
+
+    # ==================== KELLY CRITERION ====================
+
+    def calculate_kelly_position_size(
+        self,
+        confidence: float,
+        current_price: float,
+        stop_loss: Optional[float] = None,
+        expected_rr: float = 2.0
+    ) -> float:
+        """
+        Calcula el tamaño de posición usando Kelly Criterion ajustado por confianza.
+
+        Kelly Formula: f* = (bp - q) / b
+        Donde:
+            f* = fracción óptima del capital a apostar
+            b = ratio ganancia/pérdida (odds)
+            p = probabilidad de ganar
+            q = probabilidad de perder (1-p)
+
+        Args:
+            confidence: Confianza de la IA (0-1), usado como proxy de probabilidad
+            current_price: Precio actual
+            stop_loss: Precio de stop loss
+            expected_rr: Ratio riesgo/recompensa esperado
+
+        Returns:
+            Tamaño de posición óptimo
+        """
+        # Usar confianza como probabilidad de éxito
+        win_probability = self._adjust_confidence_to_probability(confidence)
+
+        # Si no cumple el mínimo de confianza, no operar
+        if win_probability < self.min_confidence_to_trade:
+            logger.info(f"Confianza {confidence:.2f} menor al mínimo {self.min_confidence_to_trade}")
+            return 0.0
+
+        # Calcular Kelly
+        b = expected_rr  # Ratio ganancia/pérdida
+        p = win_probability
+        q = 1 - p
+
+        # Fórmula de Kelly
+        kelly_fraction_raw = (b * p - q) / b
+
+        # Si Kelly es negativo, no apostar
+        if kelly_fraction_raw <= 0:
+            logger.info(f"Kelly negativo ({kelly_fraction_raw:.4f}) - No operar")
+            return 0.0
+
+        # Aplicar fracción de Kelly (conservador - típicamente 1/4 o 1/2)
+        kelly_adjusted = kelly_fraction_raw * self.kelly_fraction
+
+        # Limitar al máximo permitido
+        kelly_capped = min(kelly_adjusted, self.max_risk_per_trade / 100)
+
+        # Calcular tamaño de posición
+        capital_to_risk = self.current_capital * kelly_capped
+
+        if stop_loss and stop_loss != current_price:
+            risk_per_unit = abs(current_price - stop_loss)
+            position_size = capital_to_risk / risk_per_unit
+        else:
+            position_size = capital_to_risk / current_price
+
+        logger.info(
+            f"Kelly Sizing: confianza={confidence:.2f}, win_prob={win_probability:.2f}, "
+            f"kelly_raw={kelly_fraction_raw:.4f}, kelly_adj={kelly_adjusted:.4f}, "
+            f"position_size={position_size:.8f}"
+        )
+
+        return position_size
+
+    def _adjust_confidence_to_probability(self, confidence: float) -> float:
+        """
+        Ajusta la confianza de la IA a una probabilidad realista.
+
+        La confianza de la IA tiende a ser optimista, así que la ajustamos
+        basándonos en el historial real de operaciones.
+
+        Args:
+            confidence: Confianza reportada por la IA (0-1)
+
+        Returns:
+            Probabilidad ajustada
+        """
+        # Obtener win rate histórico
+        historical_win_rate = self._get_win_rate()
+
+        # Si no hay suficiente historial, ser conservador
+        total_trades = self.trade_history['wins'] + self.trade_history['losses']
+        if total_trades < 20:
+            # Blend con probabilidad base del 50%
+            base_probability = 0.50
+            weight = min(total_trades / 20, 1.0)
+            historical_win_rate = base_probability * (1 - weight) + historical_win_rate * weight
+
+        # Ajustar confianza usando historial
+        # Fórmula: adjusted = confidence * historical_factor
+        # Si historial es mejor que 50%, aumenta la confianza efectiva
+        historical_factor = historical_win_rate / 0.50  # Normalizado a 50%
+        historical_factor = max(0.5, min(historical_factor, 1.5))  # Limitar entre 0.5 y 1.5
+
+        adjusted_probability = confidence * historical_factor
+
+        # Limitar entre 0.1 y 0.9 (nunca 0% o 100%)
+        return max(0.1, min(adjusted_probability, 0.9))
+
+    def _get_win_rate(self) -> float:
+        """Calcula el win rate histórico."""
+        total = self.trade_history['wins'] + self.trade_history['losses']
+        if total == 0:
+            return 0.50  # Sin historial, asumir 50%
+        return self.trade_history['wins'] / total
+
+    def get_dynamic_risk_percentage(self, confidence: float) -> float:
+        """
+        Obtiene el porcentaje de riesgo dinámico basado en confianza.
+        Método simplificado para integración con el sistema existente.
+
+        Args:
+            confidence: Confianza de la IA (0-1)
+
+        Returns:
+            Porcentaje de riesgo recomendado
+        """
+        if not self.use_kelly_criterion:
+            return self.max_risk_per_trade
+
+        # Mapeo de confianza a riesgo
+        if confidence >= 0.85:
+            risk = min(self.max_risk_per_trade * 1.25, 3.0)  # Hasta 3%
+        elif confidence >= 0.70:
+            risk = self.max_risk_per_trade  # Normal (2%)
+        elif confidence >= 0.55:
+            risk = self.max_risk_per_trade * 0.75  # Reducido (1.5%)
+        elif confidence >= 0.40:
+            risk = self.max_risk_per_trade * 0.5  # Mínimo (1%)
+        else:
+            risk = 0  # No operar
+
+        logger.debug(f"Riesgo dinámico: confianza={confidence:.2f} -> riesgo={risk:.2f}%")
+        return risk
+
+    def update_trade_history(self, is_win: bool, amount: float):
+        """
+        Actualiza el historial de trades para cálculos de Kelly.
+
+        Args:
+            is_win: True si el trade fue ganador
+            amount: Monto absoluto ganado/perdido
+        """
+        if is_win:
+            self.trade_history['wins'] += 1
+            self.trade_history['total_win_amount'] += abs(amount)
+        else:
+            self.trade_history['losses'] += 1
+            self.trade_history['total_loss_amount'] += abs(amount)
+
+        logger.info(
+            f"Historial actualizado: {self.trade_history['wins']}W / "
+            f"{self.trade_history['losses']}L = {self._get_win_rate()*100:.1f}%"
+        )
+
+        self._save_state()
 
 
 if __name__ == "__main__":
