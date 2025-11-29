@@ -519,7 +519,18 @@ class TradingBot:
 
 def main():
     """Función principal."""
-    print("""
+    # Determinar archivo de configuración
+    config_path = os.environ.get('SATH_CONFIG', 'config/config.yaml')
+
+    # Determinar modo de operación para el banner
+    try:
+        with open(config_path, 'r') as f:
+            temp_config = yaml.safe_load(f)
+            mode = temp_config.get('trading', {}).get('mode', 'paper').upper()
+    except:
+        mode = 'PAPER'
+
+    print(f"""
     ╔═══════════════════════════════════════════════════════════════╗
     ║                                                               ║
     ║     Sistema Autónomo de Trading Híbrido (SATH) v1.3         ║
@@ -527,11 +538,14 @@ def main():
     ║     Trading profesional con IA + Análisis Técnico            ║
     ║     Docker + InfluxDB + Kelly Criterion                      ║
     ║                                                               ║
+    ║     MODO: {mode:^50}║
+    ║     Config: {config_path:<47}║
+    ║                                                               ║
     ╚═══════════════════════════════════════════════════════════════╝
     """)
 
     try:
-        bot = TradingBot()
+        bot = TradingBot(config_path)
         bot.run()
     except Exception as e:
         print(f"\n❌ Error fatal: {e}")

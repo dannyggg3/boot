@@ -1,0 +1,150 @@
+# ============================================
+# CONFIGURACIÓN LIVE - SATH v1.3
+# Capital inicial: $50 USD
+# ============================================
+
+# ===== SELECCIÓN DE PROVEEDOR DE IA =====
+ai_provider: "deepseek"
+ai_model: "deepseek-chat"
+
+# ===== ARQUITECTURA HÍBRIDA =====
+ai_use_hybrid_analysis: true
+ai_model_fast: "deepseek-chat"
+ai_model_deep: "deepseek-reasoner"
+
+# ===== AGENTES ESPECIALIZADOS =====
+ai_agents:
+  enabled: true
+  # Volatilidad mínima para operar (PRODUCCIÓN: 0.5%)
+  min_volatility_percent: 0.5
+  min_volume_ratio: 0.8
+
+# ===== SELECCIÓN DE MERCADO =====
+market_type: "crypto"
+
+# ===== CONFIGURACIÓN DE TRADING =====
+trading:
+  # Con $50 recomiendo solo 2 símbolos para concentrar capital
+  symbols:
+    - "BTC/USDT"    # Alta liquidez, spreads bajos
+    - "ETH/USDT"    # Segunda más líquida
+
+  timeframe: "1h"
+  scan_interval: 300  # 5 minutos
+
+  # MODO LIVE - TRADING REAL
+  mode: "live"
+
+  parallel_analysis: true
+  max_parallel_workers: 2
+
+  # Protección contra slippage
+  price_verification:
+    enabled: true
+    max_deviation_percent: 0.3  # Más estricto en live
+
+  order_execution:
+    use_limit_orders: true
+    max_slippage_percent: 0.2  # Más conservador
+    limit_order_timeout: 30
+    on_timeout: "cancel"
+
+  advanced_data:
+    enabled: true
+    order_book: true
+    funding_rate: true
+    open_interest: true
+    correlations: true
+
+# ===== GESTIÓN DE RIESGO - CONSERVADORA =====
+risk_management:
+  # Con $50, arriesgar 2% = $1 por operación
+  max_risk_per_trade: 2.0
+
+  # Drawdown máximo diario: 10% = $5
+  max_daily_drawdown: 10.0
+
+  min_risk_reward_ratio: 1.5
+
+  use_trailing_stop: true
+  trailing_stop_percentage: 2.5
+
+  # CAPITAL LIVE
+  initial_capital: 50
+
+  leverage: 1  # Sin apalancamiento
+
+  # Kelly Criterion - MUY CONSERVADOR
+  kelly_criterion:
+    enabled: true
+    fraction: 0.2       # 1/5 Kelly (más conservador)
+    min_confidence: 0.6  # Solo opera con >60% confianza
+    max_risk_cap: 2.0    # Máximo 2% por trade
+
+# ===== ANÁLISIS TÉCNICO =====
+technical_analysis:
+  indicators:
+    rsi:
+      enabled: true
+      period: 14
+      overbought: 70
+      oversold: 30
+    ema:
+      enabled: true
+      short_period: 50
+      long_period: 200
+    bollinger_bands:
+      enabled: true
+      period: 20
+      std_dev: 2
+    atr:
+      enabled: true
+      period: 14
+    macd:
+      enabled: true
+      fast_period: 12
+      slow_period: 26
+      signal_period: 9
+
+# ===== EXCHANGES =====
+exchanges:
+  binance:
+    enabled: true
+    testnet: false  # PRODUCCIÓN
+
+# ===== NOTIFICACIONES =====
+notifications:
+  telegram:
+    enabled: false
+  email:
+    enabled: false
+
+# ===== DATA LOGGING =====
+data_logging:
+  enabled: true
+
+# ===== WEBSOCKETS =====
+websockets:
+  enabled: true
+  orderbook: true
+  ticker: true
+  trades: true
+  orderbook_depth: 10
+
+# ===== LOGGING =====
+logging:
+  level: "INFO"
+  file: "logs/trading_bot.log"
+  max_file_size_mb: 10
+  backup_count: 5
+  heartbeat_interval: 60
+
+# ===== SEGURIDAD =====
+security:
+  kill_switch:
+    enabled: true
+    max_loss_percentage: 10.0  # $5 de pérdida máxima
+    cooldown_period_hours: 24
+  api_rate_limit:
+    requests_per_minute: 60
+    wait_on_limit: true

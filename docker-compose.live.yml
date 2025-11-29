@@ -1,0 +1,78 @@
+version: '3.8'
+
+# ============================================
+# SATH v1.3 - Docker Compose PRODUCCIÓN
+# Capital: $50 USD
+# ============================================
+
+services:
+  # InfluxDB - Base de datos para decisiones
+  influxdb:
+    image: influxdb:2.7
+    container_name: sath_influxdb
+    restart: always
+    ports:
+      - "8086:8086"
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=admin
+      - DOCKER_INFLUXDB_INIT_PASSWORD=${INFLUXDB_PASSWORD}
+      - DOCKER_INFLUXDB_INIT_ORG=trading_bot
+      - DOCKER_INFLUXDB_INIT_BUCKET=trading_decisions
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${INFLUXDB_TOKEN}
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+      - influxdb_config:/etc/influxdb2
+    networks:
+      - sath_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8086/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Trading Bot - MODO LIVE
+  trading_bot:
+    build: .
+    container_name: sath_bot_live
+    restart: always
+    depends_on:
+      influxdb:
+        condition: service_healthy
+    environment:
+      - BINANCE_API_KEY=${BINANCE_API_KEY}
+      - BINANCE_API_SECRET=${BINANCE_API_SECRET}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - INFLUXDB_URL=http://influxdb:8086
+      - INFLUXDB_TOKEN=${INFLUXDB_TOKEN}
+      - INFLUXDB_ORG=trading_bot
+      - INFLUXDB_BUCKET=trading_decisions
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
+      # Usar configuración LIVE
+      - SATH_CONFIG=config/config_live.yaml
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
+    networks:
+      - sath_network
+    # Límites de recursos (recomendado para VPS)
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+networks:
+  sath_network:
+    driver: bridge
+
+volumes:
+  influxdb_data:
+  influxdb_config:

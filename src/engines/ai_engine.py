@@ -839,7 +839,7 @@ CRÍTICO: Las reversiones son ALTO RIESGO. Sin divergencia CLARA = ESPERA. Posic
         symbol = market_data.get('symbol', 'N/A')
         logger.info(f"=== ANÁLISIS v2 CON AGENTES ESPECIALIZADOS: {symbol} ===")
 
-        # Pre-filtro de volatilidad
+        # Pre-filtro de volatilidad (ahorra llamadas a API cuando no hay oportunidad)
         atr_percent = market_data.get('atr_percent', 0)
         if atr_percent < self.min_volatility_percent:
             logger.info(f"⏸️ ATR {atr_percent:.2f}% < mínimo {self.min_volatility_percent}% - SIN MOVIMIENTO EXPLOSIVO")

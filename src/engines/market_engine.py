@@ -368,6 +368,23 @@ class MarketEngine:
                 'status': 'simulated'
             }
 
+        # v1.3: Paper trading también simula localmente (sin tocar exchange real)
+        if self.mode == 'paper':
+            current_price = self.get_current_price(symbol) or analysis_price or 0
+            simulated_value = amount * current_price
+            logger.info(f"📝 PAPER TRADING - Orden simulada: {side.upper()} {amount:.6f} {symbol} @ ${current_price:.2f}")
+            logger.info(f"📝 Valor de la operación: ${simulated_value:.2f}")
+            return {
+                'id': f'paper_{datetime.now().timestamp()}',
+                'symbol': symbol,
+                'side': side,
+                'amount': amount,
+                'price': current_price,
+                'value': simulated_value,
+                'status': 'simulated',
+                'mode': 'paper'
+            }
+
         # Verificación pre-ejecución de precio
         if analysis_price and self.price_verification_enabled:
             verification = self.verify_price_for_execution(symbol, analysis_price, side)

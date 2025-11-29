@@ -31,7 +31,8 @@ ai_agents:
 
   # Volatilidad mínima para operar (ATR como % del precio)
   # Si ATR < este valor, el bot NO opera (mercado "muerto")
-  min_volatility_percent: 0.5
+  # TEMPORAL: Bajado a 0.01 para validar ejecución en testnet
+  min_volatility_percent: 0.01
 
   # Ratio mínimo de volumen vs promedio para confirmar señales
   min_volume_ratio: 0.8
