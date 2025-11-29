@@ -35,6 +35,14 @@ from modules.technical_analysis import TechnicalAnalyzer
 from modules.risk_manager import RiskManager
 from modules.data_logger import DataLogger  # v1.3: Logging de decisiones en InfluxDB
 
+# v1.3: WebSocket Engine para datos en tiempo real
+try:
+    from engines.websocket_engine import WebSocketEngine
+    WEBSOCKET_AVAILABLE = True
+except ImportError as e:
+    WEBSOCKET_AVAILABLE = False
+    WebSocketEngine = None
+
 
 class TradingBot:
     """
@@ -66,6 +74,17 @@ class TradingBot:
             self.risk_manager = RiskManager(self.config)
             self.data_logger = DataLogger(self.config)  # v1.3: InfluxDB logging
 
+            # v1.3: WebSocket Engine para datos en tiempo real
+            self.websocket_engine = None
+            self.use_websockets = self.config.get('websockets', {}).get('enabled', False)
+            if self.use_websockets and WEBSOCKET_AVAILABLE:
+                try:
+                    self.websocket_engine = WebSocketEngine(self.config)
+                    logger.info("WebSocket Engine inicializado")
+                except Exception as e:
+                    logger.warning(f"No se pudo inicializar WebSocket Engine: {e}")
+                    self.use_websockets = False
+
             self.symbols = self.config['trading']['symbols']
             self.scan_interval = self.config['trading']['scan_interval']
             self.mode = self.config['trading']['mode']
@@ -87,6 +106,7 @@ class TradingBot:
             logger.info(f"Intervalo de escaneo: {self.scan_interval}s")
             logger.info(f"Análisis paralelo: {'HABILITADO' if self.parallel_analysis else 'SECUENCIAL'}")
             logger.info(f"Datos avanzados: {'HABILITADO' if self.use_advanced_data else 'DESHABILITADO'}")
+            logger.info(f"WebSockets: {'HABILITADO' if self.use_websockets else 'DESHABILITADO (polling HTTP)'}")
             logger.info("=" * 60)
 
             # Configurar manejadores de señales para apagado limpio
@@ -149,6 +169,14 @@ class TradingBot:
         """
         self.running = True
         logger.info("Bot iniciado. Presiona Ctrl+C para detener.")
+
+        # v1.3: Iniciar WebSocket Engine si está habilitado
+        if self.use_websockets and self.websocket_engine:
+            self.websocket_engine.start()
+            logger.info("🔌 WebSocket Stream ACTIVO - Datos en tiempo real")
+            # Esperar a que se conecte
+            import time as t
+            t.sleep(3)  # Dar tiempo para conexión inicial
 
         # Verificar estado del risk manager
         risk_status = self.risk_manager.get_status()
@@ -238,7 +266,16 @@ class TradingBot:
         logger.info(f"Analizando {symbol}")
         logger.info(f"{'=' * 60}")
 
-        # 1. Obtener datos históricos
+        # v1.3: Verificar si WebSocket tiene datos frescos
+        ws_price = None
+        if self.use_websockets and self.websocket_engine:
+            if self.websocket_engine.is_data_fresh(symbol, max_age_seconds=10):
+                ws_price = self.websocket_engine.get_current_price(symbol)
+                logger.info(f"📡 WebSocket Stream: Precio {symbol} = ${ws_price:.2f}")
+            else:
+                logger.debug(f"WebSocket: datos no frescos para {symbol}, usando HTTP")
+
+        # 1. Obtener datos históricos (siempre necesarios para indicadores)
         timeframe = self.config['trading']['timeframe']
         ohlcv = self.market_engine.get_historical_data(symbol, timeframe=timeframe, limit=250)
 
@@ -260,7 +297,18 @@ class TradingBot:
         # 2.5 Obtener datos avanzados (Order Book, Funding Rate, etc.)
         advanced_data = None
         if self.use_advanced_data:
-            advanced_data = self.market_engine.get_advanced_market_data(symbol)
+            # v1.3: Usar datos de WebSocket si están disponibles
+            if self.use_websockets and self.websocket_engine and self.websocket_engine.is_data_fresh(symbol):
+                ws_orderbook = self.websocket_engine.get_orderbook_imbalance(symbol)
+                if ws_orderbook:
+                    advanced_data = self.market_engine.get_advanced_market_data(symbol)
+                    # Sobrescribir order book con datos en tiempo real
+                    advanced_data['order_book'] = ws_orderbook
+                    logger.info(f"📡 WebSocket: Order Book actualizado en tiempo real")
+                else:
+                    advanced_data = self.market_engine.get_advanced_market_data(symbol)
+            else:
+                advanced_data = self.market_engine.get_advanced_market_data(symbol)
 
             # Log de datos avanzados relevantes
             if advanced_data:
@@ -450,6 +498,11 @@ class TradingBot:
         logger.info("=" * 60)
 
         try:
+            # v1.3: Cerrar WebSocket Engine
+            if self.websocket_engine:
+                self.websocket_engine.stop()
+                logger.info("WebSocket Engine detenido")
+
             # Cerrar conexión con el mercado
             if self.market_engine:
                 self.market_engine.close_connection()

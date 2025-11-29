@@ -213,7 +213,7 @@ data_logging:
 # ===== WEBSOCKETS (v1.3) =====
 # Datos en tiempo real con menor latencia que HTTP polling
 websockets:
-  enabled: false  # Cambiar a true para usar WebSockets en lugar de REST
+  enabled: true  # v1.3: ACTIVADO para datos en tiempo real
   # Streams a suscribir (solo activos si enabled: true)
   orderbook: true
   ticker: true
