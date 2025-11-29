@@ -115,29 +115,45 @@ class AIEngine:
             logger.error(f"Error inicializando proveedor de IA: {e}")
             raise
 
-    def analyze_market(self, market_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def analyze_market(self, market_data: Dict[str, Any], max_retries: int = 2) -> Optional[Dict[str, Any]]:
         """
         Analiza los datos del mercado y retorna una decisión de trading.
+        v1.4: Incluye retry logic si el parseo falla.
 
         Args:
             market_data: Diccionario con datos técnicos del mercado
+            max_retries: Número máximo de reintentos si falla el parseo
 
         Returns:
             Diccionario con la decisión, razonamiento y parámetros
         """
-        try:
-            prompt = self._build_analysis_prompt(market_data)
-            response_text = self._get_ai_response(prompt)
+        prompt = self._build_analysis_prompt(market_data)
 
-            # Parsear la respuesta JSON de la IA
-            decision = self._parse_ai_response(response_text)
+        for attempt in range(max_retries):
+            try:
+                response_text = self._get_ai_response(prompt)
 
-            logger.info(f"Análisis completado - Decisión: {decision.get('decision', 'UNKNOWN')}")
-            return decision
+                # Parsear la respuesta JSON de la IA
+                decision = self._parse_ai_response(response_text)
 
-        except Exception as e:
-            logger.error(f"Error en análisis de mercado: {e}")
-            return None
+                # v1.4: Verificar si el parseo falló (detectar errores en razonamiento)
+                razonamiento = decision.get('razonamiento', '')
+                if 'Error' in razonamiento or 'error' in razonamiento.lower():
+                    if attempt < max_retries - 1:
+                        logger.warning(f"Parseo falló (intento {attempt + 1}/{max_retries}), reintentando...")
+                        continue
+
+                logger.info(f"Análisis completado - Decisión: {decision.get('decision', 'UNKNOWN')}")
+                return decision
+
+            except Exception as e:
+                logger.error(f"Error en análisis de mercado (intento {attempt + 1}): {e}")
+                if attempt < max_retries - 1:
+                    logger.info("Reintentando...")
+                    continue
+                return None
+
+        return None
 
     def _build_analysis_prompt(self, market_data: Dict[str, Any]) -> str:
         """
