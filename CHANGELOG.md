@@ -6,6 +6,109 @@ El formato está basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.
 
 ---
 
+## [1.3.0] - 2024
+
+### Agregado
+
+- **Despliegue con Docker Compose**
+  - `Dockerfile`: Imagen Python 3.11-slim optimizada para el bot
+  - `docker-compose.yml`: Orquestación de servicios (bot + InfluxDB + Grafana)
+  - Health checks automáticos para todos los servicios
+  - Restart automático en caso de fallo
+  - Red interna `sath_network` para comunicación entre contenedores
+
+- **DataLogger - Persistencia en InfluxDB**
+  - Nuevo módulo `src/modules/data_logger.py`
+  - Registra cada decisión de trading con contexto completo:
+    - Indicadores técnicos: precio, RSI, EMA 50/200, MACD, ATR
+    - Datos avanzados: order book imbalance, funding rate, open interest
+    - Metadata: símbolo, decisión, confianza, agente, razonamiento
+  - Métodos para consultar rendimiento por agente y símbolo
+  - Conexión automática al iniciar el bot
+
+- **Kelly Criterion para Position Sizing**
+  - Integración en `src/modules/risk_manager.py`
+  - Método `calculate_kelly_position_size()`: sizing óptimo basado en probabilidad
+  - Método `get_dynamic_risk_percentage()`: mapeo de confianza a riesgo
+  - Ajuste de confianza basado en historial de win rate
+  - Configuración en `config.yaml`:
+    ```yaml
+    risk_management:
+      kelly_criterion:
+        enabled: true
+        fraction: 0.25      # 1/4 Kelly (conservador)
+        min_confidence: 0.5 # No opera si confianza < 50%
+        max_risk_cap: 3.0   # Máximo 3% por trade
+    ```
+
+- **WebSocket Engine (preparado para uso futuro)**
+  - Nuevo módulo `src/engines/websocket_engine.py`
+  - Soporte para streams de Binance: order book, ticker, trades
+  - Callbacks para procesamiento de datos en tiempo real
+  - Configuración en `config.yaml`:
+    ```yaml
+    websockets:
+      enabled: false  # Cambiar a true para activar
+      orderbook: true
+      ticker: true
+      trades: true
+    ```
+
+### Modificado
+
+- **`main.py`**
+  - Añadido import y inicialización de `DataLogger`
+  - Llamada a `data_logger.log_decision()` después de cada análisis de IA
+  - Parámetro `confidence` añadido a `risk_manager.validate_trade()`
+
+- **`src/modules/risk_manager.py`**
+  - Nuevo parámetro `confidence` en `validate_trade()`
+  - Integración de Kelly Criterion en el cálculo de position size
+  - Lectura de configuración desde sección `kelly_criterion`
+  - Historial de trades para cálculo de win rate
+
+- **`src/modules/technical_analysis.py`**
+  - Imports condicionales para `pandas_ta` y `ta` (fallback)
+  - Compatibilidad con ambas librerías de análisis técnico
+
+- **`src/engines/market_engine.py`**
+  - Import condicional de `ib_insync` con flag `IB_AVAILABLE`
+  - Manejo graceful cuando IB no está disponible
+
+- **`requirements.txt`**
+  - Cambiado `pandas-ta>=0.3.14b` a `ta>=0.11.0` (más compatible)
+  - Añadido `influxdb-client>=1.36.0`
+  - Comentadas dependencias opcionales: ta-lib, ib_insync, vectorbt
+
+- **`docker-compose.yml`**
+  - Token de InfluxDB sincronizado con `.env`
+  - Red `sath_network` añadida al servicio `influxdb`
+
+### Datos Almacenados en InfluxDB
+
+| Measurement | Tags | Fields |
+|-------------|------|--------|
+| `trading_decision` | symbol, decision, agent_type, analysis_type | confidence, price, rsi, ema_50, ema_200, macd, atr_percent, ob_imbalance, funding_rate, reasoning |
+| `trade_execution` | symbol, side, agent_type | entry_price, size, stop_loss, take_profit, confidence, risk_reward |
+| `trade_result` | symbol, side, result, agent_type | entry_price, exit_price, pnl, pnl_percent, hold_time_minutes |
+
+### Consultas Útiles (Flux)
+
+```flux
+# Decisiones de la última hora
+from(bucket:"trading_decisions")
+  |> range(start: -1h)
+  |> filter(fn: (r) => r._measurement == "trading_decision")
+
+# Rendimiento por agente (últimos 30 días)
+from(bucket:"trading_decisions")
+  |> range(start: -30d)
+  |> filter(fn: (r) => r._measurement == "trade_result")
+  |> group(columns: ["agent_type"])
+```
+
+---
+
 ## [1.2.0] - 2024
 
 ### Agregado
@@ -167,15 +270,18 @@ El formato está basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.
 
 ## Roadmap Futuro
 
-### v1.3 (Planificado)
+### v1.3 (Completado)
 
-- [ ] WebSockets para datos en tiempo real
-- [ ] Dashboard web de monitoreo
-- [ ] Más agentes especializados (Breakout Agent, Scalping Agent)
-- [ ] Machine Learning para optimización de parámetros
+- [x] WebSockets para datos en tiempo real (motor preparado)
+- [x] Persistencia con InfluxDB
+- [x] Kelly Criterion para position sizing
+- [x] Despliegue con Docker Compose
 
 ### v1.4 (Planificado)
 
+- [ ] Dashboard web de monitoreo (Grafana dashboards pre-configurados)
+- [ ] Más agentes especializados (Breakout Agent, Scalping Agent)
+- [ ] Machine Learning para optimización de parámetros
 - [ ] Soporte para más exchanges (Kraken, Coinbase Pro)
 - [ ] Estrategias de arbitraje
 - [ ] Integración con TradingView

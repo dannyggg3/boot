@@ -1,6 +1,8 @@
-# Sistema Autónomo de Trading Híbrido (SATH) v1.2
+# Sistema Autónomo de Trading Híbrido (SATH) v1.3
 
 Bot de trading profesional que combina análisis técnico cuantitativo con razonamiento de IA para trading autónomo en criptomonedas y mercados tradicionales.
+
+**Nuevo en v1.3**: Despliegue con Docker, persistencia en InfluxDB, Kelly Criterion para sizing dinámico.
 
 ## Características Principales
 
@@ -22,79 +24,93 @@ Bot de trading profesional que combina análisis técnico cuantitativo con razon
 - **Datos Avanzados**: Order Book, Funding Rate, Open Interest, Correlaciones
 - **Detección de Régimen**: Identifica automáticamente si el mercado está en tendencia, reversión o lateral
 
+### Infraestructura Profesional v1.3
+- **Docker Compose**: Despliegue containerizado con InfluxDB incluido
+- **InfluxDB Time-Series**: Persistencia de todas las decisiones para análisis posterior
+- **Kelly Criterion**: Position sizing dinámico basado en confianza de la señal
+- **DataLogger**: Registro automático de decisiones, trades y resultados
+- **WebSocket Engine**: Motor preparado para datos en tiempo real (opcional)
+
 ## Arquitectura del Sistema
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│                     MAIN ORCHESTRATOR (v1.2)                      │
-│                ┌─────────────────────────────┐                    │
-│                │   ThreadPoolExecutor        │                    │
-│                │   (Análisis Paralelo)       │                    │
-│                └──────────────┬──────────────┘                    │
-└───────────────────────────────┼──────────────────────────────────┘
-                                │
-          ┌─────────────────────┼─────────────────────┐
-          │                     │                     │
-     ┌────▼────┐           ┌────▼────┐          ┌────▼────┐
-     │ BTC/USDT│           │ ETH/USDT│    ...   │ SOL/USDT│
-     └────┬────┘           └────┬────┘          └────┬────┘
-          │                     │                     │
-          └─────────────────────┼─────────────────────┘
-                                │
-        ┌───────────────────────┴───────────────────────┐
-        │                                               │
-    ┌───▼────────┐                              ┌───────▼───────┐
-    │  MARKET    │                              │   TECHNICAL   │
-    │  ENGINE    │                              │   ANALYZER    │
-    ├────────────┤                              ├───────────────┤
-    │ • OHLCV    │                              │ • RSI, MACD   │
-    │ • Order    │                              │ • EMA 50/200  │
-    │   Book     │◄─── Datos Avanzados ───►     │ • Bollinger   │
-    │ • Funding  │         (v1.2)               │ • ATR         │
-    │ • Open Int │                              │ • Volumen     │
-    └───────┬────┘                              └───────┬───────┘
-            │                                           │
-            └─────────────────┬─────────────────────────┘
-                              │
-    ┌─────────────────────────▼─────────────────────────────────┐
-    │                    AI ENGINE (v1.2)                        │
-    │  ┌─────────────────────────────────────────────────────┐  │
-    │  │              DETECTOR DE RÉGIMEN                     │  │
-    │  │   ┌──────────┐  ┌──────────┐  ┌──────────────────┐  │  │
-    │  │   │ TRENDING │  │ REVERSAL │  │ RANGING/LOW VOL  │  │  │
-    │  │   │ RSI 30-70│  │ RSI <30  │  │   (No Opera)     │  │  │
-    │  │   │          │  │ RSI >70  │  │                  │  │  │
-    │  │   └────┬─────┘  └────┬─────┘  └────────┬─────────┘  │  │
-    │  │        │             │                 │            │  │
-    │  │        ▼             ▼                 ▼            │  │
-    │  │   ┌─────────┐   ┌─────────┐       ┌─────────┐       │  │
-    │  │   │ AGENTE  │   │ AGENTE  │       │ ESPERA  │       │  │
-    │  │   │TENDENCIA│   │REVERSIÓN│       │(Ahorro) │       │  │
-    │  │   └─────────┘   └─────────┘       └─────────┘       │  │
-    │  └─────────────────────────────────────────────────────┘  │
-    └───────────────────────────┬───────────────────────────────┘
-                                │
-    ┌───────────────────────────▼───────────────────────────────┐
-    │                      RISK MANAGER                          │
-    │   ┌─────────────┐  ┌──────────────┐  ┌────────────────┐   │
-    │   │ Kill Switch │  │ Position Size│  │ Trailing Stop  │   │
-    │   │  (5% loss)  │  │  (2% risk)   │  │    (3%)        │   │
-    │   └─────────────┘  └──────────────┘  └────────────────┘   │
-    └───────────────────────────┬───────────────────────────────┘
-                                │
-    ┌───────────────────────────▼───────────────────────────────┐
-    │               PROTECCIÓN ANTI-SLIPPAGE (v1.1)              │
-    │   ┌──────────────────┐  ┌───────────────────────────┐     │
-    │   │ Verificación     │  │ Órdenes Limit Inteligentes│     │
-    │   │ Pre-Ejecución    │  │ (Slippage Máx: 0.3%)      │     │
-    │   │ (Desvío: 0.5%)   │  │ (Timeout: 30s)            │     │
-    │   └──────────────────┘  └───────────────────────────┘     │
-    └───────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                       DOCKER COMPOSE (v1.3)                              │
+│  ┌─────────────────────────────────────────────────────────────────────┐│
+│  │                      SATH_BOT CONTAINER                              ││
+│  │  ┌───────────────────────────────────────────────────────────────┐  ││
+│  │  │                 MAIN ORCHESTRATOR (v1.3)                       │  ││
+│  │  │            ┌─────────────────────────────┐                     │  ││
+│  │  │            │   ThreadPoolExecutor        │                     │  ││
+│  │  │            │   (Análisis Paralelo)       │                     │  ││
+│  │  │            └──────────────┬──────────────┘                     │  ││
+│  │  └───────────────────────────┼───────────────────────────────────┘  ││
+│  │                              │                                       ││
+│  │        ┌─────────────────────┼─────────────────────┐                 ││
+│  │        │                     │                     │                 ││
+│  │   ┌────▼────┐           ┌────▼────┐          ┌────▼────┐            ││
+│  │   │ BTC/USDT│           │ ETH/USDT│    ...   │ SOL/USDT│            ││
+│  │   └────┬────┘           └────┬────┘          └────┬────┘            ││
+│  │        └─────────────────────┼─────────────────────┘                 ││
+│  │                              │                                       ││
+│  │      ┌───────────────────────┴───────────────────────┐               ││
+│  │      │                                               │               ││
+│  │  ┌───▼────────┐                              ┌───────▼───────┐       ││
+│  │  │  MARKET    │                              │   TECHNICAL   │       ││
+│  │  │  ENGINE    │                              │   ANALYZER    │       ││
+│  │  ├────────────┤                              ├───────────────┤       ││
+│  │  │ • OHLCV    │                              │ • RSI, MACD   │       ││
+│  │  │ • Order    │◄─── Datos Avanzados ───►     │ • EMA 50/200  │       ││
+│  │  │   Book     │         (v1.2)               │ • Bollinger   │       ││
+│  │  │ • Funding  │                              │ • ATR         │       ││
+│  │  └───────┬────┘                              └───────┬───────┘       ││
+│  │          └─────────────────┬─────────────────────────┘               ││
+│  │                            │                                         ││
+│  │  ┌─────────────────────────▼─────────────────────────────────┐       ││
+│  │  │                    AI ENGINE (v1.2)                        │       ││
+│  │  │  ┌─────────────────────────────────────────────────────┐  │       ││
+│  │  │  │              DETECTOR DE RÉGIMEN                     │  │       ││
+│  │  │  │   ┌──────────┐  ┌──────────┐  ┌──────────────────┐  │  │       ││
+│  │  │  │   │ TRENDING │  │ REVERSAL │  │ RANGING/LOW VOL  │  │  │       ││
+│  │  │  │   │ RSI 30-70│  │ RSI <30  │  │   (No Opera)     │  │  │       ││
+│  │  │  │   └────┬─────┘  └────┬─────┘  └────────┬─────────┘  │  │       ││
+│  │  │  │        ▼             ▼                 ▼            │  │       ││
+│  │  │  │   ┌─────────┐   ┌─────────┐       ┌─────────┐       │  │       ││
+│  │  │  │   │ AGENTE  │   │ AGENTE  │       │ ESPERA  │       │  │       ││
+│  │  │  │   │TENDENCIA│   │REVERSIÓN│       │(Ahorro) │       │  │       ││
+│  │  │  │   └─────────┘   └─────────┘       └─────────┘       │  │       ││
+│  │  │  └─────────────────────────────────────────────────────┘  │       ││
+│  │  └───────────────────────────┬───────────────────────────────┘       ││
+│  │                              │                                       ││
+│  │  ┌───────────────────────────▼───────────────────────────────┐       ││
+│  │  │                 RISK MANAGER + KELLY (v1.3)                │       ││
+│  │  │   ┌─────────────┐  ┌──────────────┐  ┌────────────────┐   │       ││
+│  │  │   │ Kill Switch │  │Kelly Criterion│  │ Trailing Stop  │   │       ││
+│  │  │   │  (5% loss)  │  │ (Sizing IA)  │  │    (3%)        │   │       ││
+│  │  │   └─────────────┘  └──────────────┘  └────────────────┘   │       ││
+│  │  └───────────────────────────┬───────────────────────────────┘       ││
+│  │                              │                                       ││
+│  │  ┌───────────────────────────▼───────────────────────────────┐       ││
+│  │  │                   DATA LOGGER (v1.3)                       │       ││
+│  │  │   Registra: decisiones, trades, resultados, métricas       │       ││
+│  │  └───────────────────────────┬───────────────────────────────┘       ││
+│  └──────────────────────────────┼───────────────────────────────────────┘│
+│                                 │                                        │
+│  ┌──────────────────────────────▼───────────────────────────────────────┐│
+│  │                    INFLUXDB CONTAINER (v1.3)                          ││
+│  │  ┌─────────────────────────────────────────────────────────────────┐ ││
+│  │  │  Bucket: trading_decisions                                       │ ││
+│  │  │  Measurements: trading_decision, trade_execution, trade_result   │ ││
+│  │  │  Retention: 30 días                                              │ ││
+│  │  └─────────────────────────────────────────────────────────────────┘ ││
+│  └──────────────────────────────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Requisitos Previos
 
 - Python 3.9 o superior
+- Docker y Docker Compose (recomendado para producción)
 - Ubuntu Server o cualquier sistema Linux/macOS (Windows con WSL)
 - (Opcional) Interactive Brokers TWS o Gateway para trading de acciones/forex
 
@@ -179,7 +195,36 @@ trading:
 
 ## Uso
 
-### Modo Paper Trading (Recomendado para empezar)
+### Opción 1: Despliegue con Docker (Recomendado)
+
+```bash
+# Construir y levantar todos los servicios
+docker compose up -d --build
+
+# Ver logs del bot
+docker logs -f sath_bot
+
+# Ver logs de InfluxDB
+docker logs -f sath_influxdb
+
+# Detener servicios
+docker compose down
+```
+
+**Servicios incluidos:**
+- `sath_bot`: Bot de trading principal
+- `sath_influxdb`: Base de datos time-series para métricas
+- `sath_grafana` (opcional): Dashboard de visualización
+
+**Verificar datos en InfluxDB:**
+```bash
+curl -s -X POST "http://localhost:8086/api/v2/query?org=trading_bot" \
+  -H "Authorization: Token your_influxdb_token" \
+  -H "Content-Type: application/vnd.flux" \
+  -d 'from(bucket:"trading_decisions") |> range(start: -1h) |> limit(n:10)'
+```
+
+### Opción 2: Modo Local (Paper Trading)
 
 ```bash
 # Activar entorno virtual
@@ -339,6 +384,26 @@ risk_management:
 
 Límite de pérdida permitida por día (5% por defecto).
 
+### 5. Kelly Criterion (v1.3)
+
+Ajusta dinámicamente el tamaño de posición basado en la confianza de la señal de IA:
+
+```yaml
+risk_management:
+  kelly_criterion:
+    enabled: true
+    fraction: 0.25      # 1/4 Kelly (conservador)
+    min_confidence: 0.5 # No opera si confianza < 50%
+    max_risk_cap: 3.0   # Máximo 3% incluso con alta confianza
+```
+
+**Cómo funciona:**
+- Confianza ≥ 85%: Riesgo aumentado (hasta 3%)
+- Confianza 70-85%: Riesgo normal (2%)
+- Confianza 55-70%: Riesgo reducido (1.5%)
+- Confianza 40-55%: Riesgo mínimo (1%)
+- Confianza < 40%: No opera
+
 ## Configuración Avanzada
 
 ### Indicadores Técnicos
@@ -453,20 +518,26 @@ trading:
 ```
 bot/
 ├── config/
-│   └── config.yaml           # Configuración principal
+│   └── config.yaml              # Configuración principal
 ├── src/
 │   ├── engines/
-│   │   ├── ai_engine.py      # Motor de IA (DeepSeek/OpenAI/Gemini)
-│   │   └── market_engine.py  # Conexión con exchanges/brokers
+│   │   ├── ai_engine.py         # Motor de IA con agentes especializados
+│   │   ├── market_engine.py     # Conexión con exchanges/brokers
+│   │   └── websocket_engine.py  # Motor de datos en tiempo real (v1.3)
 │   └── modules/
 │       ├── technical_analysis.py  # Indicadores técnicos
-│       └── risk_manager.py        # Gestión de riesgo
-├── logs/                     # Logs del bot
-├── data/                     # Datos de estado y backtests
-├── main.py                   # Orquestador principal
-├── requirements.txt          # Dependencias
-├── .env                      # Credenciales (NO SUBIR A GIT)
-└── README.md                 # Esta documentación
+│       ├── risk_manager.py        # Gestión de riesgo + Kelly Criterion
+│       └── data_logger.py         # Persistencia en InfluxDB (v1.3)
+├── logs/                        # Logs del bot
+├── data/                        # Datos de estado y backtests
+├── main.py                      # Orquestador principal
+├── requirements.txt             # Dependencias
+├── Dockerfile                   # Imagen Docker del bot (v1.3)
+├── docker-compose.yml           # Orquestación de servicios (v1.3)
+├── .env                         # Credenciales (NO SUBIR A GIT)
+├── DEPLOYMENT.md                # Guía de despliegue en VPS (v1.3)
+├── CHANGELOG.md                 # Historial de cambios
+└── README.md                    # Esta documentación
 ```
 
 ## Seguridad
@@ -540,6 +611,36 @@ Para reportar bugs o solicitar features:
 
 ## Changelog
 
+### v1.3 (2024)
+
+- **Despliegue con Docker Compose**:
+  - Imagen Docker optimizada para el bot
+  - InfluxDB incluido para persistencia de datos
+  - Grafana opcional para visualización
+  - Health checks y restart automático
+
+- **Persistencia de Decisiones (InfluxDB)**:
+  - DataLogger para almacenar todas las decisiones
+  - Métricas: precio, RSI, MACD, EMA, funding rate, order book
+  - Consultas Flux para análisis de rendimiento por agente/símbolo
+  - Retención configurable de datos históricos
+
+- **Kelly Criterion para Position Sizing**:
+  - Ajuste dinámico del riesgo según confianza de la IA
+  - Fracción de Kelly configurable (conservador por defecto)
+  - Límite máximo de riesgo incluso con alta confianza
+  - Historial de win rate para calibración
+
+- **WebSocket Engine (preparado)**:
+  - Motor de conexión WebSocket para datos en tiempo real
+  - Soporte para order book, ticker y trades
+  - Menor latencia que REST polling
+
+- **Mejoras Técnicas**:
+  - Imports condicionales para compatibilidad (pandas_ta/ta)
+  - Configuración de red Docker para comunicación interna
+  - Variables de entorno sincronizadas con docker-compose
+
 ### v1.2 (2024)
 
 - **Sistema de Agentes Especializados**:
@@ -574,4 +675,4 @@ Para reportar bugs o solicitar features:
 
 **Desarrollado con ❤️ para traders algorítmicos**
 
-Versión 1.2 - 2024
+Versión 1.3 - 2024

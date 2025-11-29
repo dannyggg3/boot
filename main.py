@@ -6,7 +6,13 @@ Bot de trading profesional que combina análisis técnico cuantitativo
 con razonamiento de IA para trading autónomo en crypto y mercados tradicionales.
 
 Autor: Trading Bot System
-Versión: 1.0
+Versión: 1.3
+
+Changelog v1.3:
+- DataLogger para persistencia en InfluxDB
+- Kelly Criterion para position sizing dinámico
+- Despliegue con Docker Compose
+- WebSocket Engine (preparado)
 """
 
 import sys
@@ -463,9 +469,10 @@ def main():
     print("""
     ╔═══════════════════════════════════════════════════════════════╗
     ║                                                               ║
-    ║     Sistema Autónomo de Trading Híbrido (SATH) v1.0         ║
+    ║     Sistema Autónomo de Trading Híbrido (SATH) v1.3         ║
     ║                                                               ║
     ║     Trading profesional con IA + Análisis Técnico            ║
+    ║     Docker + InfluxDB + Kelly Criterion                      ║
     ║                                                               ║
     ╚═══════════════════════════════════════════════════════════════╝
     """)
