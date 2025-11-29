@@ -339,8 +339,19 @@ class RiskManager:
         # Guardar estado
         self._save_state()
 
-        # TODO: Enviar notificación de emergencia al usuario
-        # (Telegram, email, etc.)
+        # v1.4: Enviar notificación de emergencia
+        try:
+            from modules.notifications import get_notification_manager
+            notifier = get_notification_manager()
+            if notifier:
+                loss_percent = ((self.current_capital - self.initial_capital) / self.initial_capital) * 100
+                notifier.notify_kill_switch(
+                    reason=reason,
+                    capital=self.current_capital,
+                    loss_percent=abs(loss_percent)
+                )
+        except Exception as e:
+            logger.error(f"Error enviando notificación kill switch: {e}")
 
     def update_trade_result(self, pnl: float):
         """

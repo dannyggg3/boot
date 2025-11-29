@@ -17,6 +17,14 @@ from dotenv import load_dotenv
 import yaml
 import logging
 
+# v1.4: Importar parseo robusto con Pydantic
+try:
+    from schemas.ai_responses import parse_ai_response_safe, TradingDecision, QuickFilterDecision
+    PYDANTIC_AVAILABLE = True
+except ImportError:
+    PYDANTIC_AVAILABLE = False
+    parse_ai_response_safe = None
+
 # Cargar variables de entorno
 load_dotenv()
 
@@ -227,6 +235,7 @@ RESPONDE AHORA:
     def _parse_ai_response(self, response_text: str) -> Dict[str, Any]:
         """
         Parsea la respuesta de la IA y extrae el JSON.
+        v1.4: Usa Pydantic para validación robusta si está disponible.
 
         Args:
             response_text: Texto de respuesta de la IA
@@ -234,6 +243,12 @@ RESPONDE AHORA:
         Returns:
             Diccionario con la decisión parseada
         """
+        # v1.4: Usar Pydantic si está disponible (más robusto)
+        if PYDANTIC_AVAILABLE and parse_ai_response_safe:
+            logger.debug("Usando parseo Pydantic para validación robusta")
+            return parse_ai_response_safe(response_text, TradingDecision, "ESPERA")
+
+        # Fallback: método original con regex
         import re
 
         try:

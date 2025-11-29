@@ -34,6 +34,7 @@ from engines.market_engine import MarketEngine
 from modules.technical_analysis import TechnicalAnalyzer
 from modules.risk_manager import RiskManager
 from modules.data_logger import DataLogger  # v1.3: Logging de decisiones en InfluxDB
+from modules.notifications import NotificationManager  # v1.4: Alertas Telegram
 
 # v1.3: WebSocket Engine para datos en tiempo real
 try:
@@ -73,6 +74,7 @@ class TradingBot:
             self.technical_analyzer = TechnicalAnalyzer(self.config)
             self.risk_manager = RiskManager(self.config)
             self.data_logger = DataLogger(self.config)  # v1.3: InfluxDB logging
+            self.notifier = NotificationManager(self.config)  # v1.4: Telegram alerts
 
             # v1.3: WebSocket Engine para datos en tiempo real
             self.websocket_engine = None
@@ -188,6 +190,13 @@ class TradingBot:
             logger.critical("El bot no ejecutará operaciones hasta que se resuelva el problema")
             self.running = False
             return
+
+        # v1.4: Notificar inicio del bot
+        self.notifier.notify_startup(
+            mode=self.mode,
+            symbols=self.symbols,
+            capital=risk_status['current_capital']
+        )
 
         heartbeat_counter = 0
 
@@ -464,6 +473,17 @@ class TradingBot:
                 logger.info(f"Order ID: {order.get('id', 'N/A')}")
                 logger.info(f"Estado: {order_status}")
 
+                # v1.4: Notificar operación ejecutada
+                self.notifier.notify_trade_executed(
+                    symbol=symbol,
+                    side=side,
+                    amount=amount,
+                    price=order.get('price', analysis_price),
+                    stop_loss=stop_loss,
+                    take_profit=take_profit,
+                    confidence=risk_params.get('confidence', 0.0)
+                )
+
                 # TODO: Implementar tracking de la orden
                 # - Monitorear precio vs stop loss / take profit
                 # - Actualizar trailing stop si está habilitado
@@ -496,6 +516,9 @@ class TradingBot:
         logger.info("\n" + "=" * 60)
         logger.info("Apagando bot...")
         logger.info("=" * 60)
+
+        # v1.4: Notificar apagado
+        self.notifier.notify_shutdown(reason="Apagado normal")
 
         try:
             # v1.3: Cerrar WebSocket Engine

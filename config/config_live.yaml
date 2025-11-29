@@ -117,7 +117,7 @@ exchanges:
 # ===== NOTIFICACIONES =====
 notifications:
   telegram:
-    enabled: false
+    enabled: true  # Requiere TELEGRAM_BOT_TOKEN y TELEGRAM_CHAT_ID en .env
   email:
     enabled: false
 
