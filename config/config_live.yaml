@@ -15,8 +15,8 @@ ai_model_deep: "deepseek-reasoner"
 # ===== AGENTES ESPECIALIZADOS =====
 ai_agents:
   enabled: true
-  # Volatilidad mínima para operar (AJUSTADO: 0.2% para mercados tranquilos)
-  min_volatility_percent: 0.2
+  # Volatilidad mínima para operar (AJUSTADO: 0.1% para mercados tranquilos)
+  min_volatility_percent: 0.1
   min_volume_ratio: 0.8
 
 # ===== SELECCIÓN DE MERCADO =====
@@ -26,13 +26,13 @@ market_type: "crypto"
 trading:
   # Con $50: BTC/ETH para estabilidad + SOL para volatilidad
   symbols:
-    - "BTC/USDT"    # Alta liquidez, spreads bajos
-    - "ETH/USDT"    # Segunda más líquida
-    - "SOL/USDT"    # Mayor volatilidad, más oportunidades
+    - "BTC/USDT" # Alta liquidez, spreads bajos
+    - "ETH/USDT" # Segunda más líquida
+    - "SOL/USDT" # Mayor volatilidad, más oportunidades
     # - "XRP/USDT"  # Opcional: descorrelacionado del mercado
 
-  timeframe: "15m"  # Más señales que 1h
-  scan_interval: 180  # 3 minutos para timeframe 15m
+  timeframe: "15m" # Más señales que 1h
+  scan_interval: 180 # 3 minutos para timeframe 15m
 
   # MODO LIVE - TRADING REAL
   mode: "live"
@@ -43,11 +43,11 @@ trading:
   # Protección contra slippage
   price_verification:
     enabled: true
-    max_deviation_percent: 0.3  # Más estricto en live
+    max_deviation_percent: 0.3 # Más estricto en live
 
   order_execution:
     use_limit_orders: true
-    max_slippage_percent: 0.2  # Más conservador
+    max_slippage_percent: 0.2 # Más conservador
     limit_order_timeout: 30
     on_timeout: "cancel"
 
@@ -72,16 +72,16 @@ risk_management:
   trailing_stop_percentage: 2.5
 
   # CAPITAL LIVE
-  initial_capital: 50
+  initial_capital: 100
 
-  leverage: 1  # Sin apalancamiento
+  leverage: 1 # Sin apalancamiento
 
   # Kelly Criterion - MUY CONSERVADOR
   kelly_criterion:
     enabled: true
-    fraction: 0.2       # 1/5 Kelly (más conservador)
-    min_confidence: 0.6  # Solo opera con >60% confianza
-    max_risk_cap: 2.0    # Máximo 2% por trade
+    fraction: 0.2 # 1/5 Kelly (más conservador)
+    min_confidence: 0.6 # Solo opera con >60% confianza
+    max_risk_cap: 2.0 # Máximo 2% por trade
 
 # ===== ANÁLISIS TÉCNICO =====
 technical_analysis:
@@ -112,7 +112,7 @@ technical_analysis:
 exchanges:
   binance:
     enabled: true
-    testnet: false  # PRODUCCIÓN
+    testnet: false # PRODUCCIÓN
 
 # ===== NOTIFICACIONES =====
 notifications:
@@ -145,7 +145,7 @@ logging:
 security:
   kill_switch:
     enabled: true
-    max_loss_percentage: 10.0  # $5 de pérdida máxima
+    max_loss_percentage: 10.0 # $5 de pérdida máxima
     cooldown_period_hours: 24
   api_rate_limit:
     requests_per_minute: 60
