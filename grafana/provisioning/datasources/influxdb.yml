@@ -1,5 +1,9 @@
 apiVersion: 1
 
+deleteDatasources:
+  - name: InfluxDB
+    orgId: 1
+
 datasources:
   - name: InfluxDB
     uid: influxdb-sath
@@ -12,6 +16,6 @@ datasources:
       defaultBucket: trading_decisions
       tlsSkipVerify: true
     secureJsonData:
-      token: ${INFLUXDB_TOKEN}
+      token: e961eeb978537b3f67684065435613c5d13a29ba7a38f7768d929126eb11423b
     isDefault: true
     editable: true
