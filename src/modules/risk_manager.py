@@ -80,7 +80,8 @@ class RiskManager:
         suggested_stop_loss: Optional[float] = None,
         suggested_take_profit: Optional[float] = None,
         market_data: Optional[Dict[str, Any]] = None,
-        confidence: float = 0.5
+        confidence: float = 0.5,
+        available_balance: Optional[float] = None
     ) -> Dict[str, Any]:
         """
         Valida si una operación es segura y permitida.
@@ -93,6 +94,7 @@ class RiskManager:
             suggested_take_profit: Take profit sugerido
             market_data: Datos adicionales del mercado (volatilidad, etc.)
             confidence: Nivel de confianza de la IA (0-1) para Kelly Criterion
+            available_balance: v1.5 - Balance real disponible (USDT para compra, activo para venta)
 
         Returns:
             Diccionario con validación y parámetros ajustados
@@ -115,18 +117,38 @@ class RiskManager:
             )
 
         # 3. Calcular tamaño de posición (Kelly Criterion si está habilitado)
+        # v1.5: Usar balance real si se proporciona
+        effective_capital = available_balance if available_balance is not None else self.current_capital
+
+        # v1.5: Para VENTA, el balance es en unidades del activo, convertir a USD para Kelly
+        if decision == 'VENTA' and available_balance is not None:
+            effective_capital_usd = available_balance * current_price
+            logger.info(f"v1.5: VENTA - Balance activo: {available_balance:.6f} = ${effective_capital_usd:.2f}")
+        else:
+            effective_capital_usd = effective_capital
+            if available_balance is not None:
+                logger.info(f"v1.5: COMPRA - Balance USDT: ${effective_capital_usd:.2f}")
+
         if self.use_kelly_criterion and confidence >= self.min_confidence_to_trade:
             position_size = self.calculate_kelly_position_size(
                 confidence=confidence,
                 current_price=current_price,
-                stop_loss=suggested_stop_loss
+                stop_loss=suggested_stop_loss,
+                capital_override=effective_capital_usd  # v1.5: Usar capital real
             )
             logger.info(f"Kelly Sizing: confianza={confidence:.2f}, risk={self.get_dynamic_risk_percentage(confidence):.1f}%")
         else:
             position_size = self._calculate_position_size(
                 current_price,
-                suggested_stop_loss
+                suggested_stop_loss,
+                capital_override=effective_capital_usd  # v1.5: Usar capital real
             )
+
+        # v1.5: Para VENTA, limitar al balance disponible del activo
+        if decision == 'VENTA' and available_balance is not None:
+            if position_size > available_balance:
+                logger.info(f"v1.5: Ajustando position_size de {position_size:.6f} a {available_balance:.6f} (balance máximo)")
+                position_size = available_balance
 
         if position_size <= 0:
             return self._reject_trade(
@@ -203,7 +225,8 @@ class RiskManager:
     def _calculate_position_size(
         self,
         current_price: float,
-        stop_loss: Optional[float]
+        stop_loss: Optional[float],
+        capital_override: Optional[float] = None
     ) -> float:
         """
         Calcula el tamaño óptimo de la posición basado en el riesgo permitido.
@@ -213,24 +236,28 @@ class RiskManager:
         Args:
             current_price: Precio de entrada
             stop_loss: Precio de stop loss
+            capital_override: v1.5 - Capital real a usar (en lugar de self.current_capital)
 
         Returns:
             Cantidad de activo a operar
         """
+        # v1.5: Usar capital real si se proporciona
+        capital = capital_override if capital_override is not None else self.current_capital
+
         if not stop_loss:
             # Si no hay stop loss, usar un porcentaje fijo del capital
-            return (self.current_capital * (self.max_risk_per_trade / 100)) / current_price
+            return (capital * (self.max_risk_per_trade / 100)) / current_price
 
         # Calcular riesgo por unidad
         risk_per_unit = abs(current_price - stop_loss)
 
         # Capital a arriesgar
-        capital_at_risk = self.current_capital * (self.max_risk_per_trade / 100)
+        capital_at_risk = capital * (self.max_risk_per_trade / 100)
 
         # Tamaño de posición
         position_size = capital_at_risk / risk_per_unit
 
-        logger.debug(f"Position size calculado: {position_size:.8f}")
+        logger.debug(f"Position size calculado: {position_size:.8f} (capital: ${capital:.2f})")
         return position_size
 
     def _calculate_automatic_stop_loss(
@@ -513,7 +540,8 @@ class RiskManager:
         confidence: float,
         current_price: float,
         stop_loss: Optional[float] = None,
-        expected_rr: float = 2.0
+        expected_rr: float = 2.0,
+        capital_override: Optional[float] = None
     ) -> float:
         """
         Calcula el tamaño de posición usando Kelly Criterion ajustado por confianza.
@@ -530,6 +558,7 @@ class RiskManager:
             current_price: Precio actual
             stop_loss: Precio de stop loss
             expected_rr: Ratio riesgo/recompensa esperado
+            capital_override: v1.5 - Capital real a usar (en lugar de self.current_capital)
 
         Returns:
             Tamaño de posición óptimo
@@ -561,8 +590,11 @@ class RiskManager:
         # Limitar al máximo permitido
         kelly_capped = min(kelly_adjusted, self.max_risk_per_trade / 100)
 
+        # v1.5: Usar capital real si se proporciona
+        capital = capital_override if capital_override is not None else self.current_capital
+
         # Calcular tamaño de posición
-        capital_to_risk = self.current_capital * kelly_capped
+        capital_to_risk = capital * kelly_capped
 
         if stop_loss and stop_loss != current_price:
             risk_per_unit = abs(current_price - stop_loss)

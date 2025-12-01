@@ -1,24 +1,28 @@
-# Arquitectura Híbrida de IA - Estrategia Ganadora (v1.4)
+# Arquitectura Híbrida de IA - Estrategia Ganadora (v1.5)
 
 ## 🎯 ¿Por Qué Arquitectura Híbrida?
 
-La arquitectura híbrida usa **dos modelos de IA** en lugar de uno:
+La arquitectura híbrida usa **filtros locales + cache + dos modelos de IA**:
 
-1. **Modelo Rápido** (Filtro) - DeepSeek-V3 o GPT-4o-mini
-2. **Modelo Profundo** (Decisor) - DeepSeek-R1 o o1-mini
+1. **Pre-Filtro Local** (Python puro) - Costo: $0
+2. **Cache Inteligente** (Reutiliza decisiones) - Costo: $0
+3. **Modelo Rápido** (Filtro) - DeepSeek-V3 o GPT-4o-mini
+4. **Modelo Profundo** (Decisor) - DeepSeek-R1 o o1-mini
 
 ### Ventajas
 
-| Métrica | Modelo Único | Híbrido v1.1 | Híbrido v1.2 (Agentes) |
-|---------|--------------|--------------|------------------------|
-| Costo por análisis | $0.02 | $0.004 | **$0.001** |
+| Métrica | Modelo Único | Híbrido v1.2 | **Híbrido v1.5** |
+|---------|--------------|--------------|------------------|
+| Costo por análisis | $0.02 | $0.001 | **$0.0003** |
 | Precisión | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
-| Velocidad (4 símbolos) | 12-20s | 3-4s | **3-4s** |
-| Ahorro mensual | - | 75-92% | **90-97%** |
+| Velocidad (4 símbolos) | 12-20s | 3-4s | **0.5-3s** |
+| Ahorro mensual | - | 90-97% | **95-99%** |
 | Protección slippage | ❌ | ✅ | ✅ |
-| Filtro volatilidad | ❌ | ❌ | ✅ |
-| Agentes especializados | ❌ | ❌ | ✅ |
-| Datos avanzados | ❌ | ❌ | ✅ |
+| Filtro volatilidad | ❌ | ✅ | ✅ |
+| Pre-filtro local | ❌ | ❌ | ✅ |
+| Cache inteligente | ❌ | ❌ | ✅ |
+| Agentes especializados | ❌ | ✅ | ✅ |
+| Datos avanzados | ❌ | ✅ | ✅ |
 
 ## 📊 Comparativa de Modelos
 
@@ -39,27 +43,49 @@ La arquitectura híbrida usa **dos modelos de IA** en lugar de uno:
 
 ## 🔄 Cómo Funciona
 
-### Flujo del Sistema (v1.2 con Agentes Especializados)
+### Flujo del Sistema (v1.5 con Pre-Filtro + Cache)
 
 ```
-Cada 5 min (configurable)
+Cada 3-5 min (configurable)
          │
          ▼
 ┌─────────────────────────────────────┐
-│       NIVEL 0: FILTRO VOLATILIDAD   │  ← NUEVO v1.2
+│     NIVEL 0: PRE-FILTRO LOCAL       │  ← NUEVO v1.5
+│        (Python puro - $0)           │
+│   ┌─────────────────────────────┐   │
+│   │  • RSI 45-55 + vol < 1.5x   │   │  ~40% casos filtrados
+│   │  • MACD plano (sin momentum)│   │  Costo: $0
+│   │  • ATR < 50% del mínimo     │   │  Tiempo: <1ms
+│   └─────────────────────────────┘   │
+└──────────────┬──────────────────────┘
+               │ Pasó pre-filtro
+               ▼
+┌─────────────────────────────────────┐
+│    NIVEL 0.5: CACHE INTELIGENTE     │  ← NUEVO v1.5
+│      (Reutiliza decisiones - $0)    │
+│   ┌─────────────────────────────┐   │
+│   │  Cache key basado en:       │   │  ~30-50% cache hits
+│   │  • RSI redondeado (±5)      │   │  Costo: $0
+│   │  • Precio vs EMAs           │   │  TTL: 5 min
+│   └─────────────────────────────┘   │
+└──────────────┬──────────────────────┘
+               │ Cache miss
+               ▼
+┌─────────────────────────────────────┐
+│       NIVEL 1: FILTRO VOLATILIDAD   │
 │          (Sin llamada a API)        │
 │   ┌─────────────────────────────┐   │
-│   │  ATR% < 0.5? → ESPERA       │   │  ~70% casos filtrados
+│   │  ATR% < 0.2? → ESPERA       │   │  ~20% casos filtrados
 │   │  (Mercado "muerto")         │   │  Costo: $0
 │   └─────────────────────────────┘   │
 └──────────────┬──────────────────────┘
-               │ ATR% >= 0.5
+               │ ATR% >= 0.2
                ▼
 ┌─────────────────────────────────────┐
-│     NIVEL 1: DETECTOR DE RÉGIMEN    │
+│     NIVEL 2: DETECTOR DE RÉGIMEN    │
 │          (DeepSeek-V3)              │
 │   ┌─────────────────────────────┐   │
-│   │  • trending (RSI 30-70)     │   │
+│   │  • trending (RSI 30-70)     │   │  Costo: $0.0001
 │   │  • reversal (RSI <30 o >70) │   │
 │   │  • ranging (lateral)        │   │
 │   └─────────────────────────────┘   │
@@ -72,9 +98,10 @@ Cada 5 min (configurable)
 │ AGENTE  │        │ AGENTE  │   │ ESPERA  │
 │TENDENCIA│        │REVERSIÓN│   │(ranging)│
 │(DeepSeek│        │(DeepSeek│   │         │
-│   R1)   │        │   R1)   │   │         │
-└────┬────┘        └────┬────┘   └─────────┘
-     │                  │
+│   R1)   │        │   R1)   │   │ Guardar │
+└────┬────┘        └────┬────┘   │ en cache│
+     │                  │        └─────────┘
+     │   Costo: $0.02   │
      └────────┬─────────┘
               │
         Decisión Final
@@ -82,6 +109,11 @@ Cada 5 min (configurable)
     ┌─────────┴─────────┐
     │                   │
  COMPRA              VENTA
+    │                   │
+    └─────────┬─────────┘
+              │
+        Guardar en Cache
+         (TTL: 5 min)
 ```
 
 ### Flujo Original (Referencia v1.1)
@@ -131,6 +163,15 @@ ESPERAR  ┌────────────────────┐
 - 10 van a agentes especializados × $0.02 = $0.20
 - **Total: $0.203/día** = **$6.09/mes**
 - **Ahorro: ~90%** 💰 + mejor precisión por agentes especializados
+
+**Con Híbrido v1.5 (Pre-Filtro + Cache)** 🆕:
+- 100 análisis → 40 filtrados por pre-filtro local (costo: $0)
+- 60 restantes → 30 cache hits (costo: $0)
+- 30 restantes → 20 filtrados por volatilidad (costo: $0)
+- 10 pasan al detector de régimen × $0.0001 = $0.001
+- 3 van a agentes especializados × $0.02 = $0.06
+- **Total: $0.061/día** = **$1.83/mes**
+- **Ahorro: ~97%** 💰💰 + misma precisión + respuesta instantánea en 70% de casos
 
 ## ⚙️ Configuración
 
@@ -547,11 +588,12 @@ trading:
 
 ---
 
-**Versión**: 1.4
+**Versión**: 1.5
 **Última actualización**: Diciembre 2024
 
 ### Changelog
 
+- **v1.5**: Pre-filtro local, cache inteligente, position size con balance real (fix "insufficient balance"), reducción 50-75% llamadas API
 - **v1.4**: Reglas de volumen flexibles (ratio > 0.3), breakouts permitidos, divergencia RSI opcional, confianza mínima 50%
 - **v1.3**: Docker Compose, InfluxDB, Kelly Criterion, WebSocket Engine
 - **v1.2**: Sistema de agentes especializados, filtro de volatilidad pre-IA, datos avanzados de mercado

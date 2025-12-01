@@ -417,28 +417,43 @@ class TradingBot:
             logger.info(f"{tag} ✋ ESPERAR - No hay oportunidad clara")
             return
 
-        # 4.5 v1.4: Validar que en SPOT mode solo vendemos lo que tenemos
-        if decision == 'VENTA' and self.mode in ['live', 'paper']:
-            # Extraer el activo base del símbolo (ej: BTC de BTC/USDT)
-            base_asset = symbol.split('/')[0]
+        # 4.5 v1.4/v1.5: Validar balance y obtener capital disponible para cálculo correcto
+        available_balance = None  # v1.5: Balance real para Kelly Criterion
+        current_price = technical_data['current_price']
 
+        if self.mode in ['live', 'paper']:
             try:
-                # Obtener balance del activo
                 balances = self.market_engine.get_balance()
-                asset_balance = balances.get(base_asset, 0)
-                current_price = technical_data['current_price']
-                asset_value_usd = asset_balance * current_price
 
-                # Si el balance es menor a $5, no podemos vender
-                if asset_value_usd < 5:
-                    logger.info(f"{tag} ⏭️ VENTA ignorada - No tienes {base_asset} para vender (balance: {asset_balance:.6f} ≈ ${asset_value_usd:.2f})")
-                    logger.info(f"{tag} 💡 En modo SPOT solo puedes vender activos que posees")
-                    return
-                else:
-                    logger.info(f"{tag} 💰 Balance {base_asset}: {asset_balance:.6f} (${asset_value_usd:.2f}) - Venta permitida")
+                if decision == 'VENTA':
+                    # Para VENTA: usar balance del activo
+                    base_asset = symbol.split('/')[0]
+                    asset_balance = balances.get(base_asset, 0)
+                    asset_value_usd = asset_balance * current_price
+
+                    if asset_value_usd < 5:
+                        logger.info(f"{tag} ⏭️ VENTA ignorada - No tienes {base_asset} para vender (balance: {asset_balance:.6f} ≈ ${asset_value_usd:.2f})")
+                        logger.info(f"{tag} 💡 En modo SPOT solo puedes vender activos que posees")
+                        return
+                    else:
+                        logger.info(f"{tag} 💰 Balance {base_asset}: {asset_balance:.6f} (${asset_value_usd:.2f}) - Venta permitida")
+                        available_balance = asset_balance  # v1.5: Balance en unidades del activo
+
+                elif decision == 'COMPRA':
+                    # Para COMPRA: usar balance de USDT
+                    quote_asset = symbol.split('/')[1]  # USDT
+                    usdt_balance = balances.get(quote_asset, 0)
+
+                    if usdt_balance < 5:
+                        logger.info(f"{tag} ⏭️ COMPRA ignorada - Balance {quote_asset} insuficiente: ${usdt_balance:.2f}")
+                        return
+                    else:
+                        logger.info(f"{tag} 💵 Balance {quote_asset}: ${usdt_balance:.2f} - Compra permitida")
+                        available_balance = usdt_balance  # v1.5: Balance en USDT
+
             except Exception as e:
-                logger.warning(f"{tag} ⚠️ No se pudo verificar balance de {base_asset}: {e}")
-                # Continuar con la validación normal, el error aparecerá en la ejecución
+                logger.warning(f"{tag} ⚠️ No se pudo verificar balance: {e}")
+                # Continuar con capital de config, el error aparecerá en la ejecución si hay problema
 
         # 5. Validar con Risk Manager
         current_price = technical_data['current_price']
@@ -465,7 +480,8 @@ class TradingBot:
             suggested_stop_loss=suggested_sl,
             suggested_take_profit=suggested_tp,
             market_data=technical_data,
-            confidence=confidence  # v1.3: Para Kelly Criterion
+            confidence=confidence,  # v1.3: Para Kelly Criterion
+            available_balance=available_balance  # v1.5: Balance real para cálculo correcto
         )
 
         if not risk_validation['approved']:

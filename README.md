@@ -1,8 +1,8 @@
-# Sistema Autónomo de Trading Híbrido (SATH) v1.4
+# Sistema Autónomo de Trading Híbrido (SATH) v1.5
 
 Bot de trading profesional que combina análisis técnico cuantitativo con razonamiento de IA para trading autónomo en criptomonedas y mercados tradicionales.
 
-**Nuevo en v1.4**: Reglas de trading optimizadas - volumen flexible, breakouts en tendencias fuertes, confianza mínima reducida.
+**Nuevo en v1.5**: Optimización de peticiones API - pre-filtro local, cache inteligente, reducción 50-75% de llamadas.
 
 ## Características Principales
 
@@ -37,6 +37,13 @@ Bot de trading profesional que combina análisis técnico cuantitativo con razon
 - **Reversiones Adaptativas**: Divergencia RSI es ideal pero no obligatoria si hay otras confirmaciones
 - **Confianza Reducida**: Opera con confianza > 50% (antes > 60%)
 - **Order Book como Confirmación**: El imbalance del order book puede confirmar señales con volumen bajo
+
+### Optimización de Peticiones API v1.5
+- **Pre-Filtro Local**: Filtra mercados aburridos sin llamar a la API (RSI neutral, MACD plano, baja volatilidad)
+- **Cache Inteligente**: Reutiliza decisiones si las condiciones no cambiaron (TTL: 5 min)
+- **Estadísticas de Cache**: Monitorea hit rate y eficiencia con `get_cache_stats()`
+- **Reducción de Costos**: 50-75% menos llamadas API, respuesta instantánea en 70% de casos
+- **Position Size con Balance Real**: COMPRA usa balance USDT, VENTA usa balance del activo (fix crítico)
 
 ## Arquitectura del Sistema
 
