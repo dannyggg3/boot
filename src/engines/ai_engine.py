@@ -675,7 +675,7 @@ Eres un AGENTE DE TENDENCIA especializado. Tu ÚNICA misión es encontrar entrad
    - Si la tendencia es moderada: espera retroceso hacia EMA 50 o EMA 20
    - NO esperes retrocesos profundos en tendencias explosivas
 4. Si el RSI está muy sobrecomprado (>80), considera esperar un pequeño retroceso
-5. Volumen: ratio > 1.0 confirma la señal (volumen actual > promedio)
+5. Volumen: ratio > 1.0 es ideal, pero ratio > 0.3 es ACEPTABLE. Volumen bajo NO invalida una señal técnica fuerte.
 
 === DATOS DEL MERCADO: {symbol} ===
 Precio Actual: {market_data.get('current_price')}
@@ -692,7 +692,7 @@ Tendencia: {market_data.get('trend_analysis')}
 === ANÁLISIS REQUERIDO ===
 1. ¿El precio está en tendencia clara? (Sobre/bajo EMA 200)
 2. ¿Es buena zona de entrada? (Retroceso a EMA 50/20, breakout, o tendencia fuerte)
-3. ¿El volumen confirma? (ratio > 1.0)
+3. ¿El volumen apoya? (ratio > 1.0 ideal, > 0.3 aceptable - NO es bloqueante)
 4. ¿El RSI permite entrada? (Evitar extremos >80 o <20)
 
 Responde SOLO en JSON:
@@ -735,12 +735,12 @@ IMPORTANTE: En tendencias fuertes, NO esperes retrocesos profundos. El mercado p
         prompt = f"""
 Eres un AGENTE DE REVERSIÓN especializado. Tu ÚNICA misión es detectar AGOTAMIENTO de tendencia y puntos de GIRO.
 
-=== REGLAS INQUEBRANTABLES ===
+=== REGLAS DE ENTRADA (REVERSIÓN) ===
 1. SOLO operas en EXTREMOS de RSI (< 30 sobrevendido = buscar COMPRA, > 70 sobrecomprado = buscar VENTA)
-2. REQUIERES confirmación de DIVERGENCIA (precio hace nuevo mínimo pero RSI no)
-3. BUSCAS velas de rechazo/agotamiento (martillos, dojis, envolventes)
-4. NUNCA entras sin confirmación - el cuchillo que cae puede seguir cayendo
-5. Stop loss MUY AJUSTADO porque operas contra la tendencia
+2. Divergencia RSI es IDEAL pero no obligatoria si hay señales claras de agotamiento
+3. BUSCAS señales de agotamiento: velas de rechazo, Bollinger extremo, MACD cruzando
+4. Volumen: ratio > 0.3 es suficiente. El Order Book Imbalance puede confirmar la reversión
+5. Stop loss MUY AJUSTADO porque operas contra la tendencia - POSICIÓN PEQUEÑA
 
 === DATOS DEL MERCADO: {symbol} ===
 Precio Actual: {market_data.get('current_price')}
@@ -775,7 +775,7 @@ Responde SOLO en JSON:
     "alertas": ["riesgos - ALTO RIESGO por operar contra tendencia"]
 }}
 
-CRÍTICO: Las reversiones son ALTO RIESGO. Sin divergencia CLARA = ESPERA. Posición PEQUEÑA.
+IMPORTANTE: Las reversiones son ALTO RIESGO. Busca múltiples confirmaciones (RSI extremo + Bollinger + MACD). Posición PEQUEÑA siempre.
 """
 
         return self._execute_agent_prompt(prompt, "reversal_agent")
