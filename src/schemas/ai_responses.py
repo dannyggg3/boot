@@ -40,7 +40,7 @@ class TradingDecision(BaseModel):
     )
     tamaño_posicion_sugerido: Optional[float] = Field(
         default=None,
-        ge=0.5, le=10,
+        ge=0.0, le=10,
         description="Tamaño de posición sugerido (% capital)"
     )
     alertas: List[str] = Field(
