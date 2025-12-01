@@ -82,7 +82,29 @@ class TechnicalAnalyzer:
             # Análisis de tendencia
             indicators['trend_analysis'] = self._analyze_trend(df, indicators)
 
-            # Análisis de volumen
+            # Calcular Volumen Promedio (SMA 20) para comparación con volumen actual
+            try:
+                if TA_LIBRARY == "pandas_ta":
+                    vol_sma = ta.sma(df['volume'], length=20)
+                else:
+                    vol_sma = df['volume'].rolling(window=20).mean()
+
+                indicators['volume_mean'] = float(vol_sma.iloc[-1]) if vol_sma is not None and not pd.isna(vol_sma.iloc[-1]) else 0.0
+                indicators['volume_current'] = float(df['volume'].iloc[-1])
+
+                # Calcular ratio de volumen vs promedio
+                if indicators['volume_mean'] > 0:
+                    indicators['volume_ratio'] = round(indicators['volume_current'] / indicators['volume_mean'], 2)
+                else:
+                    indicators['volume_ratio'] = 1.0
+
+            except Exception as e:
+                logger.error(f"Error calculando volumen promedio: {e}")
+                indicators['volume_mean'] = 0.0
+                indicators['volume_current'] = 0.0
+                indicators['volume_ratio'] = 1.0
+
+            # Análisis de volumen (24h total)
             indicators['volume_24h'] = self._analyze_volume(df)
 
             # Precio actual

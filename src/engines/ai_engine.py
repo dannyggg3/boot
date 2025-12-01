@@ -198,6 +198,7 @@ MACD: {market_data.get('macd', 'N/A')}
 Señal MACD: {market_data.get('macd_signal', 'N/A')}
 Bandas de Bollinger (Superior, Media, Inferior): {market_data.get('bollinger_bands', 'N/A')}
 ATR: {market_data.get('atr', 'N/A')}
+Volumen Actual: {market_data.get('volume_current', 'N/A')} | Promedio (20): {market_data.get('volume_mean', 'N/A')} | Ratio: {market_data.get('volume_ratio', 'N/A')}x
 Volumen (últimas 24h): {market_data.get('volume_24h', 'N/A')}
 
 === TENDENCIA ===
@@ -427,6 +428,7 @@ DATOS:
 - EMA 50: {market_data.get('ema_50', 'N/A')} | EMA 200: {market_data.get('ema_200', 'N/A')}
 - MACD: {market_data.get('macd', 'N/A')} | Señal: {market_data.get('macd_signal', 'N/A')}
 - Volatilidad: {market_data.get('volatility_level', 'N/A')}
+- Volumen Ratio: {market_data.get('volume_ratio', 'N/A')}x (>1 = volumen sobre promedio)
 
 TAREA: Detectar si hay oportunidad técnica clara (COMPRA/VENTA) o si debemos ESPERAR.
 
@@ -487,6 +489,7 @@ DATOS COMPLETOS DEL MERCADO:
 - MACD: {market_data.get('macd')} (Señal: {market_data.get('macd_signal')})
 - Bandas de Bollinger: {market_data.get('bollinger_bands')}
 - ATR (Volatilidad): {market_data.get('atr')}
+- Volumen Actual: {market_data.get('volume_current', 'N/A')} | Promedio (20): {market_data.get('volume_mean', 'N/A')} | Ratio: {market_data.get('volume_ratio', 'N/A')}x
 - Volumen 24h: {market_data.get('volume_24h')}
 - Tendencia general: {market_data.get('trend_analysis')}
 
@@ -677,6 +680,7 @@ EMA 50: {market_data.get('ema_50')} | EMA 200: {market_data.get('ema_200')}
 RSI (14): {market_data.get('rsi')}
 MACD: {market_data.get('macd')} (Señal: {market_data.get('macd_signal')})
 ATR: {market_data.get('atr')} ({market_data.get('atr_percent', 0):.2f}%)
+Volumen Actual: {market_data.get('volume_current', 'N/A')} | Promedio (20): {market_data.get('volume_mean', 'N/A')} | Ratio: {market_data.get('volume_ratio', 'N/A')}x
 Volumen 24h: {market_data.get('volume_24h')}
 Tendencia: {market_data.get('trend_analysis')}
 
@@ -742,6 +746,7 @@ EMA 50: {market_data.get('ema_50')} | EMA 200: {market_data.get('ema_200')}
 MACD: {market_data.get('macd')} (Señal: {market_data.get('macd_signal')})
 Bandas Bollinger: {market_data.get('bollinger_bands')}
 ATR: {market_data.get('atr')} ({market_data.get('atr_percent', 0):.2f}%)
+Volumen Actual: {market_data.get('volume_current', 'N/A')} | Promedio (20): {market_data.get('volume_mean', 'N/A')} | Ratio: {market_data.get('volume_ratio', 'N/A')}x
 Volumen 24h: {market_data.get('volume_24h')}
 
 {advanced_context}
