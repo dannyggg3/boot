@@ -59,6 +59,12 @@ class AIEngine:
         self.min_volatility_percent = self.agents_config.get('min_volatility_percent', 0.5)
         self.min_volume_ratio = self.agents_config.get('min_volume_ratio', 0.8)
 
+        # v1.5: Cache inteligente de decisiones (reduce llamadas API)
+        self._decision_cache = {}  # {cache_key: {decision, timestamp}}
+        self._cache_ttl = 300  # 5 minutos de TTL
+        self._cache_hits = 0
+        self._cache_misses = 0
+
         self.client = None
 
         self._initialize_provider()
@@ -114,6 +120,146 @@ class AIEngine:
         except Exception as e:
             logger.error(f"Error inicializando proveedor de IA: {e}")
             raise
+
+    # ========================================================================
+    # v1.5: PRE-FILTRO LOCAL + CACHE INTELIGENTE
+    # ========================================================================
+
+    def _local_pre_filter(self, market_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """
+        Pre-filtro LOCAL antes de llamar a cualquier API.
+        Filtra mercados "aburridos" sin gastar créditos de IA.
+
+        Returns:
+            None si debe continuar al análisis de IA
+            Dict con decisión ESPERA si el mercado es aburrido
+        """
+        symbol = market_data.get('symbol', 'N/A')
+        rsi = market_data.get('rsi', 50)
+        volume_ratio = market_data.get('volume_ratio', 0)
+        atr_percent = market_data.get('atr_percent', 0)
+        macd = market_data.get('macd', 0)
+        macd_signal = market_data.get('macd_signal', 0)
+        current_price = market_data.get('current_price', 1)
+
+        # 1. RSI en zona muerta (45-55) + volumen bajo = mercado lateral aburrido
+        if 45 < rsi < 55 and volume_ratio < 1.5:
+            logger.info(f"🚫 PRE-FILTRO LOCAL [{symbol}]: RSI neutral ({rsi:.1f}) + volumen bajo ({volume_ratio:.2f}x)")
+            return {
+                "decision": "ESPERA",
+                "confidence": 0.0,
+                "razonamiento": f"Pre-filtro local: Mercado lateral (RSI {rsi:.1f} neutral + volumen {volume_ratio:.2f}x bajo)",
+                "analysis_type": "local_pre_filter",
+                "filtered_reason": "rsi_neutral_low_volume"
+            }
+
+        # 2. MACD plano (sin momentum) - umbral relativo al precio
+        macd_threshold = current_price * 0.0001  # 0.01% del precio
+        if abs(macd) < macd_threshold and abs(macd - macd_signal) < macd_threshold:
+            logger.info(f"🚫 PRE-FILTRO LOCAL [{symbol}]: MACD plano (sin momentum)")
+            return {
+                "decision": "ESPERA",
+                "confidence": 0.0,
+                "razonamiento": f"Pre-filtro local: MACD plano ({macd:.6f}) - sin momentum",
+                "analysis_type": "local_pre_filter",
+                "filtered_reason": "macd_flat"
+            }
+
+        # 3. Volatilidad extremadamente baja (ya cubierto por min_volatility pero doble check)
+        if atr_percent < self.min_volatility_percent * 0.5:
+            logger.info(f"🚫 PRE-FILTRO LOCAL [{symbol}]: Volatilidad muy baja ({atr_percent:.3f}%)")
+            return {
+                "decision": "ESPERA",
+                "confidence": 0.0,
+                "razonamiento": f"Pre-filtro local: Volatilidad muy baja ({atr_percent:.3f}%)",
+                "analysis_type": "local_pre_filter",
+                "filtered_reason": "very_low_volatility"
+            }
+
+        # Pasó el pre-filtro, continuar al análisis de IA
+        return None
+
+    def _get_cache_key(self, market_data: Dict[str, Any]) -> str:
+        """
+        Genera una clave de cache basada en condiciones de mercado redondeadas.
+        Si las condiciones no cambiaron significativamente, retorna la misma clave.
+        """
+        symbol = market_data.get('symbol', 'N/A')
+        rsi = market_data.get('rsi', 50)
+        current_price = market_data.get('current_price', 0)
+        ema_50 = market_data.get('ema_50', 0)
+        ema_200 = market_data.get('ema_200', 0)
+
+        # Redondear RSI a bandas de 5 (50.3 -> 50, 52.8 -> 55)
+        rsi_rounded = round(rsi / 5) * 5
+
+        # Posición relativa del precio vs EMAs (más importante que el precio exacto)
+        price_vs_ema50 = "above" if current_price > ema_50 else "below"
+        price_vs_ema200 = "above" if current_price > ema_200 else "below"
+
+        # Precio redondeado a 0.5% (para BTC $43,500 -> redondea a ~$200)
+        price_precision = max(current_price * 0.005, 1)
+        price_rounded = round(current_price / price_precision) * price_precision
+
+        cache_key = f"{symbol}|rsi{rsi_rounded}|p{price_rounded:.0f}|{price_vs_ema50}50|{price_vs_ema200}200"
+        return cache_key
+
+    def _check_cache(self, cache_key: str) -> Optional[Dict[str, Any]]:
+        """
+        Verifica si hay una decisión cacheada válida.
+
+        Returns:
+            Decisión cacheada si es válida, None si expiró o no existe
+        """
+        import time
+
+        if cache_key not in self._decision_cache:
+            return None
+
+        cached = self._decision_cache[cache_key]
+        age = time.time() - cached['timestamp']
+
+        if age > self._cache_ttl:
+            # Cache expirado, eliminarlo
+            del self._decision_cache[cache_key]
+            return None
+
+        # Cache válido
+        self._cache_hits += 1
+        cached_decision = cached['decision'].copy()
+        cached_decision['from_cache'] = True
+        cached_decision['cache_age_seconds'] = int(age)
+
+        logger.info(f"💾 CACHE HIT: Usando decisión cacheada (edad: {age:.0f}s)")
+        return cached_decision
+
+    def _save_to_cache(self, cache_key: str, decision: Dict[str, Any]):
+        """Guarda una decisión en el cache."""
+        import time
+
+        self._decision_cache[cache_key] = {
+            'decision': decision,
+            'timestamp': time.time()
+        }
+        self._cache_misses += 1
+
+        # Limpiar cache viejo (máximo 50 entradas)
+        if len(self._decision_cache) > 50:
+            oldest_key = min(self._decision_cache.keys(),
+                           key=lambda k: self._decision_cache[k]['timestamp'])
+            del self._decision_cache[oldest_key]
+
+    def get_cache_stats(self) -> Dict[str, Any]:
+        """Retorna estadísticas del cache."""
+        total = self._cache_hits + self._cache_misses
+        hit_rate = (self._cache_hits / total * 100) if total > 0 else 0
+        return {
+            "hits": self._cache_hits,
+            "misses": self._cache_misses,
+            "total": total,
+            "hit_rate_percent": round(hit_rate, 1),
+            "cached_entries": len(self._decision_cache)
+        }
 
     def analyze_market(self, market_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
@@ -364,9 +510,12 @@ RESPONDE AHORA:
         """
         Análisis híbrido de dos niveles (estrategia óptima para reducir costos).
 
+        v1.5: Ahora incluye PRE-FILTRO LOCAL + CACHE para reducir llamadas API.
+
+        Nivel 0 (NUEVO): Pre-filtro local (Python puro, $0)
+        Nivel 0.5 (NUEVO): Cache inteligente (si condiciones similares, $0)
         Nivel 1: Filtrado rápido con modelo chat (DeepSeek-V3 / GPT-4o-mini)
                  Detecta si hay oportunidad potencial.
-
         Nivel 2: Razonamiento profundo con modelo reasoner (DeepSeek-R1 / o1)
                  Solo se ejecuta si el filtro detecta oportunidad.
 
@@ -376,7 +525,21 @@ RESPONDE AHORA:
         Returns:
             Diccionario con la decisión final, o None si no hay oportunidad
         """
-        logger.info("=== ANÁLISIS HÍBRIDO DE DOS NIVELES ===")
+        symbol = market_data.get('symbol', 'N/A')
+        logger.info(f"=== ANÁLISIS HÍBRIDO [{symbol}] ===")
+
+        # NIVEL 0: Pre-filtro LOCAL (Python puro - GRATIS)
+        pre_filter_result = self._local_pre_filter(market_data)
+        if pre_filter_result:
+            logger.info(f"⚡ Filtrado por PRE-FILTRO LOCAL - $0 gastado")
+            return pre_filter_result
+
+        # NIVEL 0.5: Cache inteligente (si las condiciones son similares, reusar decisión)
+        cache_key = self._get_cache_key(market_data)
+        cached_decision = self._check_cache(cache_key)
+        if cached_decision:
+            logger.info(f"⚡ Usando decisión CACHEADA - $0 gastado")
+            return cached_decision
 
         # NIVEL 1: Filtrado Rápido (Modelo Chat - Económico)
         logger.info(f"Nivel 1: Filtrado rápido con {self.model_fast}")
@@ -395,12 +558,15 @@ RESPONDE AHORA:
         # Si no es interesante, retornar ESPERA sin gastar créditos en R1
         if not is_interesting or quick_signal == 'ESPERA':
             logger.info("❌ Oportunidad descartada por filtro rápido - Ahorrando créditos")
-            return {
+            espera_decision = {
                 "decision": "ESPERA",
                 "confidence": quick_decision.get('confidence', 0.3),
                 "razonamiento": quick_decision.get('reason', 'Descartado en filtro inicial'),
                 "analysis_type": "quick_filter_only"
             }
+            # Guardar en cache para no volver a llamar si condiciones similares
+            self._save_to_cache(cache_key, espera_decision)
+            return espera_decision
 
         # NIVEL 2: Análisis Profundo (Modelo Reasoner - Solo si vale la pena)
         logger.info(f"✅ Oportunidad detectada! Nivel 2: Razonamiento profundo con {self.model_deep}")
@@ -411,6 +577,8 @@ RESPONDE AHORA:
             deep_decision['analysis_type'] = 'hybrid_two_level'
             deep_decision['quick_filter_signal'] = quick_signal
             logger.info(f"Decisión final (híbrido): {deep_decision.get('decision', 'UNKNOWN')}")
+            # Guardar decisión profunda en cache
+            self._save_to_cache(cache_key, deep_decision)
 
         return deep_decision
 

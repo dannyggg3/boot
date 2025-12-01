@@ -16,7 +16,8 @@
       "Bash(docker exec:*)",
       "Bash(docker ps:*)",
       "Bash(docker logs:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(python3 -m py_compile:*)"
     ],
     "deny": [],
     "ask": []
