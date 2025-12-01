@@ -59,6 +59,8 @@ class TradingBot:
         """
         self.config = self._load_config(config_path)
         self.running = False
+        self.is_trading = False  # Flag para saber si hay operación en curso
+        self.shutdown_requested = False  # Flag para apagado graceful
 
         # Configurar logging
         self._setup_logging()
@@ -176,8 +178,28 @@ class TradingBot:
         logging.getLogger('urllib3').setLevel(logging.WARNING)
 
     def _signal_handler(self, signum, frame):
-        """Manejador de señales para apagado limpio."""
-        logger.info(f"\nSeñal {signum} recibida. Apagando bot de forma segura...")
+        """Manejador de señales para apagado limpio con protección de trades."""
+        if self.shutdown_requested:
+            logger.warning("Segunda señal recibida. Forzando apagado...")
+            self.running = False
+            return
+
+        self.shutdown_requested = True
+        logger.info(f"\nSeñal {signum} recibida. Iniciando apagado seguro...")
+
+        # Si hay un trade en progreso, esperar a que termine
+        if self.is_trading:
+            logger.warning("⚠️  Trade en progreso. Esperando a que termine (máx 30s)...")
+            wait_time = 0
+            while self.is_trading and wait_time < 30:
+                time.sleep(1)
+                wait_time += 1
+                if wait_time % 5 == 0:
+                    logger.info(f"Esperando trade... {wait_time}s")
+
+            if self.is_trading:
+                logger.warning("Timeout esperando trade. Procediendo con apagado.")
+
         self.running = False
 
     def run(self):
@@ -461,7 +483,15 @@ class TradingBot:
             logger.info("🧪 BACKTEST MODE - Operación simulada")
             return
 
+        # Verificar si se solicitó apagado
+        if self.shutdown_requested:
+            logger.warning("⚠️ Apagado solicitado - operación cancelada")
+            return
+
         try:
+            # Marcar que hay un trade en progreso
+            self.is_trading = True
+
             # Ejecutar orden con verificación de precio y protección slippage
             order = self.market_engine.execute_order(
                 symbol=symbol,
@@ -510,6 +540,9 @@ class TradingBot:
 
         except Exception as e:
             logger.error(f"Error ejecutando operación: {e}", exc_info=True)
+        finally:
+            # Siempre marcar que el trade terminó
+            self.is_trading = False
 
     def _print_status(self):
         """Imprime el estado actual del bot."""
@@ -526,16 +559,101 @@ class TradingBot:
         logger.info(f"Kill Switch: {'🔴 ACTIVO' if risk_status['kill_switch_active'] else '🟢 Inactivo'}")
         logger.info("=" * 60 + "\n")
 
+    def _close_all_positions(self) -> bool:
+        """
+        Cierra todas las posiciones abiertas vendiendo los activos.
+
+        Returns:
+            True si se cerraron todas las posiciones correctamente
+        """
+        if self.mode != 'live':
+            logger.info("Modo paper/backtest - no hay posiciones reales que cerrar")
+            return True
+
+        try:
+            # Obtener balances actuales
+            balances = self.market_engine.get_balance()
+            logger.info(f"Balances actuales: {balances}")
+
+            positions_closed = 0
+            errors = 0
+
+            for asset, amount in balances.items():
+                # Ignorar stablecoins y cantidades muy pequeñas
+                if asset in ['USDT', 'USDC', 'BUSD', 'USD'] or amount < 0.00001:
+                    continue
+
+                # Construir el par de trading
+                symbol = f"{asset}/USDT"
+
+                # Verificar si el símbolo es válido para este exchange
+                try:
+                    ticker = self.market_engine.get_current_price(symbol)
+                    if ticker is None:
+                        continue
+
+                    # Calcular valor en USD
+                    value_usd = amount * ticker
+                    if value_usd < 1:  # Ignorar posiciones menores a $1
+                        continue
+
+                    logger.warning(f"🔴 Cerrando posición: {amount} {asset} (~${value_usd:.2f})")
+
+                    # Ejecutar orden de venta
+                    self.is_trading = True
+                    order = self.market_engine.execute_order(
+                        symbol=symbol,
+                        side='sell',
+                        amount=amount,
+                        order_type='market'
+                    )
+                    self.is_trading = False
+
+                    if order:
+                        logger.info(f"✅ Posición cerrada: {symbol}")
+                        positions_closed += 1
+
+                        # Notificar por Telegram
+                        self.notifier.send_message(
+                            f"🔴 *POSICIÓN CERRADA (Shutdown)*\n"
+                            f"Símbolo: {symbol}\n"
+                            f"Cantidad: {amount}\n"
+                            f"Valor: ~${value_usd:.2f}"
+                        )
+                    else:
+                        logger.error(f"❌ Error cerrando {symbol}")
+                        errors += 1
+
+                except Exception as e:
+                    logger.error(f"Error procesando {asset}: {e}")
+                    errors += 1
+                    self.is_trading = False
+
+            logger.info(f"Posiciones cerradas: {positions_closed}, Errores: {errors}")
+            return errors == 0
+
+        except Exception as e:
+            logger.error(f"Error cerrando posiciones: {e}")
+            return False
+
     def _shutdown(self):
-        """Apaga el bot de forma limpia."""
+        """Apaga el bot de forma limpia cerrando todas las posiciones."""
         logger.info("\n" + "=" * 60)
         logger.info("Apagando bot...")
         logger.info("=" * 60)
 
-        # v1.4: Notificar apagado
-        self.notifier.notify_shutdown(reason="Apagado normal")
-
         try:
+            # v1.5: Cerrar todas las posiciones abiertas ANTES de apagar
+            logger.warning("🔴 Cerrando todas las posiciones abiertas...")
+            positions_closed = self._close_all_positions()
+
+            if positions_closed:
+                logger.info("✅ Todas las posiciones cerradas correctamente")
+                self.notifier.notify_shutdown(reason="Apagado normal - Posiciones cerradas")
+            else:
+                logger.warning("⚠️  Algunas posiciones no se pudieron cerrar")
+                self.notifier.notify_shutdown(reason="Apagado con errores en cierre de posiciones")
+
             # v1.3: Cerrar WebSocket Engine
             if self.websocket_engine:
                 self.websocket_engine.stop()

@@ -94,7 +94,7 @@
       "type": "stat",
       "targets": [
         {
-          "query": "wins = from(bucket: \"trading_decisions\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"trade_result\")\n  |> filter(fn: (r) => r.result == \"WIN\")\n  |> count()\n  |> findColumn(fn: (key) => true, column: \"_value\")\n\ntotal = from(bucket: \"trading_decisions\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"trade_result\")\n  |> filter(fn: (r) => r._field == \"pnl\")\n  |> count()\n  |> findColumn(fn: (key) => true, column: \"_value\")\n\narray.from(rows: [{_value: if length(arr: total) > 0 and total[0] > 0 then float(v: wins[0]) / float(v: total[0]) * 100.0 else 0.0}])",
+          "query": "import \"array\"\n\nwins = from(bucket: \"trading_decisions\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"trade_result\")\n  |> filter(fn: (r) => r.result == \"WIN\")\n  |> count()\n  |> findColumn(fn: (key) => true, column: \"_value\")\n\ntotal = from(bucket: \"trading_decisions\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"trade_result\")\n  |> filter(fn: (r) => r._field == \"pnl\")\n  |> count()\n  |> findColumn(fn: (key) => true, column: \"_value\")\n\narray.from(rows: [{_value: if length(arr: total) > 0 and total[0] > 0 then float(v: wins[0]) / float(v: total[0]) * 100.0 else 0.0}])",
           "refId": "A"
         }
       ]

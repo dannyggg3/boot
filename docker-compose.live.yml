@@ -37,6 +37,8 @@ services:
     build: .
     container_name: sath_bot_live
     restart: always
+    # Tiempo de gracia para cerrar posiciones antes de forzar apagado
+    stop_grace_period: 60s
     depends_on:
       influxdb:
         condition: service_healthy
