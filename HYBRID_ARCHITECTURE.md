@@ -1,4 +1,4 @@
-# Arquitectura Híbrida de IA - Estrategia Ganadora (v1.2)
+# Arquitectura Híbrida de IA - Estrategia Ganadora (v1.4)
 
 ## 🎯 ¿Por Qué Arquitectura Híbrida?
 
@@ -183,23 +183,43 @@ ai_model: "deepseek-chat"  # Un solo modelo
 
 Los agentes son "expertos" que se activan según el régimen de mercado:
 
-| Agente | Activa Cuando | Estrategia |
-|--------|---------------|------------|
-| **Trend Agent** | RSI 30-70, EMA golden/death cross | Opera continuación de tendencia en retrocesos |
-| **Reversal Agent** | RSI <30 o >70 | Opera reversiones con confirmación de divergencias |
-| **No Opera** | ATR <0.5% o mercado lateral | Ahorra API y evita falsas señales |
+| Agente | Activa Cuando | Estrategia (v1.4) |
+|--------|---------------|-------------------|
+| **Trend Agent** | RSI 30-70, EMA golden/death cross | Continuación de tendencia: breakouts Y retrocesos (EMA 50/20) |
+| **Reversal Agent** | RSI <30 o >70 | Reversiones con RSI extremo + Bollinger + MACD (divergencia opcional) |
+| **No Opera** | ATR <0.2% o mercado lateral | Ahorra API y evita falsas señales |
 
-### Configuración de Agentes
+### Reglas de Volumen (v1.4)
+
+**Antes (v1.2):**
+- Ratio volumen > 1.0 REQUERIDO
+- Sin dato de promedio = ESPERA
+
+**Ahora (v1.4):**
+- Ratio > 1.0 es IDEAL, pero > 0.3 es ACEPTABLE
+- Volumen bajo NO invalida señales técnicas fuertes
+- Order Book Imbalance puede confirmar cuando volumen es bajo
+- Nuevos indicadores: `volume_mean`, `volume_current`, `volume_ratio`
+
+### Configuración de Agentes (v1.4)
 
 ```yaml
 ai_agents:
   enabled: true
 
   # Volatilidad mínima para operar
-  min_volatility_percent: 0.5  # ATR% mínimo
+  min_volatility_percent: 0.2  # ATR% mínimo (reducido de 0.5)
 
-  # Ratio de volumen vs promedio
-  min_volume_ratio: 0.8
+  # Ratio de volumen vs promedio (NO bloquea señales fuertes)
+  min_volume_ratio: 0.3  # Reducido de 0.8
+
+# Kelly Criterion
+risk_management:
+  kelly_criterion:
+    enabled: true
+    fraction: 0.2
+    min_confidence: 0.5  # Reducido de 0.6
+    max_risk_cap: 2.0
 ```
 
 ### Datos Avanzados de Mercado (v1.2)
@@ -527,11 +547,13 @@ trading:
 
 ---
 
-**Versión**: 1.2
-**Última actualización**: 2024
+**Versión**: 1.4
+**Última actualización**: Diciembre 2024
 
 ### Changelog
 
+- **v1.4**: Reglas de volumen flexibles (ratio > 0.3), breakouts permitidos, divergencia RSI opcional, confianza mínima 50%
+- **v1.3**: Docker Compose, InfluxDB, Kelly Criterion, WebSocket Engine
 - **v1.2**: Sistema de agentes especializados, filtro de volatilidad pre-IA, datos avanzados de mercado
 - **v1.1**: Análisis paralelo, protección anti-slippage, órdenes limit inteligentes
 - **v1.0**: Arquitectura híbrida inicial con filtro rápido + decisor profundo

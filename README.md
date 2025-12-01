@@ -1,8 +1,8 @@
-# Sistema Autónomo de Trading Híbrido (SATH) v1.3
+# Sistema Autónomo de Trading Híbrido (SATH) v1.4
 
 Bot de trading profesional que combina análisis técnico cuantitativo con razonamiento de IA para trading autónomo en criptomonedas y mercados tradicionales.
 
-**Nuevo en v1.3**: Despliegue con Docker, persistencia en InfluxDB, Kelly Criterion para sizing dinámico.
+**Nuevo en v1.4**: Reglas de trading optimizadas - volumen flexible, breakouts en tendencias fuertes, confianza mínima reducida.
 
 ## Características Principales
 
@@ -30,6 +30,13 @@ Bot de trading profesional que combina análisis técnico cuantitativo con razon
 - **Kelly Criterion**: Position sizing dinámico basado en confianza de la señal
 - **DataLogger**: Registro automático de decisiones, trades y resultados
 - **WebSocket Engine**: Motor preparado para datos en tiempo real (opcional)
+
+### Reglas de Trading Optimizadas v1.4
+- **Volumen Flexible**: Ratio > 0.3 es aceptable (antes > 1.0). Volumen bajo NO invalida señales fuertes
+- **Breakouts Permitidos**: En tendencias fuertes, no espera retrocesos profundos a EMA 50
+- **Reversiones Adaptativas**: Divergencia RSI es ideal pero no obligatoria si hay otras confirmaciones
+- **Confianza Reducida**: Opera con confianza > 50% (antes > 60%)
+- **Order Book como Confirmación**: El imbalance del order book puede confirmar señales con volumen bajo
 
 ## Arquitectura del Sistema
 
@@ -611,6 +618,23 @@ Para reportar bugs o solicitar features:
 
 ## Changelog
 
+### v1.4 (2024-12)
+
+- **Reglas de Trading Optimizadas**:
+  - Volumen flexible: ratio > 0.3 es aceptable (antes > 1.0)
+  - Breakouts permitidos en tendencias fuertes
+  - Divergencia RSI opcional si hay otras confirmaciones
+  - Confianza mínima reducida de 60% a 50%
+
+- **Nuevos Indicadores de Volumen**:
+  - `volume_mean`: Promedio móvil de 20 períodos
+  - `volume_current`: Volumen de la vela actual
+  - `volume_ratio`: Ratio actual vs promedio
+
+- **Agentes Más Flexibles**:
+  - Agente de Tendencia permite breakouts y retrocesos menores
+  - Agente de Reversión usa Order Book como confirmación alternativa
+
 ### v1.3 (2024)
 
 - **Despliegue con Docker Compose**:
@@ -675,4 +699,4 @@ Para reportar bugs o solicitar features:
 
 **Desarrollado con ❤️ para traders algorítmicos**
 
-Versión 1.3 - 2024
+Versión 1.4 - Diciembre 2024

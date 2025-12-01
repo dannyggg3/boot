@@ -6,6 +6,65 @@ El formato está basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.
 
 ---
 
+## [1.4.0] - 2024-12 (Optimización de Reglas de Trading)
+
+### Agregado
+
+- **Cálculo de Volumen Promedio (SMA 20)**
+  - Nuevo indicador `volume_mean`: Promedio móvil de 20 períodos del volumen
+  - Nuevo indicador `volume_current`: Volumen de la vela actual
+  - Nuevo indicador `volume_ratio`: Ratio volumen_actual / volumen_promedio
+  - Permite a la IA comparar volumen actual vs histórico
+
+- **Datos de Volumen en Todos los Prompts**
+  - Formato: `Volumen Actual: X | Promedio (20): Y | Ratio: Z.ZZx`
+  - Incluido en: Agente de Tendencia, Agente de Reversión, Análisis Profundo, Filtro Rápido
+
+### Modificado
+
+- **Reglas del Agente de Tendencia** (`ai_engine.py`)
+  - **ANTES**: "Buscas RETROCESOS hacia EMA 50 como zona de entrada"
+  - **AHORA**: "Buscas entradas en CONTINUACIÓN DE TENDENCIA":
+    - Tendencia FUERTE: permite BREAKOUTS y retrocesos menores
+    - Tendencia moderada: espera retroceso a EMA 50 o EMA 20
+    - NO espera retrocesos profundos en tendencias explosivas
+
+- **Regla de Volumen Relajada**
+  - **ANTES**: "REQUIERES confirmación de volumen (ratio > 1.0)"
+  - **AHORA**: "Ratio > 1.0 es ideal, pero ratio > 0.3 es ACEPTABLE. Volumen bajo NO invalida señal técnica fuerte"
+
+- **Reglas del Agente de Reversión** (`ai_engine.py`)
+  - **ANTES**: "REQUIERES confirmación de DIVERGENCIA"
+  - **AHORA**: "Divergencia RSI es IDEAL pero no obligatoria si hay señales claras de agotamiento"
+  - Volumen: ratio > 0.3 es suficiente
+  - El Order Book Imbalance puede confirmar la reversión
+
+- **Configuración Kelly Criterion** (`config_live.yaml`)
+  - `min_confidence`: 0.6 → **0.5** (permite más operaciones con confianza moderada)
+
+- **Configuración de Agentes** (`config_live.yaml`)
+  - `min_volume_ratio`: 0.8 → **0.3** (no filtra por volumen bajo)
+
+### Impacto
+
+| Bloqueo Anterior | Estado |
+|------------------|--------|
+| Volumen sin dato de promedio | ✅ Arreglado |
+| Exigencia estricta de retroceso a EMA 50 | ✅ Relajado |
+| Exigencia de divergencia RSI obligatoria | ✅ Relajado |
+| Confianza mínima 60% | ✅ Bajada a 50% |
+| Ratio volumen > 0.8 | ✅ Bajado a 0.3 |
+
+### Filosofía del Cambio
+
+El bot ahora opera con la **flexibilidad de un trader humano**:
+- Puede subirse a tendencias fuertes sin esperar retrocesos profundos
+- El volumen bajo no bloquea señales técnicas fuertes
+- El Order Book Imbalance puede confirmar señales cuando el volumen es bajo
+- Permite operaciones con confianza > 50% (antes > 60%)
+
+---
+
 ## [1.3.0] - 2024
 
 ### Agregado
@@ -277,7 +336,15 @@ from(bucket:"trading_decisions")
 - [x] Kelly Criterion para position sizing
 - [x] Despliegue con Docker Compose
 
-### v1.4 (Planificado)
+### v1.4 (Completado)
+
+- [x] Cálculo de volumen promedio (SMA 20) y ratio
+- [x] Reglas de volumen flexibles (ratio > 0.3 aceptable)
+- [x] Breakouts permitidos en tendencias fuertes
+- [x] Divergencia RSI opcional en reversiones
+- [x] Confianza mínima reducida (50%)
+
+### v1.5 (Planificado)
 
 - [ ] Dashboard web de monitoreo (Grafana dashboards pre-configurados)
 - [ ] Más agentes especializados (Breakout Agent, Scalping Agent)
