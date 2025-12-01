@@ -579,7 +579,8 @@ class MarketEngine:
             if self.market_type == 'crypto':
                 balance = self.connection.fetch_balance()
                 # Filtrar solo activos con balance > 0
-                return {k: v['free'] for k, v in balance['total'].items() if v['free'] > 0}
+                # balance['free'] contiene {asset: float} directamente
+                return {k: v for k, v in balance['free'].items() if v > 0}
 
             elif self.market_type == 'forex_stocks':
                 account_values = self.connection.accountValues()
