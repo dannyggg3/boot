@@ -226,8 +226,10 @@ websockets:
 logging:
   level: "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
   file: "logs/trading_bot.log"
-  max_file_size_mb: 10
-  backup_count: 5
+
+  # Rotación diaria de logs (a medianoche)
+  # Los archivos se nombran: trading_bot.log.2024-12-01, trading_bot.log.2024-12-02, etc.
+  backup_count: 30  # Días de logs a mantener (elimina automáticamente los más antiguos)
 
   # Heartbeat - verificación de que el bot está vivo
   heartbeat_interval: 60  # segundos

@@ -130,10 +130,13 @@ class TradingBot:
             sys.exit(1)
 
     def _setup_logging(self):
-        """Configura el sistema de logging."""
+        """Configura el sistema de logging con rotación diaria."""
+        from logging.handlers import TimedRotatingFileHandler
+
         log_config = self.config.get('logging', {})
         log_level = log_config.get('level', 'INFO')
         log_file = log_config.get('file', 'logs/trading_bot.log')
+        backup_count = log_config.get('backup_count', 30)  # Mantener 30 días por defecto
 
         # Crear directorio de logs si no existe
         os.makedirs(os.path.dirname(log_file), exist_ok=True)
@@ -142,11 +145,23 @@ class TradingBot:
         log_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
         date_format = '%Y-%m-%d %H:%M:%S'
 
+        # Handler de consola
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(logging.Formatter(log_format, date_format))
+
+        # Handler de archivo con rotación diaria a medianoche
+        file_handler = TimedRotatingFileHandler(
+            filename=log_file,
+            when='midnight',      # Rotar a medianoche
+            interval=1,           # Cada 1 día
+            backupCount=backup_count,  # Días a mantener
+            encoding='utf-8'
+        )
+        file_handler.setFormatter(logging.Formatter(log_format, date_format))
+        file_handler.suffix = '%Y-%m-%d'  # Sufijo para archivos rotados: trading_bot.log.2024-11-30
+
         # Configurar handlers
-        handlers = [
-            logging.StreamHandler(),  # Consola
-            logging.FileHandler(log_file)  # Archivo
-        ]
+        handlers = [console_handler, file_handler]
 
         logging.basicConfig(
             level=getattr(logging, log_level),
