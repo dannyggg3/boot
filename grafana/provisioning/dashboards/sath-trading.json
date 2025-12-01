@@ -12,7 +12,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "${DS_INFLUXDB}"
+        "uid": "influxdb-sath"
       },
       "fieldConfig": {
         "defaults": {
@@ -57,7 +57,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "${DS_INFLUXDB}"
+        "uid": "influxdb-sath"
       },
       "fieldConfig": {
         "defaults": {
@@ -102,7 +102,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "${DS_INFLUXDB}"
+        "uid": "influxdb-sath"
       },
       "fieldConfig": {
         "defaults": {
@@ -145,7 +145,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "${DS_INFLUXDB}"
+        "uid": "influxdb-sath"
       },
       "fieldConfig": {
         "defaults": {
@@ -191,7 +191,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "${DS_INFLUXDB}"
+        "uid": "influxdb-sath"
       },
       "fieldConfig": {
         "defaults": {
@@ -234,7 +234,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "${DS_INFLUXDB}"
+        "uid": "influxdb-sath"
       },
       "fieldConfig": {
         "defaults": {
@@ -288,7 +288,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "${DS_INFLUXDB}"
+        "uid": "influxdb-sath"
       },
       "fieldConfig": {
         "defaults": {
@@ -319,7 +319,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "${DS_INFLUXDB}"
+        "uid": "influxdb-sath"
       },
       "fieldConfig": {
         "defaults": {
@@ -396,7 +396,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "${DS_INFLUXDB}"
+        "uid": "influxdb-sath"
       },
       "fieldConfig": {
         "defaults": {
@@ -454,7 +454,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "${DS_INFLUXDB}"
+        "uid": "influxdb-sath"
       },
       "fieldConfig": {
         "defaults": {
@@ -508,7 +508,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "${DS_INFLUXDB}"
+        "uid": "influxdb-sath"
       },
       "fieldConfig": {
         "defaults": {
@@ -539,7 +539,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "${DS_INFLUXDB}"
+        "uid": "influxdb-sath"
       },
       "fieldConfig": {
         "defaults": {
@@ -570,7 +570,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "${DS_INFLUXDB}"
+        "uid": "influxdb-sath"
       },
       "fieldConfig": {
         "defaults": {
@@ -609,7 +609,7 @@
         "current": {},
         "datasource": {
           "type": "influxdb",
-          "uid": "${DS_INFLUXDB}"
+          "uid": "influxdb-sath"
         },
         "definition": "import \"influxdata/influxdb/schema\"\n\nschema.tagValues(bucket: \"trading_decisions\", tag: \"symbol\")",
         "hide": 0,
