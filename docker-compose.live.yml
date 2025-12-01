@@ -70,6 +70,27 @@ services:
           cpus: '0.25'
           memory: 256M
 
+  # Grafana - Visualización de métricas
+  grafana:
+    image: grafana/grafana:latest
+    container_name: sath_grafana
+    restart: always
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-sath_grafana_2024}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      # Token de InfluxDB para datasource
+      - INFLUXDB_TOKEN=${INFLUXDB_TOKEN}
+    depends_on:
+      - influxdb
+    networks:
+      - sath_network
+
 networks:
   sath_network:
     driver: bridge
@@ -77,3 +98,4 @@ networks:
 volumes:
   influxdb_data:
   influxdb_config:
+  grafana_data:
