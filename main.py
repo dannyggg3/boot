@@ -6,13 +6,14 @@ Bot de trading profesional que combina análisis técnico cuantitativo
 con razonamiento de IA para trading autónomo en crypto y mercados tradicionales.
 
 Autor: Trading Bot System
-Versión: 1.3
+Versión: 1.4
 
-Changelog v1.3:
-- DataLogger para persistencia en InfluxDB
-- Kelly Criterion para position sizing dinámico
-- Despliegue con Docker Compose
-- WebSocket Engine (preparado)
+Changelog v1.4:
+- Volumen promedio (SMA 20) y ratio para comparación
+- Reglas de trading flexibles (volumen, EMA50, divergencia)
+- Confianza mínima reducida (50%)
+- Logging mejorado con tags [SYMBOL] para threads paralelos
+- Notificaciones Telegram mejoradas
 """
 
 import sys
@@ -308,8 +309,11 @@ class TradingBot:
         Args:
             symbol: Símbolo del activo (ej. 'BTC/USDT')
         """
+        # v1.4: Prefijo para identificar cada thread en logs paralelos
+        tag = f"[{symbol}]"
+
         logger.info(f"\n{'=' * 60}")
-        logger.info(f"Analizando {symbol}")
+        logger.info(f"{tag} 🔍 INICIANDO ANÁLISIS")
         logger.info(f"{'=' * 60}")
 
         # v1.3: Verificar si WebSocket tiene datos frescos
@@ -317,23 +321,23 @@ class TradingBot:
         if self.use_websockets and self.websocket_engine:
             if self.websocket_engine.is_data_fresh(symbol, max_age_seconds=10):
                 ws_price = self.websocket_engine.get_current_price(symbol)
-                logger.info(f"📡 WebSocket Stream: Precio {symbol} = ${ws_price:.2f}")
+                logger.info(f"{tag} 📡 WebSocket: ${ws_price:.2f}")
             else:
-                logger.debug(f"WebSocket: datos no frescos para {symbol}, usando HTTP")
+                logger.debug(f"{tag} WebSocket: datos no frescos, usando HTTP")
 
         # 1. Obtener datos históricos (siempre necesarios para indicadores)
         timeframe = self.config['trading']['timeframe']
         ohlcv = self.market_engine.get_historical_data(symbol, timeframe=timeframe, limit=250)
 
         if not ohlcv:
-            logger.warning(f"No se pudieron obtener datos para {symbol}")
+            logger.warning(f"{tag} ⚠️ No se pudieron obtener datos OHLCV")
             return
 
         # 2. Calcular indicadores técnicos
         technical_data = self.technical_analyzer.analyze(ohlcv)
 
         if not technical_data:
-            logger.warning(f"No se pudieron calcular indicadores para {symbol}")
+            logger.warning(f"{tag} ⚠️ No se pudieron calcular indicadores")
             return
 
         # Agregar símbolo y tipo de mercado
@@ -350,7 +354,7 @@ class TradingBot:
                     advanced_data = self.market_engine.get_advanced_market_data(symbol)
                     # Sobrescribir order book con datos en tiempo real
                     advanced_data['order_book'] = ws_orderbook
-                    logger.info(f"📡 WebSocket: Order Book actualizado en tiempo real")
+                    logger.info(f"{tag} 📡 Order Book: WebSocket RT")
                 else:
                     advanced_data = self.market_engine.get_advanced_market_data(symbol)
             else:
@@ -360,31 +364,31 @@ class TradingBot:
             if advanced_data:
                 if 'order_book' in advanced_data:
                     ob = advanced_data['order_book']
-                    logger.info(f"📊 Order Book: Imbalance {ob['imbalance']}% ({ob['pressure']})")
+                    logger.info(f"{tag} 📊 Order Book: {ob['imbalance']}% ({ob['pressure']})")
 
                 if 'funding_rate' in advanced_data:
-                    logger.info(f"💰 Funding Rate: {advanced_data['funding_rate']}%")
+                    logger.info(f"{tag} 💰 Funding: {advanced_data['funding_rate']}%")
                     if advanced_data.get('funding_warning'):
-                        logger.warning(f"⚠️ {advanced_data['funding_warning']}")
+                        logger.warning(f"{tag} ⚠️ {advanced_data['funding_warning']}")
 
                 if 'correlations' in advanced_data:
                     corr = advanced_data['correlations']
                     if 'btc' in corr:
-                        logger.info(f"🔗 Correlación BTC: {corr['btc']}")
+                        logger.info(f"{tag} 🔗 Corr BTC: {corr['btc']}")
 
         # 3. Consultar a la IA (Agentes Especializados v1.2 o Híbrido o Simple)
         if self.ai_engine.use_specialized_agents:
-            logger.info("Usando AGENTES ESPECIALIZADOS v1.2")
+            logger.info(f"{tag} 🤖 Usando AGENTES ESPECIALIZADOS")
             ai_decision = self.ai_engine.analyze_market_v2(technical_data, advanced_data)
         elif self.ai_engine.use_hybrid:
-            logger.info("Usando análisis HÍBRIDO (2 niveles)")
+            logger.info(f"{tag} 🤖 Usando análisis HÍBRIDO")
             ai_decision = self.ai_engine.analyze_market_hybrid(technical_data)
         else:
-            logger.info("Usando análisis SIMPLE (1 nivel)")
+            logger.info(f"{tag} 🤖 Usando análisis SIMPLE")
             ai_decision = self.ai_engine.analyze_market(technical_data)
 
         if not ai_decision:
-            logger.warning("La IA no pudo generar una decisión")
+            logger.warning(f"{tag} ⚠️ La IA no pudo generar una decisión")
             return
 
         decision = ai_decision.get('decision', 'ESPERA')
@@ -392,9 +396,8 @@ class TradingBot:
         reasoning = ai_decision.get('razonamiento', 'N/A')
         analysis_type = ai_decision.get('analysis_type', 'standard')
 
-        logger.info(f"Decisión IA: {decision} (Confianza: {confidence:.2f})")
-        logger.info(f"Tipo de análisis: {analysis_type}")
-        logger.info(f"Razonamiento: {reasoning}")
+        logger.info(f"{tag} 📋 Decisión: {decision} (Confianza: {confidence:.2f})")
+        logger.info(f"{tag} 📝 Razonamiento: {reasoning[:200]}...")
 
         # v1.3: Registrar decisión en InfluxDB para análisis posterior
         agent_type = ai_decision.get('agent_type', 'general')
@@ -411,7 +414,7 @@ class TradingBot:
 
         # 4. Si la decisión es esperar, no hacer nada
         if decision == 'ESPERA':
-            logger.info(f"✋ ESPERAR - No hay oportunidad clara en {symbol}")
+            logger.info(f"{tag} ✋ ESPERAR - No hay oportunidad clara")
             return
 
         # 5. Validar con Risk Manager
@@ -443,20 +446,20 @@ class TradingBot:
         )
 
         if not risk_validation['approved']:
-            logger.warning(f"❌ Operación RECHAZADA por Risk Manager")
-            logger.warning(f"Razón: {risk_validation.get('reason', 'N/A')}")
+            logger.warning(f"{tag} ❌ RECHAZADO por Risk Manager: {risk_validation.get('reason', 'N/A')}")
             return
 
         # 6. Ejecutar operación
-        logger.info(f"✅ Operación APROBADA por Risk Manager")
-        self._execute_trade(symbol, decision, risk_validation, current_price)
+        logger.info(f"{tag} ✅ APROBADO por Risk Manager")
+        self._execute_trade(symbol, decision, risk_validation, current_price, tag)
 
     def _execute_trade(
         self,
         symbol: str,
         decision: str,
         risk_params: Dict[str, Any],
-        analysis_price: float
+        analysis_price: float,
+        tag: str = None
     ):
         """
         Ejecuta una operación de trading con protección contra slippage.
@@ -466,26 +469,31 @@ class TradingBot:
             decision: COMPRA o VENTA
             risk_params: Parámetros validados por el risk manager
             analysis_price: Precio al momento del análisis (para verificación pre-ejecución)
+            tag: Prefijo para identificar el símbolo en logs paralelos
         """
+        # v1.4: Tag para identificar símbolo en logs paralelos
+        if tag is None:
+            tag = f"[{symbol}]"
+
         side = 'buy' if decision == 'COMPRA' else 'sell'
         amount = risk_params['position_size']
         stop_loss = risk_params['stop_loss']
         take_profit = risk_params.get('take_profit')
 
         logger.info(f"\n{'=' * 60}")
-        logger.info(f"EJECUTANDO ORDEN: {decision} {amount} {symbol}")
-        logger.info(f"Precio de análisis: {analysis_price}")
-        logger.info(f"Stop Loss: {stop_loss}")
-        logger.info(f"Take Profit: {take_profit}")
+        logger.info(f"{tag} 🚀 EJECUTANDO ORDEN: {decision} {amount}")
+        logger.info(f"{tag} 💵 Precio de análisis: ${analysis_price}")
+        logger.info(f"{tag} 🛑 Stop Loss: ${stop_loss}")
+        logger.info(f"{tag} 🎯 Take Profit: ${take_profit}")
         logger.info(f"{'=' * 60}\n")
 
         if self.mode == 'backtest':
-            logger.info("🧪 BACKTEST MODE - Operación simulada")
+            logger.info(f"{tag} 🧪 BACKTEST MODE - Operación simulada")
             return
 
         # Verificar si se solicitó apagado
         if self.shutdown_requested:
-            logger.warning("⚠️ Apagado solicitado - operación cancelada")
+            logger.warning(f"{tag} ⚠️ Apagado solicitado - operación cancelada")
             return
 
         try:
@@ -506,17 +514,17 @@ class TradingBot:
 
                 if order_status == 'aborted':
                     # Orden abortada por verificación de precio
-                    logger.warning(f"⚠️ Orden ABORTADA: {order.get('reason', 'Precio cambió demasiado')}")
-                    logger.warning(f"Desviación de precio: {order.get('price_deviation', 'N/A'):.2f}%")
+                    logger.warning(f"{tag} ⚠️ Orden ABORTADA: {order.get('reason', 'Precio cambió demasiado')}")
+                    logger.warning(f"{tag} Desviación de precio: {order.get('price_deviation', 'N/A'):.2f}%")
                     return
 
                 if order_status in ['canceled', 'timeout']:
-                    logger.warning(f"⏱️ Orden no ejecutada: {order_status}")
+                    logger.warning(f"{tag} ⏱️ Orden no ejecutada: {order_status}")
                     return
 
-                logger.info(f"✅ Orden ejecutada exitosamente")
-                logger.info(f"Order ID: {order.get('id', 'N/A')}")
-                logger.info(f"Estado: {order_status}")
+                logger.info(f"{tag} ✅ Orden ejecutada exitosamente")
+                logger.info(f"{tag} Order ID: {order.get('id', 'N/A')}")
+                logger.info(f"{tag} Estado: {order_status}")
 
                 # v1.4: Notificar operación ejecutada
                 self.notifier.notify_trade_executed(
@@ -536,10 +544,10 @@ class TradingBot:
                 # - Notificar al risk manager cuando se cierre
 
             else:
-                logger.error("❌ Error ejecutando orden")
+                logger.error(f"{tag} ❌ Error ejecutando orden")
 
         except Exception as e:
-            logger.error(f"Error ejecutando operación: {e}", exc_info=True)
+            logger.error(f"{tag} Error ejecutando operación: {e}", exc_info=True)
         finally:
             # Siempre marcar que el trade terminó
             self.is_trading = False
@@ -689,10 +697,10 @@ def main():
     print(f"""
     ╔═══════════════════════════════════════════════════════════════╗
     ║                                                               ║
-    ║     Sistema Autónomo de Trading Híbrido (SATH) v1.3         ║
+    ║     Sistema Autónomo de Trading Híbrido (SATH) v1.4         ║
     ║                                                               ║
     ║     Trading profesional con IA + Análisis Técnico            ║
-    ║     Docker + InfluxDB + Kelly Criterion                      ║
+    ║     Reglas optimizadas + Logging paralelo mejorado           ║
     ║                                                               ║
     ║     MODO: {mode:^50}║
     ║     Config: {config_path:<47}║
