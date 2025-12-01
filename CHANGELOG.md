@@ -105,6 +105,34 @@ Nivel 1: Filtrado rápido con deepseek-chat
     - VENTA → balance del activo disponible
   - **Resultado**: Las órdenes se ejecutan correctamente con el capital real
 
+- **Bug: Error f-string en notificaciones** - `notifications.py`
+  - **Problema**: `ValueError: Invalid format specifier ',.2f if take_profit else 'N/A''`
+  - **Causa**: Condicional dentro de f-string con formato numérico
+  - **Línea afectada**: `${take_profit:,.2f if take_profit else 'N/A'}`
+  - **Solución**: `{f'${take_profit:,.2f}' if take_profit else 'N/A'}`
+
+- **`validate_trade()` ahora retorna `confidence`** - `risk_manager.py`
+  - El diccionario de retorno incluye el campo `confidence` para uso en notificaciones y logging
+
+- **Bug: Parser no extraía JSON de reasoning_content largo** - `ai_responses.py`
+  - **Problema**: Cuando DeepSeek-R1 devuelve `reasoning_content` con 14k+ chars, el regex no encontraba el JSON
+  - **Causa**: El regex `\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}` no maneja JSON anidado en texto largo
+  - **Solución**: Nueva función `_extract_json_balanced()` que:
+    - Usa conteo de brackets balanceados
+    - Busca desde el final del texto (donde suele estar el JSON)
+    - Verifica que contenga campos clave (`"decision"`, `"confidence"`)
+  - **Resultado**: Las decisiones de DeepSeek-R1 ahora se parsean correctamente
+
+- **Mejora: `response_format` para modelos no-reasoner** - `ai_engine.py`
+  - Agrega `response_format={"type": "json_object"}` a llamadas API de modelos chat (DeepSeek-V3, GPT-4o)
+  - **Beneficio**: La API garantiza JSON válido, elimina errores de parsing
+  - **Modelos afectados**:
+    - `_quick_filter_analysis()` - Siempre usa modelo fast (chat)
+    - `_deep_reasoning_analysis()` - Solo si modelo no es reasoner
+    - `_execute_agent_prompt()` - Solo si modelo no es reasoner
+  - **Detección automática**: `is_reasoner = 'reasoner' in model or 'r1' in model`
+  - **Reasoner (R1)**: Sigue usando parser balanceado mejorado (no soporta response_format)
+
 ### Filosofía del Cambio
 
 El bot ahora opera con **inteligencia de costos** y **balance real**:

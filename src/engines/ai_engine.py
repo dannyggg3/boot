@@ -620,15 +620,11 @@ REGLA: Solo di "is_interesting: true" si hay señal técnica CLARA y FUERTE.
                         {"role": "user", "content": prompt}
                     ],
                     temperature=0.1,
-                    max_tokens=150
+                    max_tokens=150,
+                    response_format={"type": "json_object"}  # v1.5: Forzar JSON
                 )
                 content = response.choices[0].message.content
-
-                # Parsear JSON
-                start_idx = content.find('{')
-                end_idx = content.rfind('}') + 1
-                json_str = content[start_idx:end_idx]
-                return json.loads(json_str)
+                return json.loads(content)  # Ya es JSON válido
 
         except Exception as e:
             logger.error(f"Error en filtro rápido: {e}")
@@ -687,9 +683,11 @@ SÉ EXTREMADAMENTE CONSERVADOR. Mejor perder una oportunidad que perder dinero.
 
         try:
             if self.provider in ['deepseek', 'openai']:
-                response = self.client.chat.completions.create(
-                    model=self.model_deep,
-                    messages=[
+                is_reasoner = 'reasoner' in self.model_deep.lower() or 'r1' in self.model_deep.lower()
+
+                api_params = {
+                    "model": self.model_deep,
+                    "messages": [
                         {
                             "role": "system",
                             "content": "Eres un trader institucional experto en detectar trampas de mercado. Respondes en JSON."
@@ -699,10 +697,24 @@ SÉ EXTREMADAMENTE CONSERVADOR. Mejor perder una oportunidad que perder dinero.
                             "content": prompt
                         }
                     ],
-                    temperature=0.1,
-                    max_tokens=800
-                )
-                content = response.choices[0].message.content
+                    "max_tokens": 4000 if is_reasoner else 800
+                }
+
+                # Reasoner no soporta temperature ni response_format
+                if not is_reasoner:
+                    api_params["temperature"] = 0.1
+                    api_params["response_format"] = {"type": "json_object"}
+
+                response = self.client.chat.completions.create(**api_params)
+                message = response.choices[0].message
+                content = message.content or ""
+
+                # DeepSeek-R1: Si content vacío, extraer de reasoning_content
+                if not content and is_reasoner:
+                    if hasattr(message, 'reasoning_content') and message.reasoning_content:
+                        content = message.reasoning_content
+                        logger.info(f"Usando reasoning_content ({len(content)} chars)")
+
                 return self._parse_ai_response(content)
 
         except Exception as e:
@@ -998,9 +1010,10 @@ IMPORTANTE: Las reversiones son ALTO RIESGO. Busca múltiples confirmaciones (RS
                     "max_tokens": 4000 if is_reasoner else 800
                 }
 
-                # Reasoner no soporta temperature
+                # Reasoner no soporta temperature ni response_format
                 if not is_reasoner:
                     api_params["temperature"] = 0.1
+                    api_params["response_format"] = {"type": "json_object"}  # v1.5: Forzar JSON
 
                 logger.debug(f"Llamando a {model} (reasoner={is_reasoner})...")
                 response = self.client.chat.completions.create(**api_params)

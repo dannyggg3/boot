@@ -138,7 +138,7 @@ class NotificationManager:
 <b>Cantidad:</b> {amount:.8f}
 <b>Precio:</b> ${price:,.2f}
 <b>Stop Loss:</b> ${stop_loss:,.2f}
-<b>Take Profit:</b> ${take_profit:,.2f if take_profit else 'N/A'}
+<b>Take Profit:</b> {f'${take_profit:,.2f}' if take_profit else 'N/A'}
 <b>Confianza IA:</b> {confidence*100:.1f}%
 
 ⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}

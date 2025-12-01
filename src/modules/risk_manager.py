@@ -210,6 +210,7 @@ class RiskManager:
             'stop_loss': round(suggested_stop_loss, 2),
             'take_profit': round(suggested_take_profit, 2) if suggested_take_profit else None,
             'risk_percentage': self.max_risk_per_trade,
+            'confidence': confidence,  # v1.5: Para notificaciones
             'message': 'Operación aprobada por Risk Manager'
         }
 

@@ -155,6 +155,55 @@ class ReversalAgentDecision(TradingDecision):
     )
 
 
+def _extract_json_balanced(text: str) -> Optional[str]:
+    """
+    Extrae JSON usando conteo de brackets balanceados.
+    Busca desde el final del texto (donde suele estar el JSON en reasoning_content).
+    """
+    # Buscar todos los { en el texto, empezando desde el final
+    brace_positions = [i for i, c in enumerate(text) if c == '{']
+
+    for start in reversed(brace_positions):
+        depth = 0
+        in_string = False
+        escape_next = False
+
+        for i in range(start, len(text)):
+            char = text[i]
+
+            if escape_next:
+                escape_next = False
+                continue
+
+            if char == '\\':
+                escape_next = True
+                continue
+
+            if char == '"' and not escape_next:
+                in_string = not in_string
+                continue
+
+            if in_string:
+                continue
+
+            if char == '{':
+                depth += 1
+            elif char == '}':
+                depth -= 1
+                if depth == 0:
+                    candidate = text[start:i+1]
+                    # Verificar que tenga campos clave de trading
+                    if '"decision"' in candidate.lower() or '"confidence"' in candidate.lower():
+                        try:
+                            import json
+                            json.loads(candidate)
+                            return candidate
+                        except:
+                            pass
+                    break
+    return None
+
+
 def parse_ai_response_safe(
     response_text: str,
     schema_class: type = TradingDecision,
@@ -191,7 +240,13 @@ def parse_ai_response_safe(
             except json.JSONDecodeError:
                 continue
 
-    # 2. Si no se encontró en bloques, buscar JSON raw
+    # 2. Método de brackets balanceados (mejor para reasoning_content largo)
+    if not json_str:
+        json_str = _extract_json_balanced(response_text)
+        if json_str:
+            logger.debug(f"JSON extraído con método balanceado ({len(json_str)} chars)")
+
+    # 3. Si no se encontró, buscar JSON raw con regex simple
     if not json_str:
         json_pattern = r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}'
         json_matches = re.findall(json_pattern, response_text)
@@ -204,7 +259,7 @@ def parse_ai_response_safe(
             except json.JSONDecodeError:
                 continue
 
-    # 3. Fallback: método simple
+    # 4. Fallback: método simple (primer { hasta último })
     if not json_str:
         start_idx = response_text.find('{')
         end_idx = response_text.rfind('}') + 1
