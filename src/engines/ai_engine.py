@@ -667,12 +667,15 @@ SÉ EXTREMADAMENTE CONSERVADOR. Mejor perder una oportunidad que perder dinero.
         prompt = f"""
 Eres un AGENTE DE TENDENCIA especializado. Tu ÚNICA misión es encontrar entradas de CONTINUACIÓN de tendencia en RETROCESOS.
 
-=== REGLAS INQUEBRANTABLES ===
+=== REGLAS DE ENTRADA ===
 1. SOLO operas a FAVOR de la tendencia (precio sobre EMA 200 = COMPRA, bajo EMA 200 = VENTA)
 2. NUNCA operas contra la tendencia principal
-3. Buscas RETROCESOS hacia EMA 50 como zona de entrada
-4. Si el RSI está sobrecomprado (>70) en tendencia alcista, ESPERAS el retroceso
-5. REQUIERES confirmación de volumen (volumen actual > promedio)
+3. Buscas entradas en CONTINUACIÓN DE TENDENCIA:
+   - Si la tendencia es FUERTE (precio alejado de EMA 50, momentum alto): entra en BREAKOUTS o retrocesos menores
+   - Si la tendencia es moderada: espera retroceso hacia EMA 50 o EMA 20
+   - NO esperes retrocesos profundos en tendencias explosivas
+4. Si el RSI está muy sobrecomprado (>80), considera esperar un pequeño retroceso
+5. Volumen: ratio > 1.0 confirma la señal (volumen actual > promedio)
 
 === DATOS DEL MERCADO: {symbol} ===
 Precio Actual: {market_data.get('current_price')}
@@ -688,23 +691,23 @@ Tendencia: {market_data.get('trend_analysis')}
 
 === ANÁLISIS REQUERIDO ===
 1. ¿El precio está en tendencia clara? (Sobre/bajo EMA 200)
-2. ¿Estamos en zona de retroceso? (Cerca de EMA 50)
-3. ¿El volumen confirma la continuación?
-4. ¿El RSI permite entrada? (No sobrecomprado/sobrevendido extremo)
+2. ¿Es buena zona de entrada? (Retroceso a EMA 50/20, breakout, o tendencia fuerte)
+3. ¿El volumen confirma? (ratio > 1.0)
+4. ¿El RSI permite entrada? (Evitar extremos >80 o <20)
 
 Responde SOLO en JSON:
 {{
     "decision": "COMPRA" | "VENTA" | "ESPERA",
     "confidence": 0.0-1.0,
-    "razonamiento": "Análisis paso a paso de tendencia y retroceso",
+    "razonamiento": "Análisis paso a paso de tendencia y punto de entrada",
     "stop_loss_sugerido": precio_numérico,
     "take_profit_sugerido": precio_numérico,
     "tamaño_posicion_sugerido": 1-3,
-    "tipo_entrada": "continuacion_tendencia" | "retroceso_ema50" | "breakout",
+    "tipo_entrada": "continuacion_tendencia" | "retroceso_ema" | "breakout",
     "alertas": ["riesgos identificados"]
 }}
 
-CRÍTICO: Si NO hay retroceso claro hacia EMA 50, responde ESPERA. Paciencia = Profits.
+IMPORTANTE: En tendencias fuertes, NO esperes retrocesos profundos. El mercado puede subir sin ti.
 """
 
         return self._execute_agent_prompt(prompt, "trend_agent")

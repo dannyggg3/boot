@@ -16,7 +16,7 @@ ai_model_deep: "deepseek-reasoner"
 ai_agents:
   enabled: true
   # Volatilidad mínima para operar (AJUSTADO: 0.1% para mercados tranquilos)
-  min_volatility_percent: 0.3
+  min_volatility_percent: 0.2
   min_volume_ratio: 0.8
 
 # ===== SELECCIÓN DE MERCADO =====
@@ -76,11 +76,11 @@ risk_management:
 
   leverage: 1 # Sin apalancamiento
 
-  # Kelly Criterion - MUY CONSERVADOR
+  # Kelly Criterion - CONSERVADOR
   kelly_criterion:
     enabled: true
     fraction: 0.2 # 1/5 Kelly (más conservador)
-    min_confidence: 0.6 # Solo opera con >60% confianza
+    min_confidence: 0.5 # Opera con >50% confianza (permite más trades)
     max_risk_cap: 2.0 # Máximo 2% por trade
 
 # ===== ANÁLISIS TÉCNICO =====
@@ -140,7 +140,7 @@ logging:
 
   # Rotación diaria de logs (a medianoche)
   # Los archivos se nombran: trading_bot.log.2024-12-01, trading_bot.log.2024-12-02, etc.
-  backup_count: 30  # Días de logs a mantener
+  backup_count: 30 # Días de logs a mantener
 
   heartbeat_interval: 60
 
