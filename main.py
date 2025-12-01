@@ -397,7 +397,7 @@ class TradingBot:
         analysis_type = ai_decision.get('analysis_type', 'standard')
 
         logger.info(f"{tag} 📋 Decisión: {decision} (Confianza: {confidence:.2f})")
-        logger.info(f"{tag} 📝 Razonamiento: {reasoning[:200]}...")
+        logger.info(f"{tag} 📝 Razonamiento: {reasoning}")
 
         # v1.3: Registrar decisión en InfluxDB para análisis posterior
         agent_type = ai_decision.get('agent_type', 'general')
@@ -416,6 +416,29 @@ class TradingBot:
         if decision == 'ESPERA':
             logger.info(f"{tag} ✋ ESPERAR - No hay oportunidad clara")
             return
+
+        # 4.5 v1.4: Validar que en SPOT mode solo vendemos lo que tenemos
+        if decision == 'VENTA' and self.mode in ['live', 'paper']:
+            # Extraer el activo base del símbolo (ej: BTC de BTC/USDT)
+            base_asset = symbol.split('/')[0]
+
+            try:
+                # Obtener balance del activo
+                balances = self.market_engine.get_balance()
+                asset_balance = balances.get(base_asset, 0)
+                current_price = technical_data['current_price']
+                asset_value_usd = asset_balance * current_price
+
+                # Si el balance es menor a $5, no podemos vender
+                if asset_value_usd < 5:
+                    logger.info(f"{tag} ⏭️ VENTA ignorada - No tienes {base_asset} para vender (balance: {asset_balance:.6f} ≈ ${asset_value_usd:.2f})")
+                    logger.info(f"{tag} 💡 En modo SPOT solo puedes vender activos que posees")
+                    return
+                else:
+                    logger.info(f"{tag} 💰 Balance {base_asset}: {asset_balance:.6f} (${asset_value_usd:.2f}) - Venta permitida")
+            except Exception as e:
+                logger.warning(f"{tag} ⚠️ No se pudo verificar balance de {base_asset}: {e}")
+                # Continuar con la validación normal, el error aparecerá en la ejecución
 
         # 5. Validar con Risk Manager
         current_price = technical_data['current_price']

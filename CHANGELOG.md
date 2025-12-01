@@ -20,6 +20,17 @@ El formato está basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.
   - Formato: `Volumen Actual: X | Promedio (20): Y | Ratio: Z.ZZx`
   - Incluido en: Agente de Tendencia, Agente de Reversión, Análisis Profundo, Filtro Rápido
 
+- **Validación SPOT Mode para Ventas**
+  - Verifica que tienes el activo antes de intentar vender
+  - Evita error "insufficient balance" en señales bajistas
+  - Mínimo $5 de valor para permitir venta
+  - Mensaje claro: "En modo SPOT solo puedes vender activos que posees"
+
+- **Logging Mejorado para Análisis Paralelo**
+  - Prefijo `[SYMBOL]` en todos los logs de threads paralelos
+  - Fácil identificación de qué símbolo genera cada mensaje
+  - Mejora debugging cuando múltiples símbolos se analizan simultáneamente
+
 ### Modificado
 
 - **Reglas del Agente de Tendencia** (`ai_engine.py`)
@@ -54,6 +65,8 @@ El formato está basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.
 | Exigencia de divergencia RSI obligatoria | ✅ Relajado |
 | Confianza mínima 60% | ✅ Bajada a 50% |
 | Ratio volumen > 0.8 | ✅ Bajado a 0.3 |
+| Error "insufficient balance" en SPOT | ✅ Validación pre-ejecución |
+| Logs confusos en análisis paralelo | ✅ Tags [SYMBOL] agregados |
 
 ### Filosofía del Cambio
 
