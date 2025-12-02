@@ -877,6 +877,25 @@ class PositionEngine:
                 else:
                     hold_time_minutes = 0
 
+                # v1.7: Derivar régimen del agent_type
+                agent_type = position.get('agent_type', 'general')
+                if 'trend' in agent_type.lower():
+                    regime = 'trend'
+                elif 'reversal' in agent_type.lower():
+                    regime = 'reversal'
+                elif 'range' in agent_type.lower():
+                    regime = 'range'
+                else:
+                    regime = position.get('regime', 'trend')  # Default a trend
+
+                # v1.7: Calcular slippage real si tenemos precio de análisis
+                analysis_price = position.get('analysis_price', position['entry_price'])
+                actual_entry = position['entry_price']
+                if analysis_price > 0:
+                    slippage_pct = abs(actual_entry - analysis_price) / analysis_price * 100
+                else:
+                    slippage_pct = position.get('slippage_percent', 0)
+
                 # Registrar trade
                 metrics.record_trade(
                     symbol=position['symbol'],
@@ -885,11 +904,11 @@ class PositionEngine:
                     pnl_percent=pnl_pct,
                     entry_price=position['entry_price'],
                     exit_price=exit_price,
-                    regime=position.get('regime', 'unknown'),
-                    agent_type=position.get('agent_type', 'general'),
+                    regime=regime,
+                    agent_type=agent_type,
                     hold_time_minutes=int(hold_time_minutes),
                     latency_ms=position.get('execution_latency_ms', 0),
-                    slippage_percent=position.get('slippage_percent', 0)
+                    slippage_percent=slippage_pct
                 )
 
                 logger.debug(f"📊 Métricas institucionales registradas para {position['symbol']}")

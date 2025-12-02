@@ -1,5 +1,5 @@
 # ============================================
-# CONFIGURACIÓN LIVE - SATH v1.6
+# CONFIGURACIÓN LIVE - SATH v1.7
 # Capital inicial: $100 USD
 # ============================================
 
@@ -128,11 +128,13 @@ position_management:
     enabled: true
     check_interval_ms: 500 # Verificar cada 500ms
 
-  # Trailing Stop inteligente (ajustado para cubrir fees)
+  # Trailing Stop inteligente (ajustado para cubrir fees) - v1.7
   trailing_stop:
     enabled: true
     activation_profit_percent: 2.0 # Activar después de 2% profit (cubre fees + ganancia)
     trail_distance_percent: 1.5    # Mantener 1.5% detrás del precio (captura más ganancia)
+    cooldown_seconds: 3            # v1.7: Evita race conditions entre actualizaciones de SL
+    min_safety_margin_percent: 0.3 # v1.7: Margen mínimo entre precio y SL
 
   # Supervisión IA de posiciones
   supervision:
@@ -216,6 +218,15 @@ logging:
   backup_count: 30 # Días de logs a mantener
 
   heartbeat_interval: 60
+
+# ===== VALIDACIÓN DE LIQUIDEZ v1.7 =====
+# CRÍTICO en LIVE: Verifica que haya suficiente liquidez antes de ejecutar órdenes
+liquidity_validation:
+  enabled: true
+  max_slippage_percent: 0.3        # Más estricto en LIVE (0.3% vs 0.5% en paper)
+  min_spread_warning: 0.2          # Advertir si spread > 0.2%
+  max_spread_reject: 0.4           # Rechazar si spread > 0.4%
+  min_order_book_depth_usd: 1000   # Mínimo $1000 en cada lado del order book
 
 # ===== SEGURIDAD =====
 security:

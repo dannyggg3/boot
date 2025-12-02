@@ -1,7 +1,8 @@
 # ============================================
-# SATH v1.6 - Docker Compose PAPER TRADING (TESTNET)
+# SATH v1.7 - Docker Compose PAPER TRADING (TESTNET)
 # Usa Binance Testnet - Sin dinero real
 # Incluye: Circuit Breaker, Health Monitor, AI Ensemble
+# v1.7: Métricas Institucionales, Validación Liquidez, Fill Rate
 # ============================================
 
 services:

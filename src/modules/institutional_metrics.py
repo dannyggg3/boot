@@ -53,6 +53,15 @@ class InstitutionalMetrics:
             'range': {'wins': 0, 'losses': 0, 'total_pnl': 0}
         }
 
+        # v1.7: Fill Rate tracking
+        self.limit_orders_placed = 0
+        self.limit_orders_filled = 0
+        self.limit_orders_cancelled = 0
+        self.limit_orders_timeout = 0
+
+        # v1.7: Umbrales de alerta
+        self.slippage_alert_threshold = self.config.get('slippage_alert_threshold', 0.3)  # 0.3%
+
         # Peak para drawdown
         self.peak_capital = 0
         self.current_capital = 0
@@ -125,9 +134,67 @@ class InstitutionalMetrics:
                 self.latency_samples.append(latency_ms)
             if slippage_percent > 0:
                 self.slippage_samples.append(slippage_percent)
+                # v1.7: Alerta si slippage excede umbral
+                if slippage_percent > self.slippage_alert_threshold:
+                    logger.warning(
+                        f"⚠️ SLIPPAGE ALTO: {slippage_percent:.3f}% en {symbol} "
+                        f"(umbral: {self.slippage_alert_threshold}%)"
+                    )
 
             # Persistir
             self._save_data()
+
+    def record_limit_order(self, status: str, symbol: str = "", order_type: str = ""):
+        """
+        Registra el resultado de una orden limit para cálculo de Fill Rate.
+
+        Args:
+            status: 'placed', 'filled', 'cancelled', 'timeout'
+            symbol: Par de trading
+            order_type: Tipo de orden ('entry', 'tp', 'sl')
+        """
+        with self._lock:
+            if status == 'placed':
+                self.limit_orders_placed += 1
+            elif status == 'filled':
+                self.limit_orders_filled += 1
+            elif status == 'cancelled':
+                self.limit_orders_cancelled += 1
+            elif status == 'timeout':
+                self.limit_orders_timeout += 1
+                logger.info(f"📊 Limit order timeout: {symbol} ({order_type})")
+
+            # Guardar cada 10 órdenes
+            if self.limit_orders_placed % 10 == 0:
+                self._save_data()
+
+    def get_fill_rate_stats(self) -> Dict[str, Any]:
+        """
+        Obtiene estadísticas de Fill Rate.
+
+        Returns:
+            Dict con métricas de fill rate
+        """
+        with self._lock:
+            total = self.limit_orders_placed
+            if total == 0:
+                return {
+                    'fill_rate_percent': 0,
+                    'total_placed': 0,
+                    'filled': 0,
+                    'cancelled': 0,
+                    'timeout': 0
+                }
+
+            return {
+                'fill_rate_percent': round(self.limit_orders_filled / total * 100, 1),
+                'total_placed': total,
+                'filled': self.limit_orders_filled,
+                'cancelled': self.limit_orders_cancelled,
+                'timeout': self.limit_orders_timeout,
+                'cancel_rate_percent': round(self.limit_orders_cancelled / total * 100, 1),
+                'timeout_rate_percent': round(self.limit_orders_timeout / total * 100, 1)
+            }
 
     def record_daily_return(self, return_percent: float, capital: float):
         """
@@ -351,7 +418,8 @@ class InstitutionalMetrics:
             'regime_analysis': self.get_regime_stats(),
             'execution_quality': {
                 'latency': self.get_latency_stats(),
-                'slippage': self.get_slippage_stats()
+                'slippage': self.get_slippage_stats(),
+                'fill_rate': self.get_fill_rate_stats()
             },
             'trade_stats': {
                 'total_trades': len(self.trades),
@@ -361,6 +429,97 @@ class InstitutionalMetrics:
                 ) if self.trades else 0
             }
         }
+
+    def log_periodic_report(self, interval_name: str = "", data_logger=None):
+        """
+        Imprime un reporte resumido de métricas en el log.
+        Diseñado para ser llamado periódicamente (ej: cada hora).
+        Opcionalmente envía las métricas a InfluxDB.
+
+        Args:
+            interval_name: Nombre del intervalo (ej: "1H", "4H", "Daily")
+            data_logger: Instancia de DataLogger para enviar a InfluxDB
+        """
+        report = self.get_comprehensive_report()
+        perf = report['performance']
+        regime = report['regime_analysis']
+        exec_q = report['execution_quality']
+
+        # v1.7: Enviar a InfluxDB si está disponible
+        if data_logger:
+            try:
+                # Métricas de performance
+                data_logger.log_institutional_metrics(
+                    sharpe_ratio=perf['sharpe_ratio_30d'],
+                    sortino_ratio=perf['sortino_ratio_30d'],
+                    calmar_ratio=perf['calmar_ratio'],
+                    max_drawdown=perf['max_drawdown_percent'],
+                    current_capital=perf['current_capital'],
+                    peak_capital=perf['peak_capital']
+                )
+
+                # Métricas de ejecución
+                latency = exec_q['latency']
+                slippage = exec_q['slippage']
+                fill_rate = exec_q['fill_rate']
+
+                data_logger.log_execution_quality(
+                    latency_p50=latency.get('p50', 0),
+                    latency_p95=latency.get('p95', 0),
+                    latency_p99=latency.get('p99', 0),
+                    slippage_avg=slippage.get('avg', 0),
+                    slippage_max=slippage.get('max', 0),
+                    fill_rate=fill_rate.get('fill_rate_percent', 0)
+                )
+
+                # Performance por régimen
+                for regime_name, stats in regime.items():
+                    if stats['total_trades'] > 0:
+                        data_logger.log_regime_performance(
+                            regime=regime_name,
+                            win_rate=stats['win_rate'],
+                            total_trades=stats['total_trades'],
+                            total_pnl=stats['total_pnl']
+                        )
+
+                logger.debug("Métricas enviadas a InfluxDB")
+
+            except Exception as e:
+                logger.error(f"Error enviando métricas a InfluxDB: {e}")
+
+        # Header
+        logger.info(f"")
+        logger.info(f"{'='*60}")
+        logger.info(f"📊 MÉTRICAS INSTITUCIONALES {interval_name}")
+        logger.info(f"{'='*60}")
+
+        # Performance
+        logger.info(f"📈 Performance:")
+        logger.info(f"   Sharpe (30d): {perf['sharpe_ratio_30d']:.2f} | Sortino: {perf['sortino_ratio_30d']:.2f}")
+        logger.info(f"   Calmar: {perf['calmar_ratio']:.2f} | Max DD: {perf['max_drawdown_percent']:.1f}%")
+        logger.info(f"   Capital: ${perf['current_capital']:.2f} (Peak: ${perf['peak_capital']:.2f})")
+
+        # Win Rate por Régimen
+        logger.info(f"📊 Win Rate por Régimen:")
+        for reg_name, stats in regime.items():
+            if stats['total_trades'] > 0:
+                logger.info(f"   {reg_name.capitalize()}: {stats['win_rate']:.1f}% ({stats['wins']}/{stats['total_trades']}) | PnL: ${stats['total_pnl']:.2f}")
+
+        # Calidad de Ejecución
+        latency = exec_q['latency']
+        slippage = exec_q['slippage']
+        fill_rate = exec_q['fill_rate']
+
+        logger.info(f"⚡ Ejecución:")
+        if latency['samples'] > 0:
+            logger.info(f"   Latencia: P50={latency['p50']:.0f}ms | P95={latency['p95']:.0f}ms | P99={latency['p99']:.0f}ms")
+        if slippage['samples'] > 0:
+            logger.info(f"   Slippage: Avg={slippage['avg']:.3f}% | Max={slippage['max']:.3f}%")
+        if fill_rate['total_placed'] > 0:
+            logger.info(f"   Fill Rate: {fill_rate['fill_rate_percent']:.1f}% ({fill_rate['filled']}/{fill_rate['total_placed']})")
+
+        logger.info(f"{'='*60}")
+        logger.info(f"")
 
     def _save_data(self):
         """Persiste los datos de métricas."""
@@ -374,7 +533,12 @@ class InstitutionalMetrics:
                 'peak_capital': self.peak_capital,
                 'current_capital': self.current_capital,
                 'max_drawdown': self.max_drawdown,
-                'max_drawdown_duration_days': self.max_drawdown_duration_days
+                'max_drawdown_duration_days': self.max_drawdown_duration_days,
+                # v1.7: Fill rate data
+                'limit_orders_placed': self.limit_orders_placed,
+                'limit_orders_filled': self.limit_orders_filled,
+                'limit_orders_cancelled': self.limit_orders_cancelled,
+                'limit_orders_timeout': self.limit_orders_timeout
             }
 
             with open(self.data_path, 'w') as f:
@@ -399,6 +563,12 @@ class InstitutionalMetrics:
             self.current_capital = data.get('current_capital', 0)
             self.max_drawdown = data.get('max_drawdown', 0)
             self.max_drawdown_duration_days = data.get('max_drawdown_duration_days', 0)
+
+            # v1.7: Fill rate data
+            self.limit_orders_placed = data.get('limit_orders_placed', 0)
+            self.limit_orders_filled = data.get('limit_orders_filled', 0)
+            self.limit_orders_cancelled = data.get('limit_orders_cancelled', 0)
+            self.limit_orders_timeout = data.get('limit_orders_timeout', 0)
 
             logger.info(f"Métricas cargadas: {len(self.trades)} trades, {len(self.daily_returns)} días")
 

@@ -256,6 +256,11 @@ class TradingBot:
             self.institutional_metrics = None
             self.use_liquidity_validation = self.config.get('liquidity_validation', {}).get('enabled', True)
 
+            # v1.7: Tracking de capital para Sharpe Ratio y Drawdown
+            self.last_recorded_capital = 0
+            self.last_capital_record_date = None
+            self.daily_starting_capital = 0
+
             if INSTITUTIONAL_METRICS_AVAILABLE:
                 try:
                     self.institutional_metrics = get_institutional_metrics(self.config)
@@ -435,6 +440,8 @@ class TradingBot:
                 logger.error(f"Error recuperando posiciones: {e}")
 
         heartbeat_counter = 0
+        last_metrics_report = time.time()
+        metrics_report_interval = 3600  # 1 hora
 
         while self.running:
             try:
@@ -444,6 +451,15 @@ class TradingBot:
                 if heartbeat_counter % 60 == 0:
                     logger.info("💓 Heartbeat - Bot operando normalmente")
                     self._print_status()
+                    # v1.7: Actualizar capital tracking para métricas
+                    self._update_institutional_capital()
+
+                # v1.7: Reporte de métricas institucionales cada hora (también envía a InfluxDB)
+                if self.institutional_metrics and (time.time() - last_metrics_report) >= metrics_report_interval:
+                    # Forzar registro de daily return antes del reporte
+                    self._update_institutional_capital(force_daily_record=True)
+                    self.institutional_metrics.log_periodic_report("HOURLY", data_logger=self.data_logger)
+                    last_metrics_report = time.time()
 
                 # v1.6: Monitoreo de posiciones abiertas y control de capacidad
                 if self.position_engine:
@@ -818,16 +834,30 @@ class TradingBot:
 
             if order:
                 order_status = order.get('status', 'unknown')
+                order_type = order.get('type', 'market')
+
+                # v1.7: Track fill rate para órdenes limit
+                if self.institutional_metrics and order_type == 'limit':
+                    self.institutional_metrics.record_limit_order('placed', symbol, 'entry')
 
                 if order_status == 'aborted':
                     # Orden abortada por verificación de precio
                     logger.warning(f"{tag} ⚠️ Orden ABORTADA: {order.get('reason', 'Precio cambió demasiado')}")
                     logger.warning(f"{tag} Desviación de precio: {order.get('price_deviation', 'N/A'):.2f}%")
+                    if self.institutional_metrics and order_type == 'limit':
+                        self.institutional_metrics.record_limit_order('cancelled', symbol, 'entry')
                     return
 
                 if order_status in ['canceled', 'timeout']:
                     logger.warning(f"{tag} ⏱️ Orden no ejecutada: {order_status}")
+                    if self.institutional_metrics and order_type == 'limit':
+                        status = 'timeout' if order_status == 'timeout' else 'cancelled'
+                        self.institutional_metrics.record_limit_order(status, symbol, 'entry')
                     return
+
+                # v1.7: Orden ejecutada = filled
+                if self.institutional_metrics and order_type == 'limit':
+                    self.institutional_metrics.record_limit_order('filled', symbol, 'entry')
 
                 logger.info(f"{tag} ✅ Orden ejecutada exitosamente")
                 logger.info(f"{tag} Order ID: {order.get('id', 'N/A')}")
@@ -858,7 +888,10 @@ class TradingBot:
                                 'take_profit': take_profit,
                                 'confidence': risk_params.get('confidence', 0.0),
                                 'agent_type': risk_params.get('agent_type', 'general'),
-                                'entry_order_id': order.get('id')
+                                'entry_order_id': order.get('id'),
+                                # v1.7: Datos para métricas institucionales
+                                'analysis_price': analysis_price,  # Para calcular slippage real
+                                'execution_latency_ms': order.get('latency_ms', 0)
                             }
                         )
 
@@ -882,6 +915,57 @@ class TradingBot:
         finally:
             # Siempre marcar que el trade terminó
             self.is_trading = False
+
+    def _update_institutional_capital(self, force_daily_record: bool = False):
+        """
+        v1.7: Actualiza las métricas institucionales con el capital actual.
+        Registra daily returns para cálculo de Sharpe Ratio.
+
+        Args:
+            force_daily_record: Forzar registro de retorno diario
+        """
+        if not self.institutional_metrics:
+            return
+
+        try:
+            from datetime import date
+
+            risk_status = self.risk_manager.get_status()
+            current_capital = risk_status['current_capital']
+            initial_capital = risk_status['initial_capital']
+
+            # Inicializar capital de tracking si es primera vez
+            if self.last_recorded_capital == 0:
+                self.last_recorded_capital = initial_capital
+                self.daily_starting_capital = initial_capital
+                self.last_capital_record_date = date.today()
+
+            today = date.today()
+
+            # Registrar daily return si cambió el día o es forzado
+            if self.last_capital_record_date != today or force_daily_record:
+                # Calcular retorno del día anterior
+                if self.daily_starting_capital > 0:
+                    daily_return = ((current_capital - self.daily_starting_capital) /
+                                   self.daily_starting_capital) * 100
+
+                    # Registrar solo si hubo cambio real
+                    if abs(daily_return) > 0.001 or force_daily_record:
+                        self.institutional_metrics.record_daily_return(
+                            return_percent=daily_return,
+                            capital=current_capital
+                        )
+                        logger.debug(f"📊 Daily return registrado: {daily_return:+.3f}% (Capital: ${current_capital:.2f})")
+
+                # Reiniciar para el nuevo día
+                self.daily_starting_capital = current_capital
+                self.last_capital_record_date = today
+
+            # Actualizar capital tracking
+            self.last_recorded_capital = current_capital
+
+        except Exception as e:
+            logger.error(f"Error actualizando métricas de capital: {e}")
 
     def _print_status(self):
         """Imprime el estado actual del bot."""

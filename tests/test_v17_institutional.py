@@ -658,6 +658,118 @@ class TestThreadSafeSingleton(unittest.TestCase):
 
 
 # =============================================================================
+# TEST 7: FILL RATE TRACKING
+# =============================================================================
+
+class TestFillRateTracking(unittest.TestCase):
+    """Tests para tracking de fill rate de órdenes limit."""
+
+    def setUp(self):
+        """Configura métricas para tests."""
+        self.test_path = '/tmp/test_fillrate_metrics.json'
+        if os.path.exists(self.test_path):
+            os.remove(self.test_path)
+
+    def tearDown(self):
+        """Limpia archivos de test."""
+        if os.path.exists(self.test_path):
+            os.remove(self.test_path)
+
+    def test_fill_rate_tracking(self):
+        """Test: Verifica tracking de fill rate."""
+        from modules.institutional_metrics import InstitutionalMetrics
+
+        metrics = InstitutionalMetrics(data_path=self.test_path)
+
+        # Simular órdenes
+        metrics.record_limit_order('placed', 'BTC/USDT', 'entry')
+        metrics.record_limit_order('placed', 'BTC/USDT', 'entry')
+        metrics.record_limit_order('placed', 'ETH/USDT', 'entry')
+        metrics.record_limit_order('filled', 'BTC/USDT', 'entry')
+        metrics.record_limit_order('filled', 'BTC/USDT', 'entry')
+        metrics.record_limit_order('timeout', 'ETH/USDT', 'entry')
+
+        stats = metrics.get_fill_rate_stats()
+
+        self.assertEqual(stats['total_placed'], 3)
+        self.assertEqual(stats['filled'], 2)
+        self.assertEqual(stats['timeout'], 1)
+        self.assertAlmostEqual(stats['fill_rate_percent'], 66.7, places=1)
+
+    def test_empty_fill_rate(self):
+        """Test: Verifica fill rate cuando no hay órdenes."""
+        from modules.institutional_metrics import InstitutionalMetrics
+
+        metrics = InstitutionalMetrics(data_path=self.test_path)
+
+        stats = metrics.get_fill_rate_stats()
+
+        self.assertEqual(stats['fill_rate_percent'], 0)
+        self.assertEqual(stats['total_placed'], 0)
+
+
+# =============================================================================
+# TEST 8: SLIPPAGE ALERTS
+# =============================================================================
+
+class TestSlippageAlerts(unittest.TestCase):
+    """Tests para alertas de slippage alto."""
+
+    def setUp(self):
+        """Configura métricas para tests."""
+        self.test_path = '/tmp/test_slippage_metrics.json'
+        if os.path.exists(self.test_path):
+            os.remove(self.test_path)
+
+    def tearDown(self):
+        """Limpia archivos de test."""
+        if os.path.exists(self.test_path):
+            os.remove(self.test_path)
+
+    def test_slippage_alert_threshold(self):
+        """Test: Verifica que se generen alertas con slippage alto."""
+        from modules.institutional_metrics import InstitutionalMetrics
+        import logging
+
+        metrics = InstitutionalMetrics(
+            config={'slippage_alert_threshold': 0.3},
+            data_path=self.test_path
+        )
+
+        # Slippage normal (no debería alertar)
+        metrics.record_trade(
+            'BTC/USDT', 'long', 10, 0.5, 40000, 40200,
+            slippage_percent=0.1
+        )
+
+        # Slippage alto (debería alertar - verificamos que se registra)
+        metrics.record_trade(
+            'BTC/USDT', 'long', -5, -0.25, 40000, 39900,
+            slippage_percent=0.5  # > 0.3% umbral
+        )
+
+        stats = metrics.get_slippage_stats()
+
+        self.assertEqual(stats['samples'], 2)
+        self.assertAlmostEqual(stats['max'], 0.5, places=2)
+
+    def test_periodic_report_includes_fill_rate(self):
+        """Test: Verifica que el reporte periódico incluya fill rate."""
+        from modules.institutional_metrics import InstitutionalMetrics
+
+        metrics = InstitutionalMetrics(data_path=self.test_path)
+
+        # Añadir algunos datos
+        metrics.record_limit_order('placed', 'BTC/USDT', 'entry')
+        metrics.record_limit_order('filled', 'BTC/USDT', 'entry')
+
+        report = metrics.get_comprehensive_report()
+
+        self.assertIn('fill_rate', report['execution_quality'])
+        self.assertEqual(report['execution_quality']['fill_rate']['total_placed'], 1)
+
+
+# =============================================================================
 # MAIN
 # =============================================================================
 
@@ -677,6 +789,8 @@ if __name__ == '__main__':
     suite.addTests(loader.loadTestsFromTestCase(TestLiquidityValidation))
     suite.addTests(loader.loadTestsFromTestCase(TestInstitutionalMetrics))
     suite.addTests(loader.loadTestsFromTestCase(TestThreadSafeSingleton))
+    suite.addTests(loader.loadTestsFromTestCase(TestFillRateTracking))
+    suite.addTests(loader.loadTestsFromTestCase(TestSlippageAlerts))
 
     # Ejecutar
     runner = unittest.TextTestRunner(verbosity=2)

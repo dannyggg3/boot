@@ -1,6 +1,7 @@
 # ============================================
-# CONFIGURACIÓN PAPER (TESTNET) - SATH v1.6
+# CONFIGURACIÓN PAPER (TESTNET) - SATH v1.7
 # Usa Binance Testnet para pruebas sin dinero real
+# Incluye: Métricas institucionales, validación de liquidez
 # ============================================
 
 # ===== SELECCIÓN DE PROVEEDOR DE IA =====

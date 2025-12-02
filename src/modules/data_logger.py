@@ -261,6 +261,153 @@ class DataLogger:
         except Exception as e:
             logger.error(f"Error guardando snapshot: {e}")
 
+    # ==================== MÉTRICAS INSTITUCIONALES v1.7 ====================
+
+    def log_institutional_metrics(
+        self,
+        sharpe_ratio: float,
+        sortino_ratio: float,
+        calmar_ratio: float,
+        max_drawdown: float,
+        current_capital: float,
+        peak_capital: float
+    ):
+        """
+        Registra métricas institucionales de performance.
+
+        Args:
+            sharpe_ratio: Sharpe Ratio (30 días)
+            sortino_ratio: Sortino Ratio (30 días)
+            calmar_ratio: Calmar Ratio
+            max_drawdown: Maximum Drawdown en porcentaje
+            current_capital: Capital actual
+            peak_capital: Capital máximo histórico
+        """
+        if not self.enabled or not self.write_api:
+            return
+
+        try:
+            point = Point("institutional_metrics") \
+                .field("sharpe_ratio", float(sharpe_ratio)) \
+                .field("sortino_ratio", float(sortino_ratio)) \
+                .field("calmar_ratio", float(calmar_ratio)) \
+                .field("max_drawdown", float(max_drawdown)) \
+                .field("current_capital", float(current_capital)) \
+                .field("peak_capital", float(peak_capital)) \
+                .field("drawdown_current", float((peak_capital - current_capital) / peak_capital * 100) if peak_capital > 0 else 0) \
+                .time(datetime.utcnow(), WritePrecision.NS)
+
+            self.write_api.write(bucket=self.bucket, org=self.org, record=point)
+            logger.debug("Métricas institucionales registradas en InfluxDB")
+
+        except Exception as e:
+            logger.error(f"Error guardando métricas institucionales: {e}")
+
+    def log_execution_quality(
+        self,
+        latency_p50: float,
+        latency_p95: float,
+        latency_p99: float,
+        slippage_avg: float,
+        slippage_max: float,
+        fill_rate: float
+    ):
+        """
+        Registra métricas de calidad de ejecución.
+
+        Args:
+            latency_p50: Latencia P50 en ms
+            latency_p95: Latencia P95 en ms
+            latency_p99: Latencia P99 en ms
+            slippage_avg: Slippage promedio en porcentaje
+            slippage_max: Slippage máximo en porcentaje
+            fill_rate: Fill rate de órdenes limit en porcentaje
+        """
+        if not self.enabled or not self.write_api:
+            return
+
+        try:
+            point = Point("execution_quality") \
+                .field("latency_p50", float(latency_p50)) \
+                .field("latency_p95", float(latency_p95)) \
+                .field("latency_p99", float(latency_p99)) \
+                .field("slippage_avg", float(slippage_avg)) \
+                .field("slippage_max", float(slippage_max)) \
+                .field("fill_rate", float(fill_rate)) \
+                .time(datetime.utcnow(), WritePrecision.NS)
+
+            self.write_api.write(bucket=self.bucket, org=self.org, record=point)
+            logger.debug("Métricas de ejecución registradas en InfluxDB")
+
+        except Exception as e:
+            logger.error(f"Error guardando métricas de ejecución: {e}")
+
+    def log_regime_performance(
+        self,
+        regime: str,
+        win_rate: float,
+        total_trades: int,
+        total_pnl: float
+    ):
+        """
+        Registra performance por régimen de mercado.
+
+        Args:
+            regime: Tipo de régimen (trend, reversal, range)
+            win_rate: Win rate en porcentaje
+            total_trades: Total de trades
+            total_pnl: PnL total en USD
+        """
+        if not self.enabled or not self.write_api:
+            return
+
+        try:
+            point = Point("regime_performance") \
+                .tag("regime", regime) \
+                .field("win_rate", float(win_rate)) \
+                .field("total_trades", int(total_trades)) \
+                .field("total_pnl", float(total_pnl)) \
+                .time(datetime.utcnow(), WritePrecision.NS)
+
+            self.write_api.write(bucket=self.bucket, org=self.org, record=point)
+            logger.debug(f"Performance de régimen {regime} registrada")
+
+        except Exception as e:
+            logger.error(f"Error guardando performance de régimen: {e}")
+
+    def log_slippage_alert(
+        self,
+        symbol: str,
+        expected_price: float,
+        actual_price: float,
+        slippage_percent: float
+    ):
+        """
+        Registra alertas de slippage alto para análisis.
+
+        Args:
+            symbol: Par de trading
+            expected_price: Precio esperado
+            actual_price: Precio real de ejecución
+            slippage_percent: Slippage en porcentaje
+        """
+        if not self.enabled or not self.write_api:
+            return
+
+        try:
+            point = Point("slippage_alert") \
+                .tag("symbol", symbol) \
+                .field("expected_price", float(expected_price)) \
+                .field("actual_price", float(actual_price)) \
+                .field("slippage_percent", float(slippage_percent)) \
+                .time(datetime.utcnow(), WritePrecision.NS)
+
+            self.write_api.write(bucket=self.bucket, org=self.org, record=point)
+            logger.warning(f"⚠️ Slippage alert logged: {symbol} {slippage_percent:.3f}%")
+
+        except Exception as e:
+            logger.error(f"Error guardando alerta de slippage: {e}")
+
     # ==================== CONSULTAS PARA ANÁLISIS ====================
 
     def get_agent_performance(self, agent_type: str, days: int = 30) -> Dict[str, Any]:
