@@ -100,6 +100,8 @@
 
   rm -f logs/*.log && docker compose -f docker-compose.live.yml down && docker compose -f docker-compose.live.yml up -d --build
 
+   rm -f logs/*.log && docker compose -f docker-compose.paper.yml down && docker compose -f docker-compose.live.yml up -d --build
+
 
   # despues
   Tienes un bot extremadamente sólido. He revisado los archivos que acabas de compartir y confirmo que los errores críticos han sido corregidos:

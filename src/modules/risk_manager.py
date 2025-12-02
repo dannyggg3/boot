@@ -819,10 +819,10 @@ class RiskManager:
         # Trade es rentable
         return {
             'valid': True,
-            'position_value': position_value_usd,
-            'fees': round(fees_usd, 4),
-            'expected_profit': round(expected_profit_usd, 2),
-            'net_profit': round(net_profit_usd, 2),
+            'position_value_usd': position_value_usd,
+            'total_fees_usd': round(fees_usd, 4),
+            'expected_profit_usd': round(expected_profit_usd, 2),
+            'net_profit_usd': round(net_profit_usd, 2),
             'profit_to_fees_ratio': round(expected_profit_usd / fees_usd, 1) if fees_usd > 0 else float('inf'),
             'message': f'Trade rentable: ganancia neta ${net_profit_usd:.2f} después de fees ${fees_usd:.4f}'
         }
