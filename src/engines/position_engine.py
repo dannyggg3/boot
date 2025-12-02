@@ -359,6 +359,13 @@ class PositionEngine:
                 )
                 return
 
+            # En modo paper/backtest con OCO, también verificar triggers locales
+            # porque las órdenes OCO no se ejecutan realmente en el exchange
+            elif oco_status.get('mode') in ['paper', 'backtest']:
+                triggered = self._check_sl_tp_triggers(position, current_price)
+                if triggered:
+                    return
+
         # Modo Local: verificar triggers manualmente
         elif self.protection_mode == 'local':
             triggered = self._check_sl_tp_triggers(position, current_price)
