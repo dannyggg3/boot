@@ -60,6 +60,8 @@ services:
       - ./logs:/app/logs
       - ./data:/app/data
       - ./config:/app/config
+      - ./src:/app/src
+      - ./main.py:/app/main.py
     networks:
       - sath_network
     deploy:
