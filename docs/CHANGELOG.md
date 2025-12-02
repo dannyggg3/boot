@@ -10,6 +10,22 @@ El formato está basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.
 
 ### Corregido
 
+- **Bug Crítico Kelly Criterion** (`src/modules/risk_manager.py`)
+  - FIX: Comparaba `win_probability` (0.45) con `min_confidence_to_trade` (0.65)
+  - Ahora compara `confidence` original antes del ajuste
+  - Resultado: Bot nunca operaba porque 0.45 < 0.65 siempre
+  - Bug "chicken and egg": no puede operar sin trades, no hay trades sin operar
+
+- **Probabilidad Base Kelly** (`src/modules/risk_manager.py`)
+  - Aumentada de 0.45 a 0.50 para bots sin historial
+  - Con 0.45, Kelly daba valores muy pequeños o negativos
+  - Con 0.50, permite operaciones si R/R >= 2.0
+
+- **Dashboard Live Activity** (`grafana/provisioning/dashboards/00-live-activity.json` - NUEVO)
+  - Muestra datos que SÍ existen (trading_decision, mtf_analysis)
+  - Los dashboards anteriores solo mostraban trade_result (requiere trades cerrados)
+  - Incluye: decisiones, confianza, MTF alignment, pie charts, tablas
+
 - **Technical Analysis Adaptativo** (`src/modules/technical_analysis.py`)
   - Mínimo de velas ahora es adaptativo: 50 para paper, 200 para live
   - EMAs se ajustan según datos disponibles:

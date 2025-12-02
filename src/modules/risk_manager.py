@@ -615,13 +615,14 @@ class RiskManager:
         Returns:
             Tamaño de posición óptimo
         """
-        # Usar confianza como probabilidad de éxito
-        win_probability = self._adjust_confidence_to_probability(confidence)
-
-        # Si no cumple el mínimo de confianza, no operar
-        if win_probability < self.min_confidence_to_trade:
-            logger.info(f"Confianza {confidence:.2f} menor al mínimo {self.min_confidence_to_trade}")
+        # v1.7.1 FIX: Verificar confianza ORIGINAL antes del ajuste
+        # La confianza ajustada solo se usa para el cálculo de Kelly, no para el filtro
+        if confidence < self.min_confidence_to_trade:
+            logger.info(f"Confianza original {confidence:.2f} menor al mínimo {self.min_confidence_to_trade}")
             return 0.0
+
+        # Usar confianza como probabilidad de éxito (ajustada por historial)
+        win_probability = self._adjust_confidence_to_probability(confidence)
 
         # Calcular Kelly
         b = expected_rr  # Ratio ganancia/pérdida
@@ -680,12 +681,13 @@ class RiskManager:
         historical_win_rate = self._get_win_rate()
         total_trades = self.trade_history['wins'] + self.trade_history['losses']
 
-        # v1.7: CRÍTICO - Ser MUY conservador con historial limitado
-        # Nivel institucional requiere mínimo 50 trades para confiar en Kelly
+        # v1.7.1: Ajustado para permitir operaciones iniciales
+        # Ser conservador pero no tan restrictivo que impida operar
         if total_trades < 10:
-            # Menos de 10 trades: usar probabilidad muy conservadora
-            logger.info(f"Kelly: Solo {total_trades} trades - usando probabilidad base 0.45")
-            return 0.45  # Asumir peor que 50/50
+            # Menos de 10 trades: usar probabilidad conservadora pero viable
+            # 0.50 permite operaciones con Kelly positivo cuando R/R >= 2
+            logger.info(f"Kelly: Solo {total_trades} trades - usando probabilidad base 0.50")
+            return 0.50  # Neutral - permite operar si R/R es bueno
 
         elif total_trades < 30:
             # Entre 10-30 trades: blend conservador
