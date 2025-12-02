@@ -423,6 +423,22 @@ class TradingBot:
                     logger.info("💓 Heartbeat - Bot operando normalmente")
                     self._print_status()
 
+                # v1.6: Verificar si hay capacidad para nuevas posiciones ANTES de analizar
+                if self.position_engine:
+                    # Verificar si hay al menos un símbolo donde podamos abrir posición
+                    can_open_any = any(
+                        self.position_engine.can_open_position(symbol)
+                        for symbol in self.symbols
+                    )
+
+                    if not can_open_any:
+                        open_positions = len(self.position_engine.store.get_open_positions())
+                        max_positions = self.position_engine.max_positions
+                        logger.info(f"⏸️ Sin capacidad para nuevas posiciones ({open_positions}/{max_positions}) - Saltando análisis")
+                        logger.info(f"   Ahorrando tokens de IA. Esperando cierre de posición...")
+                        time.sleep(self.scan_interval)
+                        continue
+
                 # Escanear símbolos (paralelo o secuencial)
                 if self.parallel_analysis and len(self.symbols) > 1:
                     self._analyze_symbols_parallel()
