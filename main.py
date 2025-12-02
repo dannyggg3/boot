@@ -6,7 +6,23 @@ Bot de trading profesional que combina análisis técnico cuantitativo
 con razonamiento de IA para trading autónomo en crypto y mercados tradicionales.
 
 Autor: Trading Bot System
-Versión: 1.4
+Versión: 1.6
+
+Changelog v1.6:
+- Circuit Breaker para protección contra fallos en cascada
+- Health Monitor con alertas automáticas
+- AI Ensemble para decisiones más robustas
+- Arquitectura async/await para escalabilidad
+- Documentación para roadmap institucional
+
+Changelog v1.5:
+- Sistema completo de gestión de posiciones con IA
+- Órdenes OCO reales (Stop Loss + Take Profit) via CCXT
+- Supervisión IA de posiciones abiertas (HOLD, TIGHTEN_SL, EXTEND_TP)
+- Trailing Stop inteligente con activación configurable
+- Persistencia de posiciones en SQLite (sobrevive reinicios)
+- Monitoreo de riesgo a nivel portfolio
+- Recuperación automática de posiciones al reiniciar
 
 Changelog v1.4:
 - Volumen promedio (SMA 20) y ratio para comparación
@@ -37,6 +53,22 @@ from modules.risk_manager import RiskManager
 from modules.data_logger import DataLogger  # v1.3: Logging de decisiones en InfluxDB
 from modules.notifications import NotificationManager  # v1.4: Alertas Telegram
 
+# v1.5: Sistema de gestión de posiciones
+try:
+    from engines.position_engine import PositionEngine
+    from modules.position_supervisor import PositionSupervisor
+    from modules.order_manager import OrderManager
+    from modules.position_store import PositionStore
+    from schemas.position_schemas import PositionSide, ExitReason
+    POSITION_MANAGEMENT_AVAILABLE = True
+except ImportError as e:
+    POSITION_MANAGEMENT_AVAILABLE = False
+    PositionEngine = None
+    PositionSupervisor = None
+    OrderManager = None
+    PositionStore = None
+    print(f"Warning: Position management not available: {e}")
+
 # v1.3: WebSocket Engine para datos en tiempo real
 try:
     from engines.websocket_engine import WebSocketEngine
@@ -44,6 +76,19 @@ try:
 except ImportError as e:
     WEBSOCKET_AVAILABLE = False
     WebSocketEngine = None
+
+# v1.6: Módulos de robustez y escalabilidad
+try:
+    from modules.circuit_breaker import CircuitBreaker, circuit_registry, create_breaker
+    from modules.health_monitor import HealthMonitor, create_exchange_check, create_database_check
+    from modules.ai_ensemble import AIEnsemble
+    ADVANCED_FEATURES_AVAILABLE = True
+except ImportError as e:
+    ADVANCED_FEATURES_AVAILABLE = False
+    CircuitBreaker = None
+    HealthMonitor = None
+    AIEnsemble = None
+    print(f"Warning: Advanced features not available: {e}")
 
 
 class TradingBot:
@@ -90,9 +135,114 @@ class TradingBot:
                     logger.warning(f"No se pudo inicializar WebSocket Engine: {e}")
                     self.use_websockets = False
 
+            # Extraer modo de operación temprano (necesario para Position Management)
+            self.mode = self.config['trading']['mode']
+
+            # v1.5: Sistema de gestión de posiciones
+            self.position_engine = None
+            self.position_supervisor = None
+            self.order_manager = None
+            self.position_store = None
+            self.use_position_management = self.config.get('position_management', {}).get('enabled', False)
+
+            if self.use_position_management and POSITION_MANAGEMENT_AVAILABLE:
+                try:
+                    # Inicializar componentes de gestión de posiciones
+                    pm_config = self.config.get('position_management', {})
+                    db_path = pm_config.get('database', {}).get('path', 'data/positions.db')
+
+                    # 1. Position Store (persistencia SQLite)
+                    self.position_store = PositionStore(db_path)
+
+                    # 2. Order Manager (órdenes OCO/SL/TP)
+                    self.order_manager = OrderManager(
+                        exchange_connection=self.market_engine.connection,
+                        config=self.config,
+                        mode=self.mode
+                    )
+
+                    # 3. Position Engine (coordinador central)
+                    self.position_engine = PositionEngine(
+                        config=self.config,
+                        market_engine=self.market_engine,
+                        order_manager=self.order_manager,
+                        position_store=self.position_store,
+                        notifier=self.notifier,
+                        data_logger=self.data_logger if hasattr(self, 'data_logger') else None,
+                        websocket_engine=self.websocket_engine
+                    )
+
+                    # 4. Position Supervisor (supervisión IA)
+                    self.position_supervisor = PositionSupervisor(self.config)
+
+                    logger.info("Position Management System inicializado correctamente")
+                    logger.info(f"  - Database: {db_path}")
+                    logger.info(f"  - Protection mode: {pm_config.get('protection_mode', 'oco')}")
+
+                except Exception as e:
+                    logger.error(f"Error inicializando Position Management: {e}", exc_info=True)
+                    self.use_position_management = False
+            else:
+                if not POSITION_MANAGEMENT_AVAILABLE:
+                    logger.info("Position Management no disponible (módulos no encontrados)")
+                else:
+                    logger.info("Position Management deshabilitado en configuración")
+
+            # v1.6: Inicializar módulos de robustez y escalabilidad
+            self.health_monitor = None
+            self.ai_ensemble = None
+            self.exchange_breaker = None
+
+            if ADVANCED_FEATURES_AVAILABLE:
+                try:
+                    # Circuit Breaker para proteger llamadas al exchange
+                    self.exchange_breaker = create_breaker(
+                        name="exchange_api",
+                        failure_threshold=5,
+                        recovery_timeout=60
+                    )
+
+                    # Health Monitor para monitoreo de salud del sistema
+                    self.health_monitor = HealthMonitor(
+                        config=self.config,
+                        notifier=self.notifier,
+                        check_interval=60
+                    )
+
+                    # Registrar health checks
+                    if self.market_engine and self.market_engine.connection:
+                        self.health_monitor.register_check(
+                            "exchange",
+                            create_exchange_check(self.market_engine.connection)
+                        )
+
+                    if self.use_position_management:
+                        pm_config = self.config.get('position_management', {})
+                        db_path = pm_config.get('database', {}).get('path', 'data/positions.db')
+                        self.health_monitor.register_check(
+                            "database",
+                            create_database_check(db_path)
+                        )
+
+                    # AI Ensemble para decisiones más robustas
+                    self.ai_ensemble = AIEnsemble(
+                        ai_engine=self.ai_engine,
+                        config=self.config,
+                        min_consensus=0.6,
+                        min_models_agree=2
+                    )
+
+                    logger.info("Advanced Features v1.6 inicializados")
+                    logger.info("  - Circuit Breaker: ACTIVO")
+                    logger.info("  - Health Monitor: ACTIVO")
+                    logger.info("  - AI Ensemble: ACTIVO")
+
+                except Exception as e:
+                    logger.warning(f"No se pudieron inicializar features avanzados: {e}")
+
             self.symbols = self.config['trading']['symbols']
             self.scan_interval = self.config['trading']['scan_interval']
-            self.mode = self.config['trading']['mode']
+            # self.mode ya se extrajo arriba (línea 119)
 
             # Configuración de análisis paralelo
             trading_config = self.config['trading']
@@ -112,6 +262,7 @@ class TradingBot:
             logger.info(f"Análisis paralelo: {'HABILITADO' if self.parallel_analysis else 'SECUENCIAL'}")
             logger.info(f"Datos avanzados: {'HABILITADO' if self.use_advanced_data else 'DESHABILITADO'}")
             logger.info(f"WebSockets: {'HABILITADO' if self.use_websockets else 'DESHABILITADO (polling HTTP)'}")
+            logger.info(f"Position Management: {'HABILITADO' if self.use_position_management else 'DESHABILITADO'}")
             logger.info("=" * 60)
 
             # Configurar manejadores de señales para apagado limpio
@@ -235,6 +386,24 @@ class TradingBot:
             symbols=self.symbols,
             capital=risk_status['current_capital']
         )
+
+        # v1.5: Recuperar posiciones abiertas y iniciar monitoreo
+        if self.use_position_management and self.position_engine:
+            try:
+                recovered = self.position_engine.recover_positions_on_startup()
+                if recovered > 0:
+                    logger.info(f"✅ {recovered} posiciones recuperadas del almacenamiento")
+                    self.notifier.send_message(
+                        f"🔄 *Posiciones Recuperadas*\n"
+                        f"Se encontraron {recovered} posiciones abiertas del almacenamiento"
+                    )
+
+                # Iniciar monitoreo de posiciones en background
+                self.position_engine.start_monitoring()
+                logger.info("🔄 Position Engine monitoring iniciado")
+
+            except Exception as e:
+                logger.error(f"Error recuperando posiciones: {e}")
 
         heartbeat_counter = 0
 
@@ -576,11 +745,35 @@ class TradingBot:
                     confidence=risk_params.get('confidence', 0.0)
                 )
 
-                # TODO: Implementar tracking de la orden
-                # - Monitorear precio vs stop loss / take profit
-                # - Actualizar trailing stop si está habilitado
-                # - Cerrar posición cuando se alcance TP o SL
-                # - Notificar al risk manager cuando se cierre
+                # v1.5: Crear posición con protección OCO/Local
+                if self.use_position_management and self.position_engine:
+                    try:
+                        position = self.position_engine.create_position(
+                            order_result=order,
+                            trade_params={
+                                'symbol': symbol,
+                                'side': PositionSide.LONG if side == 'buy' else PositionSide.SHORT,
+                                'entry_price': order.get('price', analysis_price),
+                                'quantity': amount,
+                                'stop_loss': stop_loss,
+                                'take_profit': take_profit,
+                                'confidence': risk_params.get('confidence', 0.0),
+                                'agent_type': risk_params.get('agent_type', 'general'),
+                                'entry_order_id': order.get('id')
+                            }
+                        )
+
+                        if position:
+                            pos_id = position.get('id', 'N/A') if isinstance(position, dict) else position.id
+                            logger.info(f"{tag} 📊 Posición creada: {pos_id}")
+                            logger.info(f"{tag} 🛡️ Protección activa - SL: ${stop_loss:,.2f} | TP: ${f'{take_profit:,.2f}' if take_profit else 'N/A'}")
+                        else:
+                            logger.warning(f"{tag} ⚠️ No se pudo crear la posición protegida")
+
+                    except Exception as e:
+                        logger.error(f"{tag} Error creando posición: {e}")
+                else:
+                    logger.info(f"{tag} ⚠️ Position Management deshabilitado - SL/TP son solo referencias")
 
             else:
                 logger.error(f"{tag} ❌ Error ejecutando orden")
@@ -604,6 +797,20 @@ class TradingBot:
         logger.info(f"PnL Diario: ${risk_status['daily_pnl']}")
         logger.info(f"Operaciones abiertas: {risk_status['open_trades_count']}")
         logger.info(f"Kill Switch: {'🔴 ACTIVO' if risk_status['kill_switch_active'] else '🟢 Inactivo'}")
+
+        # v1.5: Mostrar posiciones activas si Position Management está habilitado
+        if self.use_position_management and self.position_engine:
+            try:
+                open_positions = self.position_engine.get_open_positions()
+                logger.info(f"Posiciones con protección: {len(open_positions)}")
+                for pos in open_positions:
+                    current_price = self.market_engine.get_current_price(pos.symbol)
+                    if current_price:
+                        pnl = pos.calculate_pnl(current_price)
+                        logger.info(f"   📊 {pos.symbol}: {pnl['pnl_percent']:+.2f}% (SL: ${pos.stop_loss:,.2f})")
+            except Exception as e:
+                logger.debug(f"Error obteniendo posiciones: {e}")
+
         logger.info("=" * 60 + "\n")
 
     def _close_all_positions(self) -> bool:
@@ -690,6 +897,21 @@ class TradingBot:
         logger.info("=" * 60)
 
         try:
+            # v1.5: Detener Position Engine monitoring
+            if self.position_engine:
+                try:
+                    self.position_engine.stop_monitoring()
+                    logger.info("Position Engine monitoring detenido")
+
+                    # Mostrar resumen de posiciones abiertas
+                    open_positions = self.position_engine.get_open_positions()
+                    if open_positions:
+                        logger.warning(f"⚠️  {len(open_positions)} posiciones abiertas permanecen activas")
+                        for pos in open_positions:
+                            logger.warning(f"   - {pos.symbol}: {pos.quantity} @ ${pos.entry_price:,.2f}")
+                except Exception as e:
+                    logger.error(f"Error deteniendo Position Engine: {e}")
+
             # v1.5: Cerrar todas las posiciones abiertas ANTES de apagar
             logger.warning("🔴 Cerrando todas las posiciones abiertas...")
             positions_closed = self._close_all_positions()
@@ -736,10 +958,10 @@ def main():
     print(f"""
     ╔═══════════════════════════════════════════════════════════════╗
     ║                                                               ║
-    ║     Sistema Autónomo de Trading Híbrido (SATH) v1.4         ║
+    ║     Sistema Autónomo de Trading Híbrido (SATH) v1.6         ║
     ║                                                               ║
     ║     Trading profesional con IA + Análisis Técnico            ║
-    ║     Reglas optimizadas + Logging paralelo mejorado           ║
+    ║     Circuit Breaker + Health Monitor + AI Ensemble           ║
     ║                                                               ║
     ║     MODO: {mode:^50}║
     ║     Config: {config_path:<47}║

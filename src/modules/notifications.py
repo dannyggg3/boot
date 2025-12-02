@@ -292,6 +292,221 @@ Revisa tu cuenta inmediatamente.
 """
         self.send(message)
 
+    # ==================== v1.5: ALERTAS DE POSICIÓN ====================
+
+    def notify_position_created(
+        self,
+        symbol: str,
+        side: str,
+        entry_price: float,
+        quantity: float,
+        stop_loss: float,
+        take_profit: Optional[float],
+        position_id: str
+    ):
+        """
+        Notifica cuando se crea una posición con protección OCO.
+        """
+        emoji = "📈" if side.upper() == "LONG" else "📉"
+        side_text = "LONG" if side.upper() == "LONG" else "SHORT"
+
+        message = f"""
+{emoji} <b>POSICIÓN ABIERTA CON PROTECCIÓN</b>
+
+<b>ID:</b> {position_id}
+<b>Par:</b> {symbol}
+<b>Lado:</b> {side_text}
+<b>Cantidad:</b> {quantity:.8f}
+<b>Entrada:</b> ${entry_price:,.2f}
+
+<b>🛡️ PROTECCIÓN ACTIVA:</b>
+<b>Stop Loss:</b> ${stop_loss:,.2f}
+<b>Take Profit:</b> {f'${take_profit:,.2f}' if take_profit else 'N/A'}
+
+⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+"""
+        self.send(message)
+
+    def notify_sl_hit(
+        self,
+        symbol: str,
+        entry_price: float,
+        exit_price: float,
+        pnl: float,
+        pnl_percent: float,
+        position_id: str
+    ):
+        """
+        Notifica cuando se activa el Stop Loss.
+        """
+        message = f"""
+🛑 <b>STOP LOSS EJECUTADO</b>
+
+<b>ID:</b> {position_id}
+<b>Par:</b> {symbol}
+<b>Entrada:</b> ${entry_price:,.2f}
+<b>Salida:</b> ${exit_price:,.2f}
+
+<b>PnL:</b> ${pnl:+,.2f} ({pnl_percent:+.2f}%)
+
+⚠️ Posición cerrada por protección de pérdida máxima
+
+⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+"""
+        self.send(message)
+
+    def notify_tp_hit(
+        self,
+        symbol: str,
+        entry_price: float,
+        exit_price: float,
+        pnl: float,
+        pnl_percent: float,
+        position_id: str
+    ):
+        """
+        Notifica cuando se alcanza el Take Profit.
+        """
+        message = f"""
+🎯 <b>TAKE PROFIT ALCANZADO</b>
+
+<b>ID:</b> {position_id}
+<b>Par:</b> {symbol}
+<b>Entrada:</b> ${entry_price:,.2f}
+<b>Salida:</b> ${exit_price:,.2f}
+
+<b>💰 PnL:</b> ${pnl:+,.2f} ({pnl_percent:+.2f}%)
+
+✅ Objetivo de ganancia alcanzado
+
+⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+"""
+        self.send(message)
+
+    def notify_trailing_update(
+        self,
+        symbol: str,
+        old_sl: float,
+        new_sl: float,
+        current_price: float,
+        unrealized_pnl_percent: float,
+        position_id: str
+    ):
+        """
+        Notifica cuando se actualiza el trailing stop.
+        """
+        message = f"""
+📈 <b>TRAILING STOP ACTUALIZADO</b>
+
+<b>ID:</b> {position_id}
+<b>Par:</b> {symbol}
+<b>Precio actual:</b> ${current_price:,.2f}
+
+<b>SL Anterior:</b> ${old_sl:,.2f}
+<b>SL Nuevo:</b> ${new_sl:,.2f}
+
+<b>PnL no realizado:</b> {unrealized_pnl_percent:+.2f}%
+
+🔒 Ganancia parcial asegurada
+
+⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+"""
+        self.send(message)
+
+    def notify_ai_adjustment(
+        self,
+        symbol: str,
+        action: str,
+        reasoning: str,
+        old_value: Optional[float],
+        new_value: Optional[float],
+        position_id: str
+    ):
+        """
+        Notifica cuando la IA ajusta una posición.
+        """
+        action_emoji = {
+            'TIGHTEN_SL': '🔒',
+            'EXTEND_TP': '🎯',
+            'HOLD': '⏸️',
+            'PARTIAL_CLOSE': '✂️',
+            'FULL_CLOSE': '🚪'
+        }.get(action, '🤖')
+
+        change_text = ""
+        if old_value is not None and new_value is not None:
+            change_text = f"\n<b>Anterior:</b> ${old_value:,.2f}\n<b>Nuevo:</b> ${new_value:,.2f}"
+
+        message = f"""
+{action_emoji} <b>AJUSTE IA DE POSICIÓN</b>
+
+<b>ID:</b> {position_id}
+<b>Par:</b> {symbol}
+<b>Acción:</b> {action}
+{change_text}
+
+<b>Razonamiento:</b>
+{reasoning[:200]}
+
+⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+"""
+        self.send(message)
+
+    def notify_position_closed(
+        self,
+        symbol: str,
+        side: str,
+        entry_price: float,
+        exit_price: float,
+        quantity: float,
+        pnl: float,
+        pnl_percent: float,
+        exit_reason: str,
+        hold_time_minutes: int,
+        position_id: str
+    ):
+        """
+        Notifica cuando se cierra una posición completa con todos los detalles.
+        """
+        emoji = "💰" if pnl > 0 else "💸"
+        result = "GANANCIA" if pnl > 0 else "PÉRDIDA" if pnl < 0 else "BREAKEVEN"
+
+        # Formatear tiempo de hold
+        if hold_time_minutes < 60:
+            hold_text = f"{hold_time_minutes} minutos"
+        elif hold_time_minutes < 1440:
+            hold_text = f"{hold_time_minutes // 60}h {hold_time_minutes % 60}m"
+        else:
+            days = hold_time_minutes // 1440
+            hours = (hold_time_minutes % 1440) // 60
+            hold_text = f"{days}d {hours}h"
+
+        message = f"""
+{emoji} <b>POSICIÓN CERRADA - {result}</b>
+
+<b>ID:</b> {position_id}
+<b>Par:</b> {symbol}
+<b>Lado:</b> {side.upper()}
+
+<b>Entrada:</b> ${entry_price:,.2f}
+<b>Salida:</b> ${exit_price:,.2f}
+<b>Cantidad:</b> {quantity:.8f}
+
+<b>PnL:</b> ${pnl:+,.2f} ({pnl_percent:+.2f}%)
+
+<b>Razón de cierre:</b> {exit_reason}
+<b>Tiempo en posición:</b> {hold_text}
+
+⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+"""
+        self.send(message)
+
+    def send_message(self, message: str):
+        """
+        Alias para send() - envía mensaje personalizado.
+        """
+        self.send(message)
+
 
 # Singleton para uso global
 _notification_manager: Optional[NotificationManager] = None

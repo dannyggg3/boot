@@ -954,6 +954,435 @@ class MarketEngine:
 
         return advanced_data
 
+    # ========================================================================
+    # ÓRDENES OCO (One-Cancels-Other) - v1.5
+    # ========================================================================
+
+    def create_oco_order(
+        self,
+        symbol: str,
+        side: str,
+        quantity: float,
+        take_profit_price: float,
+        stop_loss_price: float,
+        stop_loss_limit_buffer: float = 0.002
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Crea una orden OCO (One-Cancels-Other) que combina Take Profit y Stop Loss.
+
+        Args:
+            symbol: Símbolo del activo (ej: 'BTC/USDT')
+            side: 'sell' para cerrar LONG, 'buy' para cerrar SHORT
+            quantity: Cantidad a proteger
+            take_profit_price: Precio de take profit
+            stop_loss_price: Precio de stop loss (trigger)
+            stop_loss_limit_buffer: Buffer para SL limit (default 0.2%)
+
+        Returns:
+            Diccionario con información de la orden OCO o None si falla
+        """
+        if self.market_type != 'crypto':
+            logger.warning("OCO orders solo disponibles para crypto")
+            return None
+
+        # En modo paper/backtest, simular
+        if self.mode in ['paper', 'backtest']:
+            oco_id = f"oco_paper_{datetime.now().timestamp()}"
+            logger.info(f"📝 PAPER OCO - Symbol: {symbol}, Side: {side}")
+            logger.info(f"   TP: ${take_profit_price:,.2f} | SL: ${stop_loss_price:,.2f}")
+            return {
+                'id': oco_id,
+                'symbol': symbol,
+                'side': side,
+                'quantity': quantity,
+                'take_profit_price': take_profit_price,
+                'stop_loss_price': stop_loss_price,
+                'status': 'simulated',
+                'mode': 'paper',
+                'orders': {
+                    'tp_order_id': f'tp_{oco_id}',
+                    'sl_order_id': f'sl_{oco_id}'
+                }
+            }
+
+        try:
+            # Calcular SL limit price con buffer
+            if side == 'sell':
+                # Para venta (cerrar LONG), SL limit debe ser menor que trigger
+                sl_limit_price = stop_loss_price * (1 - stop_loss_limit_buffer)
+            else:
+                # Para compra (cerrar SHORT), SL limit debe ser mayor que trigger
+                sl_limit_price = stop_loss_price * (1 + stop_loss_limit_buffer)
+
+            logger.info(f"Creando orden OCO para {symbol}:")
+            logger.info(f"  Side: {side} | Qty: {quantity}")
+            logger.info(f"  TP: ${take_profit_price:,.2f}")
+            logger.info(f"  SL Trigger: ${stop_loss_price:,.2f} | SL Limit: ${sl_limit_price:,.2f}")
+
+            # Verificar si el exchange soporta OCO nativo
+            if hasattr(self.connection, 'create_oco_order'):
+                try:
+                    oco_result = self.connection.create_oco_order(
+                        symbol=symbol,
+                        type='limit',
+                        side=side,
+                        amount=quantity,
+                        price=take_profit_price,
+                        stopPrice=stop_loss_price,
+                        stopLimitPrice=sl_limit_price,
+                        params={'stopLimitTimeInForce': 'GTC'}
+                    )
+
+                    logger.info(f"✅ Orden OCO creada: {oco_result.get('id', 'N/A')}")
+                    return {
+                        'id': oco_result.get('id'),
+                        'symbol': symbol,
+                        'side': side,
+                        'quantity': quantity,
+                        'take_profit_price': take_profit_price,
+                        'stop_loss_price': stop_loss_price,
+                        'stop_loss_limit_price': sl_limit_price,
+                        'status': 'active',
+                        'exchange_response': oco_result,
+                        'orders': {
+                            'tp_order_id': oco_result.get('orderListId'),
+                            'sl_order_id': oco_result.get('orderListId')
+                        }
+                    }
+
+                except Exception as e:
+                    logger.warning(f"OCO nativo falló: {e}, intentando órdenes separadas...")
+
+            # Fallback: Crear órdenes separadas (TP limit + SL stop-limit)
+            return self._create_separate_sl_tp_orders(
+                symbol, side, quantity,
+                take_profit_price, stop_loss_price, sl_limit_price
+            )
+
+        except Exception as e:
+            logger.error(f"Error creando orden OCO: {e}")
+            return None
+
+    def _create_separate_sl_tp_orders(
+        self,
+        symbol: str,
+        side: str,
+        quantity: float,
+        take_profit_price: float,
+        stop_loss_price: float,
+        sl_limit_price: float
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Crea órdenes separadas de TP y SL cuando OCO no está disponible.
+        NOTA: Estas órdenes NO se cancelan automáticamente entre sí.
+        """
+        try:
+            tp_order = None
+            sl_order = None
+
+            # 1. Crear orden Take Profit (limit)
+            if side == 'sell':
+                tp_order = self.connection.create_limit_sell_order(
+                    symbol, quantity, take_profit_price
+                )
+            else:
+                tp_order = self.connection.create_limit_buy_order(
+                    symbol, quantity, take_profit_price
+                )
+
+            logger.info(f"✅ Orden TP creada: {tp_order.get('id')}")
+
+            # 2. Crear orden Stop Loss (stop-limit)
+            try:
+                sl_order = self.connection.create_order(
+                    symbol=symbol,
+                    type='stop_loss_limit',
+                    side=side,
+                    amount=quantity,
+                    price=sl_limit_price,
+                    params={
+                        'stopPrice': stop_loss_price,
+                        'timeInForce': 'GTC'
+                    }
+                )
+                logger.info(f"✅ Orden SL creada: {sl_order.get('id')}")
+
+            except Exception as e:
+                logger.warning(f"Stop-limit no soportado, usando stop-market: {e}")
+                # Fallback a stop-market si stop-limit no está disponible
+                sl_order = self.connection.create_order(
+                    symbol=symbol,
+                    type='stop_loss',
+                    side=side,
+                    amount=quantity,
+                    params={
+                        'stopPrice': stop_loss_price
+                    }
+                )
+
+            return {
+                'id': f"sep_{tp_order.get('id')}_{sl_order.get('id') if sl_order else 'none'}",
+                'symbol': symbol,
+                'side': side,
+                'quantity': quantity,
+                'take_profit_price': take_profit_price,
+                'stop_loss_price': stop_loss_price,
+                'status': 'active',
+                'type': 'separate_orders',
+                'orders': {
+                    'tp_order_id': tp_order.get('id'),
+                    'sl_order_id': sl_order.get('id') if sl_order else None
+                },
+                'warning': 'Órdenes separadas - no se cancelan automáticamente'
+            }
+
+        except Exception as e:
+            logger.error(f"Error creando órdenes separadas: {e}")
+            return None
+
+    def cancel_oco_order(
+        self,
+        symbol: str,
+        oco_id: str,
+        tp_order_id: Optional[str] = None,
+        sl_order_id: Optional[str] = None
+    ) -> bool:
+        """
+        Cancela una orden OCO o las órdenes separadas asociadas.
+
+        Args:
+            symbol: Símbolo del activo
+            oco_id: ID de la orden OCO
+            tp_order_id: ID de la orden TP (para órdenes separadas)
+            sl_order_id: ID de la orden SL (para órdenes separadas)
+
+        Returns:
+            True si se canceló exitosamente
+        """
+        if self.mode in ['paper', 'backtest']:
+            logger.info(f"📝 PAPER - Cancelando OCO simulado: {oco_id}")
+            return True
+
+        try:
+            cancelled = []
+
+            # Intentar cancelar OCO directamente
+            if oco_id and not oco_id.startswith('sep_'):
+                try:
+                    self.connection.cancel_order(oco_id, symbol)
+                    logger.info(f"✅ OCO {oco_id} cancelado")
+                    return True
+                except Exception as e:
+                    logger.warning(f"No se pudo cancelar OCO directamente: {e}")
+
+            # Cancelar órdenes individuales
+            if tp_order_id:
+                try:
+                    self.connection.cancel_order(tp_order_id, symbol)
+                    cancelled.append('TP')
+                    logger.info(f"✅ Orden TP {tp_order_id} cancelada")
+                except Exception as e:
+                    logger.warning(f"Error cancelando TP {tp_order_id}: {e}")
+
+            if sl_order_id:
+                try:
+                    self.connection.cancel_order(sl_order_id, symbol)
+                    cancelled.append('SL')
+                    logger.info(f"✅ Orden SL {sl_order_id} cancelada")
+                except Exception as e:
+                    logger.warning(f"Error cancelando SL {sl_order_id}: {e}")
+
+            return len(cancelled) > 0
+
+        except Exception as e:
+            logger.error(f"Error cancelando OCO: {e}")
+            return False
+
+    def fetch_order_status(
+        self,
+        order_id: str,
+        symbol: str
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Obtiene el estado de una orden.
+
+        Args:
+            order_id: ID de la orden
+            symbol: Símbolo del activo
+
+        Returns:
+            Diccionario con estado de la orden
+        """
+        if self.mode in ['paper', 'backtest']:
+            return {
+                'id': order_id,
+                'symbol': symbol,
+                'status': 'simulated',
+                'filled': 0,
+                'remaining': 0
+            }
+
+        try:
+            order = self.connection.fetch_order(order_id, symbol)
+            return {
+                'id': order.get('id'),
+                'symbol': order.get('symbol'),
+                'status': order.get('status'),  # 'open', 'closed', 'canceled'
+                'side': order.get('side'),
+                'type': order.get('type'),
+                'price': order.get('price'),
+                'amount': order.get('amount'),
+                'filled': order.get('filled', 0),
+                'remaining': order.get('remaining', 0),
+                'average': order.get('average'),
+                'timestamp': order.get('timestamp')
+            }
+
+        except Exception as e:
+            logger.error(f"Error obteniendo estado de orden {order_id}: {e}")
+            return None
+
+    def check_oco_status(
+        self,
+        symbol: str,
+        tp_order_id: str,
+        sl_order_id: str
+    ) -> Dict[str, Any]:
+        """
+        Verifica el estado de las órdenes OCO/protección.
+
+        Args:
+            symbol: Símbolo del activo
+            tp_order_id: ID de la orden Take Profit
+            sl_order_id: ID de la orden Stop Loss
+
+        Returns:
+            Dict con 'status': 'active'|'tp_filled'|'sl_filled'|'cancelled'|'unknown'
+        """
+        if self.mode in ['paper', 'backtest']:
+            return {'status': 'active', 'mode': 'paper'}
+
+        try:
+            tp_status = self.fetch_order_status(tp_order_id, symbol)
+            sl_status = self.fetch_order_status(sl_order_id, symbol)
+
+            # Verificar si alguna se ejecutó
+            if tp_status and tp_status.get('status') == 'closed':
+                return {
+                    'status': 'tp_filled',
+                    'filled_price': tp_status.get('average'),
+                    'filled_quantity': tp_status.get('filled')
+                }
+
+            if sl_status and sl_status.get('status') == 'closed':
+                return {
+                    'status': 'sl_filled',
+                    'filled_price': sl_status.get('average'),
+                    'filled_quantity': sl_status.get('filled')
+                }
+
+            # Verificar si fueron canceladas
+            tp_cancelled = tp_status and tp_status.get('status') == 'canceled'
+            sl_cancelled = sl_status and sl_status.get('status') == 'canceled'
+
+            if tp_cancelled and sl_cancelled:
+                return {'status': 'cancelled'}
+
+            # Aún activas
+            return {
+                'status': 'active',
+                'tp_status': tp_status.get('status') if tp_status else 'unknown',
+                'sl_status': sl_status.get('status') if sl_status else 'unknown'
+            }
+
+        except Exception as e:
+            logger.error(f"Error verificando estado OCO: {e}")
+            return {'status': 'unknown', 'error': str(e)}
+
+    def update_stop_loss_order(
+        self,
+        symbol: str,
+        old_sl_order_id: str,
+        side: str,
+        quantity: float,
+        new_stop_price: float,
+        stop_limit_buffer: float = 0.002
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Actualiza una orden de stop loss (cancela la anterior y crea una nueva).
+
+        Args:
+            symbol: Símbolo del activo
+            old_sl_order_id: ID de la orden SL actual
+            side: 'sell' o 'buy'
+            quantity: Cantidad
+            new_stop_price: Nuevo precio de stop
+            stop_limit_buffer: Buffer para precio limit
+
+        Returns:
+            Nueva orden de SL o None si falla
+        """
+        if self.mode in ['paper', 'backtest']:
+            new_id = f"sl_paper_{datetime.now().timestamp()}"
+            logger.info(f"📝 PAPER - Actualizando SL a ${new_stop_price:,.2f}")
+            return {
+                'id': new_id,
+                'symbol': symbol,
+                'stop_price': new_stop_price,
+                'status': 'simulated'
+            }
+
+        try:
+            # 1. Cancelar orden SL actual
+            try:
+                self.connection.cancel_order(old_sl_order_id, symbol)
+                logger.info(f"Orden SL anterior {old_sl_order_id} cancelada")
+            except Exception as e:
+                logger.warning(f"No se pudo cancelar SL anterior: {e}")
+
+            # 2. Calcular nuevo precio limit
+            if side == 'sell':
+                new_limit_price = new_stop_price * (1 - stop_limit_buffer)
+            else:
+                new_limit_price = new_stop_price * (1 + stop_limit_buffer)
+
+            # 3. Crear nueva orden SL
+            try:
+                new_sl = self.connection.create_order(
+                    symbol=symbol,
+                    type='stop_loss_limit',
+                    side=side,
+                    amount=quantity,
+                    price=new_limit_price,
+                    params={
+                        'stopPrice': new_stop_price,
+                        'timeInForce': 'GTC'
+                    }
+                )
+            except Exception:
+                # Fallback a stop-market
+                new_sl = self.connection.create_order(
+                    symbol=symbol,
+                    type='stop_loss',
+                    side=side,
+                    amount=quantity,
+                    params={'stopPrice': new_stop_price}
+                )
+
+            logger.info(f"✅ Nueva orden SL creada: {new_sl.get('id')} @ ${new_stop_price:,.2f}")
+
+            return {
+                'id': new_sl.get('id'),
+                'symbol': symbol,
+                'stop_price': new_stop_price,
+                'limit_price': new_limit_price,
+                'status': 'active'
+            }
+
+        except Exception as e:
+            logger.error(f"Error actualizando SL: {e}")
+            return None
+
     def close_connection(self):
         """Cierra la conexión con el mercado."""
         try:

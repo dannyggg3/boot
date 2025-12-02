@@ -1,5 +1,5 @@
 # ============================================
-# CONFIGURACIÓN LIVE - SATH v1.3
+# CONFIGURACIÓN LIVE - SATH v1.5
 # Capital inicial: $50 USD
 # ============================================
 
@@ -82,6 +82,52 @@ risk_management:
     fraction: 0.2 # 1/5 Kelly (más conservador)
     min_confidence: 0.5 # Opera con >50% confianza (permite más trades)
     max_risk_cap: 2.0 # Máximo 2% por trade
+
+# ===== GESTIÓN DE POSICIONES v1.5 =====
+position_management:
+  enabled: true
+
+  # Método de protección SL/TP
+  # "oco" = Exchange maneja automáticamente (recomendado)
+  # "local" = Bot monitorea y ejecuta
+  protection_mode: "oco"
+
+  # Configuración de órdenes OCO
+  oco_settings:
+    enabled: true
+    sl_limit_buffer_percent: 0.2 # Buffer entre stop trigger y limit price
+
+  # Monitoreo local (fallback si OCO no disponible)
+  local_monitoring:
+    enabled: true
+    check_interval_ms: 500 # Verificar cada 500ms
+
+  # Trailing Stop inteligente
+  trailing_stop:
+    enabled: true
+    activation_profit_percent: 1.5 # Activar después de 1.5% profit
+    trail_distance_percent: 2.0    # Mantener 2% detrás del precio
+
+  # Supervisión IA de posiciones
+  supervision:
+    enabled: true
+    check_interval_seconds: 60 # Cada minuto
+    # Acciones permitidas (modo moderado/conservador)
+    actions_allowed:
+      - "HOLD"        # Mantener sin cambios
+      - "TIGHTEN_SL"  # Acercar SL para asegurar ganancias
+      - "EXTEND_TP"   # Extender TP si momentum fuerte
+    # NO incluye PARTIAL_CLOSE ni FULL_CLOSE (solo ajustes)
+
+  # Límites del portfolio
+  portfolio:
+    max_concurrent_positions: 3    # Máximo 3 posiciones abiertas
+    max_exposure_percent: 50       # Máximo 50% del capital desplegado
+    max_per_symbol_percent: 25     # Máximo 25% en un solo símbolo
+
+  # Persistencia (SQLite)
+  database:
+    path: "data/positions.db"
 
 # ===== ANÁLISIS TÉCNICO =====
 technical_analysis:
