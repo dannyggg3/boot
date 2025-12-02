@@ -6,6 +6,35 @@ El formato está basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.
 
 ---
 
+## [1.7.1] - 2024-12-02 (Hotfix Testnet/Paper)
+
+### Corregido
+
+- **Technical Analysis Adaptativo** (`src/modules/technical_analysis.py`)
+  - Mínimo de velas ahora es adaptativo: 50 para paper, 200 para live
+  - EMAs se ajustan según datos disponibles:
+    - ≥200 velas: EMA 50/200 (estándar institucional)
+    - ≥100 velas: EMA 20/100
+    - <100 velas: EMA 12/26 (MACD estándar)
+  - Resuelve: "Datos insuficientes para análisis técnico" en testnet
+
+- **Volatilidad Hysteresis** (`src/modules/adaptive_parameters.py`)
+  - Agregado cooldown de 5 minutos entre cambios de volatilidad
+  - Normalización de nombres: "baja"→"low", "media"→"medium", "alta"→"high"
+  - Resuelve: flip-flop constante "baja ↔ alta" en logs
+
+- **Logging Mejorado** (`main.py`)
+  - Warning cuando hay <50 velas por timeframe
+  - Warning cuando análisis técnico retorna datos vacíos
+  - Ayuda a diagnosticar problemas de datos en testnet
+
+### Impacto
+- MTF ahora funciona correctamente en Binance Testnet
+- Alignment score varía según mercado (ya no siempre 52%)
+- Bot puede ejecutar trades cuando timeframes se alinean ≥70%
+
+---
+
 ## [1.7+] - 2024-12-02 (Nivel Institucional Superior)
 
 ### Agregado

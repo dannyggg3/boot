@@ -13,6 +13,26 @@ Este documento describe la arquitectura completa del Sistema Autónomo de Tradin
 | **Adaptive Parameters** | Auto-ajusta confianza/riesgo según rendimiento | `adaptive_parameters.py` |
 | **Performance Attribution** | Análisis de alpha por agente/régimen/hora | `performance_attribution.py` |
 
+### Hotfix v1.7.1 - Compatibilidad Testnet/Paper
+
+| Componente | Cambio | Archivo |
+|------------|--------|---------|
+| Technical Analysis | Mínimo velas adaptativo (50 paper, 200 live) | `technical_analysis.py` |
+| Technical Analysis | EMAs adaptativas según datos disponibles | `technical_analysis.py` |
+| Adaptive Parameters | Hysteresis 5 min en cambios de volatilidad | `adaptive_parameters.py` |
+| Main | Logging mejorado de velas recibidas | `main.py` |
+
+**Comportamiento por Modo:**
+```
+Paper/Testnet:
+  - Mínimo: 50 velas
+  - EMAs: 12/26 (si <100 velas) o 20/100 (si <200 velas)
+
+Live:
+  - Mínimo: 200 velas
+  - EMAs: 50/200 (estándar institucional)
+```
+
 ### Mejoras Anteriores v1.7
 
 | Componente | Cambio | Archivo |
@@ -97,13 +117,15 @@ bot/
 │   │
 │   ├── modules/                      # Módulos auxiliares
 │   │   │
-│   │   ├── technical_analysis.py     # Análisis técnico
+│   │   ├── technical_analysis.py     # Análisis técnico [v1.7.1]
 │   │   │   └── TechnicalAnalyzer
-│   │   │       ├── calculate_rsi()
-│   │   │       ├── calculate_macd()
-│   │   │       ├── calculate_ema()
-│   │   │       ├── calculate_bollinger()
-│   │   │       └── calculate_atr()
+│   │   │       ├── analyze()                 # Análisis completo
+│   │   │       ├── _adjust_ema_periods()     # [v1.7.1] EMAs adaptativas
+│   │   │       ├── _calculate_rsi()
+│   │   │       ├── _calculate_macd()
+│   │   │       ├── _calculate_ema()          # Usa períodos adaptativos
+│   │   │       ├── _calculate_bollinger()
+│   │   │       └── _calculate_atr()
 │   │   │
 │   │   ├── risk_manager.py           # Gestión de riesgo
 │   │   │   └── RiskManager
