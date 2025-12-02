@@ -362,7 +362,7 @@ class InstitutionalMetrics:
         """
         with self._lock:
             if not self.latency_samples:
-                return {'p50': 0, 'p95': 0, 'p99': 0, 'avg': 0}
+                return {'p50': 0, 'p95': 0, 'p99': 0, 'avg': 0, 'samples': 0}
 
             samples = sorted(self.latency_samples)
             n = len(samples)
@@ -384,7 +384,7 @@ class InstitutionalMetrics:
         """
         with self._lock:
             if not self.slippage_samples:
-                return {'avg': 0, 'max': 0, 'total_cost_percent': 0}
+                return {'avg': 0, 'max': 0, 'total_cost_percent': 0, 'samples': 0}
 
             samples = list(self.slippage_samples)
 
@@ -511,11 +511,11 @@ class InstitutionalMetrics:
         fill_rate = exec_q['fill_rate']
 
         logger.info(f"⚡ Ejecución:")
-        if latency['samples'] > 0:
+        if latency.get('samples', 0) > 0:
             logger.info(f"   Latencia: P50={latency['p50']:.0f}ms | P95={latency['p95']:.0f}ms | P99={latency['p99']:.0f}ms")
-        if slippage['samples'] > 0:
+        if slippage.get('samples', 0) > 0:
             logger.info(f"   Slippage: Avg={slippage['avg']:.3f}% | Max={slippage['max']:.3f}%")
-        if fill_rate['total_placed'] > 0:
+        if fill_rate.get('total_placed', 0) > 0:
             logger.info(f"   Fill Rate: {fill_rate['fill_rate_percent']:.1f}% ({fill_rate['filled']}/{fill_rate['total_placed']})")
 
         logger.info(f"{'='*60}")
