@@ -110,7 +110,7 @@ services:
     networks:
       - sath_network
     ports:
-      - "8000:8000"
+      - "8080:8000"
 
   # ============================================
   # Grafana (métricas globales)
