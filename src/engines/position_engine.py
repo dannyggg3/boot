@@ -8,8 +8,14 @@ Coordinador central del ciclo de vida de posiciones:
 - Trailing stop inteligente
 - Cierre de posiciones y registro de resultados
 
+v1.7 Mejoras Institucionales:
+- Fix race condition en trailing stop
+- Validación pre-trigger para evitar SL inmediatos
+- Cooldown de 3s entre actualizaciones de SL
+- Margen de seguridad mínimo de 0.3%
+
 Autor: Trading Bot System
-Versión: 1.5
+Versión: 1.7
 """
 
 import logging
@@ -267,6 +273,9 @@ class PositionEngine:
                 logger.info(f"   {position['symbol']} | {exit_reason}")
                 logger.info(f"   P&L: ${pnl:.2f} ({pnl_pct:+.2f}%)")
 
+                # v1.7: Registrar en métricas institucionales
+                self._record_institutional_metrics(position, exit_price, exit_reason, pnl, pnl_pct)
+
                 # Remover de memoria
                 self.positions.pop(position_id, None)
 
@@ -462,9 +471,15 @@ class PositionEngine:
         return profit_pct >= self.trailing_activation
 
     def _activate_trailing_stop(self, position: Dict, current_price: float):
-        """Activa trailing stop para una posición."""
+        """
+        Activa trailing stop para una posición.
+
+        v1.7: Añadida validación pre-trigger para evitar race conditions.
+        El SL nunca se moverá a una posición que ya esté triggered.
+        """
         position_id = position['id']
         side = position['side']
+        symbol = position['symbol']
 
         # Calcular nuevo SL basado en trailing distance
         if side == 'long':
@@ -478,33 +493,91 @@ class PositionEngine:
         if side != 'long' and new_sl >= position['stop_loss']:
             return
 
+        # v1.7 FIX CRÍTICO: Validación pre-trigger
+        # Verificar que el nuevo SL no esté en posición de trigger inmediato
+        if side == 'long' and current_price <= new_sl:
+            logger.warning(f"⚠️ Trailing skip {symbol}: new SL ${new_sl:.2f} >= price ${current_price:.2f}")
+            return
+        if side == 'short' and current_price >= new_sl:
+            logger.warning(f"⚠️ Trailing skip {symbol}: new SL ${new_sl:.2f} <= price ${current_price:.2f}")
+            return
+
+        # v1.7: Verificar margen de seguridad mínimo (0.3% del precio actual)
+        min_safety_margin = current_price * 0.003
+        if side == 'long' and (new_sl + min_safety_margin) >= current_price:
+            logger.warning(f"⚠️ Trailing skip {symbol}: SL too close (margin < 0.3%)")
+            return
+        if side == 'short' and (new_sl - min_safety_margin) <= current_price:
+            logger.warning(f"⚠️ Trailing skip {symbol}: SL too close (margin < 0.3%)")
+            return
+
         # Activar
         self.store.activate_trailing_stop(position_id, self.trailing_distance)
         position['trailing_stop_active'] = True
         position['trailing_stop_distance'] = self.trailing_distance
+        position['last_sl_update_time'] = time.time()  # v1.7: Para cooldown
 
         # Actualizar SL
         self._update_stop_loss(position, new_sl, "trailing_activation")
 
-        logger.info(f"📈 Trailing Stop ACTIVADO: {position['symbol']}")
+        logger.info(f"📈 Trailing Stop ACTIVADO: {symbol}")
+        logger.info(f"   Precio actual: ${current_price:.2f}")
         logger.info(f"   Nuevo SL: ${new_sl:.2f} (distancia: {self.trailing_distance}%)")
+        logger.info(f"   Margen de seguridad: ${abs(current_price - new_sl):.2f} ({abs(current_price - new_sl)/current_price*100:.2f}%)")
 
     def _update_trailing_stop_if_needed(self, position: Dict, current_price: float):
-        """Actualiza trailing stop si el precio se movió favorablemente."""
+        """
+        Actualiza trailing stop si el precio se movió favorablemente.
+
+        v1.7: Añadido cooldown y validaciones de seguridad.
+        """
         side = position['side']
         current_sl = position['stop_loss']
+        symbol = position['symbol']
         distance = position.get('trailing_stop_distance', self.trailing_distance)
+
+        # v1.7: Cooldown de 3 segundos después de cada actualización de SL
+        last_update = position.get('last_sl_update_time', 0)
+        cooldown_seconds = 3.0
+        if time.time() - last_update < cooldown_seconds:
+            return  # Aún en cooldown
 
         if side == 'long':
             # Long: mover SL arriba si precio sube
             new_sl = current_price * (1 - distance / 100)
+
+            # v1.7: Validación pre-trigger
+            if current_price <= new_sl:
+                logger.debug(f"Trailing update skip {symbol}: price ${current_price:.2f} <= new SL ${new_sl:.2f}")
+                return
+
+            # v1.7: Margen de seguridad mínimo
+            min_safety_margin = current_price * 0.003
+            if (new_sl + min_safety_margin) >= current_price:
+                return
+
             if new_sl > current_sl:
+                position['last_sl_update_time'] = time.time()
                 self._update_stop_loss(position, new_sl, "trailing_update")
+                logger.debug(f"📈 Trailing SL updated {symbol}: ${current_sl:.2f} → ${new_sl:.2f}")
         else:
             # Short: mover SL abajo si precio baja
             new_sl = current_price * (1 + distance / 100)
+
+            # v1.7: Validación pre-trigger
+            if current_price >= new_sl:
+                logger.debug(f"Trailing update skip {symbol}: price ${current_price:.2f} >= new SL ${new_sl:.2f}")
+                return
+
+            # v1.7: Margen de seguridad mínimo
+            min_safety_margin = current_price * 0.003
+            if (new_sl - min_safety_margin) <= current_price:
+                return
+
             if new_sl < current_sl:
+                position['last_sl_update_time'] = time.time()
                 self._update_stop_loss(position, new_sl, "trailing_update")
+                logger.debug(f"📈 Trailing SL updated {symbol}: ${current_sl:.2f} → ${new_sl:.2f}")
 
     def _update_stop_loss(self, position: Dict, new_sl: float, reason: str):
         """Actualiza el stop loss de una posición."""
@@ -769,6 +842,70 @@ class PositionEngine:
             pass
         except Exception as e:
             logger.error(f"Error notificando posición creada: {e}")
+
+    def _record_institutional_metrics(
+        self,
+        position: Dict,
+        exit_price: float,
+        exit_reason: str,
+        pnl: float,
+        pnl_pct: float
+    ):
+        """
+        v1.7: Registra métricas institucionales al cerrar posición.
+
+        Incluye:
+        - Trade en métricas institucionales
+        - Resultado para Kelly Criterion
+        """
+        try:
+            # Importar métricas institucionales
+            try:
+                from modules.institutional_metrics import get_institutional_metrics
+                metrics = get_institutional_metrics()
+            except ImportError:
+                metrics = None
+
+            if metrics:
+                # Calcular hold time
+                created_at = position.get('created_at')
+                if created_at:
+                    from datetime import datetime
+                    if isinstance(created_at, str):
+                        created_at = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                    hold_time_minutes = (datetime.now() - created_at).total_seconds() / 60
+                else:
+                    hold_time_minutes = 0
+
+                # Registrar trade
+                metrics.record_trade(
+                    symbol=position['symbol'],
+                    side=position['side'],
+                    pnl=pnl,
+                    pnl_percent=pnl_pct,
+                    entry_price=position['entry_price'],
+                    exit_price=exit_price,
+                    regime=position.get('regime', 'unknown'),
+                    agent_type=position.get('agent_type', 'general'),
+                    hold_time_minutes=int(hold_time_minutes),
+                    latency_ms=position.get('execution_latency_ms', 0),
+                    slippage_percent=position.get('slippage_percent', 0)
+                )
+
+                logger.debug(f"📊 Métricas institucionales registradas para {position['symbol']}")
+
+            # Registrar resultado para Kelly Criterion
+            try:
+                from modules.risk_manager import RiskManager
+                # Intentar obtener el risk manager singleton si existe
+                # Por ahora solo registramos en el log
+                is_win = pnl > 0
+                logger.debug(f"📈 Trade result for Kelly: {'WIN' if is_win else 'LOSS'}")
+            except Exception:
+                pass
+
+        except Exception as e:
+            logger.error(f"Error registrando métricas institucionales: {e}")
 
     def _notify_position_closed(
         self,

@@ -5,9 +5,13 @@ Este módulo es el "policía" del bot. Valida todas las operaciones
 antes de ejecutarlas para proteger el capital y evitar pérdidas catastróficas.
 
 v1.6: Incluye validación de comisiones para asegurar rentabilidad.
+v1.7: Kelly Criterion mejorado para ser más conservador con historial limitado.
+      - Requiere mínimo 50 trades para confiar en Kelly
+      - Tracking de rachas perdedoras
+      - Factor de seguridad dinámico
 
 Autor: Trading Bot System
-Versión: 1.6
+Versión: 1.7
 """
 
 import logging
@@ -658,6 +662,7 @@ class RiskManager:
         """
         Ajusta la confianza de la IA a una probabilidad realista.
 
+        v1.7: Mejorado para ser más conservador con historial limitado.
         La confianza de la IA tiende a ser optimista, así que la ajustamos
         basándonos en el historial real de operaciones.
 
@@ -669,25 +674,86 @@ class RiskManager:
         """
         # Obtener win rate histórico
         historical_win_rate = self._get_win_rate()
-
-        # Si no hay suficiente historial, ser conservador
         total_trades = self.trade_history['wins'] + self.trade_history['losses']
-        if total_trades < 20:
-            # Blend con probabilidad base del 50%
-            base_probability = 0.50
-            weight = min(total_trades / 20, 1.0)
-            historical_win_rate = base_probability * (1 - weight) + historical_win_rate * weight
 
+        # v1.7: CRÍTICO - Ser MUY conservador con historial limitado
+        # Nivel institucional requiere mínimo 50 trades para confiar en Kelly
+        if total_trades < 10:
+            # Menos de 10 trades: usar probabilidad muy conservadora
+            logger.info(f"Kelly: Solo {total_trades} trades - usando probabilidad base 0.45")
+            return 0.45  # Asumir peor que 50/50
+
+        elif total_trades < 30:
+            # Entre 10-30 trades: blend conservador
+            base_probability = 0.48
+            weight = (total_trades - 10) / 20  # 0 a 1 entre 10 y 30 trades
+            blended = base_probability * (1 - weight) + historical_win_rate * weight
+            logger.debug(f"Kelly: {total_trades} trades - blend probability {blended:.2f}")
+            return max(0.35, min(blended, 0.65))  # Limitar más estrictamente
+
+        elif total_trades < 50:
+            # Entre 30-50 trades: blend moderado
+            base_probability = 0.50
+            weight = (total_trades - 30) / 20
+            blended = base_probability * (1 - weight) + historical_win_rate * weight
+            logger.debug(f"Kelly: {total_trades} trades - moderate blend {blended:.2f}")
+            return max(0.30, min(blended, 0.70))
+
+        # 50+ trades: confiar más en historial real
         # Ajustar confianza usando historial
-        # Fórmula: adjusted = confidence * historical_factor
-        # Si historial es mejor que 50%, aumenta la confianza efectiva
         historical_factor = historical_win_rate / 0.50  # Normalizado a 50%
-        historical_factor = max(0.5, min(historical_factor, 1.5))  # Limitar entre 0.5 y 1.5
+        historical_factor = max(0.6, min(historical_factor, 1.4))  # v1.7: Rango más estrecho
 
         adjusted_probability = confidence * historical_factor
 
-        # Limitar entre 0.1 y 0.9 (nunca 0% o 100%)
-        return max(0.1, min(adjusted_probability, 0.9))
+        # v1.7: Aplicar factor de seguridad adicional basado en drawdown reciente
+        recent_losses = self._get_recent_loss_streak()
+        if recent_losses >= 3:
+            # Reducir probabilidad si hay racha perdedora
+            safety_factor = max(0.7, 1 - (recent_losses - 2) * 0.1)
+            adjusted_probability *= safety_factor
+            logger.info(f"Kelly: {recent_losses} pérdidas recientes - factor seguridad {safety_factor:.2f}")
+
+        # Limitar entre 0.25 y 0.80 (nunca demasiado extremo)
+        return max(0.25, min(adjusted_probability, 0.80))
+
+    def _get_recent_loss_streak(self) -> int:
+        """
+        v1.7: Calcula la racha de pérdidas recientes.
+        Útil para ajustar Kelly dinámicamente.
+
+        Returns:
+            Número de pérdidas consecutivas recientes
+        """
+        # Si no hay suficiente historial, asumir 0
+        if not hasattr(self, 'recent_results'):
+            self.recent_results = []
+
+        # Contar pérdidas consecutivas desde el final
+        streak = 0
+        for result in reversed(self.recent_results[-10:]):  # Últimos 10 trades
+            if result == 'loss':
+                streak += 1
+            else:
+                break
+
+        return streak
+
+    def record_trade_result(self, is_win: bool):
+        """
+        v1.7: Registra resultado de trade para tracking de rachas.
+
+        Args:
+            is_win: True si el trade fue ganador
+        """
+        if not hasattr(self, 'recent_results'):
+            self.recent_results = []
+
+        self.recent_results.append('win' if is_win else 'loss')
+
+        # Mantener solo los últimos 20 resultados
+        if len(self.recent_results) > 20:
+            self.recent_results = self.recent_results[-20:]
 
     def _get_win_rate(self) -> float:
         """Calcula el win rate histórico."""

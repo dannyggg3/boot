@@ -1,6 +1,17 @@
-# Arquitectura del Sistema SATH v1.5
+# Arquitectura del Sistema SATH v1.7
 
 Este documento describe la arquitectura completa del Sistema Autónomo de Trading Híbrido.
+
+## Cambios v1.7 (Mejoras Institucionales)
+
+| Componente | Cambio | Archivo |
+|------------|--------|---------|
+| Trailing Stop | Fix race condition + cooldown | `position_engine.py` |
+| Paper Mode | Simulador latencia/slippage | `order_manager.py` |
+| Kelly Criterion | Conservador con pocos trades | `risk_manager.py` |
+| Métricas | Sharpe, Sortino, Calmar | `institutional_metrics.py` |
+| Liquidez | Validación pre-ejecución | `market_engine.py` |
+| Singletons | Thread-safe | `position_store.py` |
 
 ## Árbol de Archivos
 
@@ -90,15 +101,31 @@ bot/
 │   │   │       ├── calculate_stop_loss()
 │   │   │       └── calculate_take_profit()
 │   │   │
-│   │   ├── order_manager.py          # [v1.5] Gestión de órdenes
-│   │   │   └── OrderManager
-│   │   │       ├── place_oco_order()
-│   │   │       ├── cancel_oco_order()
-│   │   │       ├── update_stop_loss()
-│   │   │       ├── check_oco_status()
-│   │   │       └── place_market_close()
+│   │   ├── order_manager.py          # [v1.5+v1.7] Gestión de órdenes
+│   │   │   ├── OrderManager
+│   │   │   │   ├── place_oco_order()
+│   │   │   │   ├── cancel_oco_order()
+│   │   │   │   ├── update_stop_loss()
+│   │   │   │   ├── check_oco_status()
+│   │   │   │   └── place_market_close()
+│   │   │   └── PaperModeSimulator        # [v1.7] Simulación realista
+│   │   │       ├── simulate_latency()
+│   │   │       ├── calculate_slippage()
+│   │   │       ├── process_order()
+│   │   │       └── get_stats()
 │   │   │
-│   │   ├── position_store.py         # [v1.5] Persistencia SQLite
+│   │   ├── institutional_metrics.py  # [v1.7] Métricas institucionales
+│   │   │   └── InstitutionalMetrics
+│   │   │       ├── record_trade()
+│   │   │       ├── record_daily_return()
+│   │   │       ├── calculate_sharpe_ratio()
+│   │   │       ├── calculate_sortino_ratio()
+│   │   │       ├── calculate_calmar_ratio()
+│   │   │       ├── get_regime_stats()
+│   │   │       ├── get_latency_stats()
+│   │   │       └── get_comprehensive_report()
+│   │   │
+│   │   ├── position_store.py         # [v1.5+v1.7] Persistencia SQLite (thread-safe)
 │   │   │   └── PositionStore
 │   │   │       ├── save_position()
 │   │   │       ├── get_position()

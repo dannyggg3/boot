@@ -7,16 +7,151 @@ Maneja la creación y monitoreo de órdenes de protección:
 - Take Profit Limit
 - Actualización de Trailing Stop
 
+v1.7: Añadida simulación de latencia y slippage para paper mode
+
 Autor: Trading Bot System
-Versión: 1.5
+Versión: 1.7
 """
 
 import logging
 import time
+import random
 from typing import Dict, Any, Optional, Callable
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
+
+
+# ============================================================================
+# v1.7: SIMULACIÓN DE CONDICIONES REALES PARA PAPER MODE
+# ============================================================================
+
+class PaperModeSimulator:
+    """
+    Simula condiciones reales de mercado para paper trading.
+    Incluye latencia, slippage y fallos ocasionales.
+    """
+
+    def __init__(self, config: Dict[str, Any] = None):
+        sim_config = (config or {}).get('paper_simulation', {})
+
+        # Latencia de red (ms)
+        self.min_latency_ms = sim_config.get('min_latency_ms', 50)
+        self.max_latency_ms = sim_config.get('max_latency_ms', 200)
+
+        # Slippage (%)
+        self.base_slippage_percent = sim_config.get('base_slippage_percent', 0.05)
+        self.max_slippage_percent = sim_config.get('max_slippage_percent', 0.15)
+
+        # Probabilidad de fallos
+        self.failure_rate = sim_config.get('failure_rate', 0.02)  # 2% de fallos
+
+        # Estadísticas
+        self.stats = {
+            'total_orders': 0,
+            'total_latency_ms': 0,
+            'total_slippage_usd': 0,
+            'failures': 0
+        }
+
+    def simulate_latency(self):
+        """Simula latencia de red."""
+        latency_ms = random.uniform(self.min_latency_ms, self.max_latency_ms)
+        time.sleep(latency_ms / 1000)
+        self.stats['total_latency_ms'] += latency_ms
+        return latency_ms
+
+    def calculate_slippage(self, price: float, side: str, volatility: float = 1.0) -> float:
+        """
+        Calcula slippage basado en condiciones de mercado.
+
+        Args:
+            price: Precio objetivo
+            side: 'buy' o 'sell'
+            volatility: Factor de volatilidad (1.0 = normal)
+
+        Returns:
+            Precio ajustado con slippage
+        """
+        # Slippage base + componente aleatorio
+        slippage_percent = self.base_slippage_percent + random.uniform(0, self.max_slippage_percent - self.base_slippage_percent)
+
+        # Ajustar por volatilidad
+        slippage_percent *= volatility
+
+        # Dirección del slippage (siempre desfavorable)
+        if side == 'buy':
+            adjusted_price = price * (1 + slippage_percent / 100)
+        else:
+            adjusted_price = price * (1 - slippage_percent / 100)
+
+        slippage_usd = abs(adjusted_price - price)
+        self.stats['total_slippage_usd'] += slippage_usd
+
+        return adjusted_price
+
+    def should_fail(self) -> bool:
+        """Determina si la orden debe fallar (simula problemas de red)."""
+        if random.random() < self.failure_rate:
+            self.stats['failures'] += 1
+            return True
+        return False
+
+    def process_order(self, price: float, side: str, order_type: str = 'market') -> Dict[str, Any]:
+        """
+        Procesa una orden simulando condiciones reales.
+
+        Returns:
+            Dict con precio ajustado, latencia y estado
+        """
+        self.stats['total_orders'] += 1
+
+        # Simular latencia
+        latency = self.simulate_latency()
+
+        # Verificar fallo
+        if self.should_fail():
+            return {
+                'success': False,
+                'error': 'Simulated network timeout',
+                'latency_ms': latency
+            }
+
+        # Calcular slippage (solo para market orders)
+        if order_type == 'market':
+            adjusted_price = self.calculate_slippage(price, side)
+        else:
+            adjusted_price = price
+
+        return {
+            'success': True,
+            'original_price': price,
+            'executed_price': adjusted_price,
+            'slippage_percent': abs(adjusted_price - price) / price * 100,
+            'latency_ms': latency
+        }
+
+    def get_stats(self) -> Dict[str, Any]:
+        """Retorna estadísticas de simulación."""
+        total = self.stats['total_orders']
+        return {
+            'total_orders': total,
+            'avg_latency_ms': self.stats['total_latency_ms'] / total if total > 0 else 0,
+            'total_slippage_usd': round(self.stats['total_slippage_usd'], 4),
+            'failure_rate_actual': self.stats['failures'] / total * 100 if total > 0 else 0
+        }
+
+
+# Instancia global del simulador
+_paper_simulator: Optional[PaperModeSimulator] = None
+
+
+def get_paper_simulator(config: Dict = None) -> PaperModeSimulator:
+    """Obtiene o crea el simulador de paper mode."""
+    global _paper_simulator
+    if _paper_simulator is None:
+        _paper_simulator = PaperModeSimulator(config)
+    return _paper_simulator
 
 
 class OrderManager:
@@ -53,6 +188,12 @@ class OrderManager:
 
         # Estado interno
         self.active_oco_orders: Dict[str, Dict] = {}  # position_id -> oco_info
+
+        # v1.7: Simulador para paper mode
+        self.paper_simulator = None
+        if mode == 'paper':
+            self.paper_simulator = get_paper_simulator(config)
+            logger.info(f"  Paper Mode Simulator: ACTIVO (slippage: {self.paper_simulator.base_slippage_percent}-{self.paper_simulator.max_slippage_percent}%)")
 
         logger.info(f"OrderManager inicializado (modo: {self.protection_mode})")
 
@@ -531,7 +672,8 @@ class OrderManager:
         symbol: str,
         side: str,
         quantity: float,
-        reason: str = "manual"
+        reason: str = "manual",
+        current_price: float = None
     ) -> Optional[Dict[str, Any]]:
         """
         Cierra una posición con orden de mercado.
@@ -541,13 +683,42 @@ class OrderManager:
             side: 'sell' para cerrar long, 'buy' para cerrar short
             quantity: Cantidad a cerrar
             reason: Razón del cierre
+            current_price: v1.7 - Precio actual para simulación de slippage
 
         Returns:
             Información de la orden o None
         """
         if self.mode == 'paper':
-            logger.info(f"[PAPER] Market Close: {symbol} {side} {quantity} ({reason})")
-            return {'id': f'paper_close_{int(time.time())}', 'status': 'closed', 'reason': reason}
+            # v1.7: Simulación realista con latencia y slippage
+            if self.paper_simulator and current_price:
+                sim_result = self.paper_simulator.process_order(current_price, side, 'market')
+
+                if not sim_result['success']:
+                    logger.warning(f"[PAPER] Market Close FAILED (simulated): {sim_result['error']}")
+                    # Reintentar una vez
+                    time.sleep(0.5)
+                    sim_result = self.paper_simulator.process_order(current_price, side, 'market')
+
+                executed_price = sim_result.get('executed_price', current_price)
+                slippage = sim_result.get('slippage_percent', 0)
+                latency = sim_result.get('latency_ms', 0)
+
+                logger.info(f"[PAPER] Market Close: {symbol} {side} {quantity} ({reason})")
+                logger.info(f"  Precio: ${current_price:.2f} → ${executed_price:.2f} (slippage: {slippage:.3f}%)")
+                logger.info(f"  Latencia: {latency:.0f}ms")
+
+                return {
+                    'id': f'paper_close_{int(time.time())}',
+                    'status': 'closed',
+                    'reason': reason,
+                    'average': executed_price,
+                    'price': executed_price,
+                    'slippage_percent': slippage,
+                    'latency_ms': latency
+                }
+            else:
+                logger.info(f"[PAPER] Market Close: {symbol} {side} {quantity} ({reason})")
+                return {'id': f'paper_close_{int(time.time())}', 'status': 'closed', 'reason': reason}
 
         try:
             if side == 'sell':
@@ -561,6 +732,12 @@ class OrderManager:
         except Exception as e:
             logger.error(f"Error en market close: {e}")
             return None
+
+    def get_simulation_stats(self) -> Optional[Dict[str, Any]]:
+        """v1.7: Obtiene estadísticas de simulación de paper mode."""
+        if self.paper_simulator:
+            return self.paper_simulator.get_stats()
+        return None
 
     # =========================================================================
     # HELPERS

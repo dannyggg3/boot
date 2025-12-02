@@ -85,25 +85,55 @@ Esta guía proporciona configuraciones óptimas para el bot de trading según el
 
 ---
 
-### Trailing Stop (`position_management.trailing_stop:`)
+### Trailing Stop (`position_management.trailing_stop:`) - v1.7
 
-| Capital | activation_profit_percent | trail_distance_percent |
-|---------|--------------------------|----------------------|
-| $100    | 1.5%                     | 1.0%                 |
-| $200    | 1.5%                     | 1.0%                 |
-| $300    | 1.5%                     | 1.2%                 |
-| $400    | 2.0%                     | 1.2%                 |
-| $500    | 2.0%                     | 1.5%                 |
-| $600    | 2.0%                     | 1.5%                 |
-| $700    | 2.0%                     | 1.5%                 |
-| $800    | 2.5%                     | 1.5%                 |
-| $900    | 2.5%                     | 2.0%                 |
-| $1000   | 2.5%                     | 2.0%                 |
+| Capital | activation_profit_percent | trail_distance_percent | cooldown_seconds | min_safety_margin_percent |
+|---------|--------------------------|----------------------|------------------|---------------------------|
+| $100    | 2.0%                     | 1.5%                 | 3                | 0.3%                      |
+| $200    | 2.0%                     | 1.5%                 | 3                | 0.3%                      |
+| $300    | 2.0%                     | 1.5%                 | 3                | 0.3%                      |
+| $400    | 2.0%                     | 1.5%                 | 3                | 0.3%                      |
+| $500    | 2.0%                     | 1.5%                 | 3                | 0.3%                      |
+| $600    | 2.5%                     | 1.5%                 | 3                | 0.3%                      |
+| $700    | 2.5%                     | 2.0%                 | 3                | 0.3%                      |
+| $800    | 2.5%                     | 2.0%                 | 3                | 0.3%                      |
+| $900    | 2.5%                     | 2.0%                 | 3                | 0.3%                      |
+| $1000   | 3.0%                     | 2.0%                 | 3                | 0.3%                      |
 
-**Notas:**
+**Notas v1.7:**
 - `activation_profit_percent`: Ganancia mínima para activar trailing stop
 - `trail_distance_percent`: Distancia del trailing stop al precio actual
-- Con menos capital, activar antes para asegurar ganancias pequeñas
+- `cooldown_seconds`: Tiempo mínimo entre actualizaciones de SL (evita race conditions)
+- `min_safety_margin_percent`: Margen mínimo entre precio y SL (evita triggers inmediatos)
+- **IMPORTANTE**: `trail_distance` debe ser < `activation_profit` para asegurar ganancias
+
+---
+
+### Paper Mode Simulation (`paper_simulation:`) - v1.7
+
+| Capital | min_latency_ms | max_latency_ms | base_slippage_percent | max_slippage_percent | failure_rate |
+|---------|----------------|----------------|----------------------|---------------------|--------------|
+| Todos   | 50             | 200            | 0.05                 | 0.15                | 0.02         |
+
+**Notas:**
+- Simula condiciones reales de mercado para paper trading
+- Ayuda a tener expectativas realistas antes de ir a LIVE
+- `failure_rate`: 2% de fallos simulados de red
+
+---
+
+### Validación de Liquidez (`liquidity_validation:`) - v1.7
+
+| Capital | enabled | max_slippage_percent | min_spread_warning | max_spread_reject |
+|---------|---------|---------------------|-------------------|------------------|
+| $100    | true    | 0.5%                | 0.3%              | 0.5%             |
+| $200    | true    | 0.5%                | 0.3%              | 0.5%             |
+| $300+   | true    | 0.5%                | 0.3%              | 0.5%             |
+
+**Notas:**
+- Verifica liquidez del order book antes de ejecutar órdenes
+- Rechaza operaciones si spread > 0.5%
+- Especialmente importante para capital pequeño donde slippage impacta más
 
 ---
 
@@ -194,8 +224,10 @@ risk_management:
 
 position_management:
   trailing_stop:
-    activation_profit_percent: 1.5
-    trail_distance_percent: 1.0
+    activation_profit_percent: 2.0
+    trail_distance_percent: 1.5
+    cooldown_seconds: 3
+    min_safety_margin_percent: 0.3
 
   portfolio:
     max_concurrent_positions: 1
@@ -236,8 +268,10 @@ risk_management:
 
 position_management:
   trailing_stop:
-    activation_profit_percent: 1.5
-    trail_distance_percent: 1.2
+    activation_profit_percent: 2.0
+    trail_distance_percent: 1.5
+    cooldown_seconds: 3
+    min_safety_margin_percent: 0.3
 
   portfolio:
     max_concurrent_positions: 1
@@ -280,6 +314,8 @@ position_management:
   trailing_stop:
     activation_profit_percent: 2.0
     trail_distance_percent: 1.5
+    cooldown_seconds: 3
+    min_safety_margin_percent: 0.3
 
   portfolio:
     max_concurrent_positions: 2
@@ -320,8 +356,10 @@ risk_management:
 
 position_management:
   trailing_stop:
-    activation_profit_percent: 2.0
+    activation_profit_percent: 2.5
     trail_distance_percent: 1.5
+    cooldown_seconds: 3
+    min_safety_margin_percent: 0.3
 
   portfolio:
     max_concurrent_positions: 2
@@ -362,8 +400,10 @@ risk_management:
 
 position_management:
   trailing_stop:
-    activation_profit_percent: 2.5
+    activation_profit_percent: 3.0
     trail_distance_percent: 2.0
+    cooldown_seconds: 3
+    min_safety_margin_percent: 0.3
 
   portfolio:
     max_concurrent_positions: 3
@@ -405,5 +445,5 @@ ai_agents:
 
 ---
 
-*Documento generado para SATH v1.6*
+*Documento generado para SATH v1.7*
 *Última actualización: 2025-12-02*

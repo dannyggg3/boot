@@ -744,15 +744,41 @@ class PositionStore:
 
 
 # =============================================================================
-# SINGLETON
+# SINGLETON - v1.7: Thread-safe implementation
 # =============================================================================
 
+import threading
+
 _store_instance: Optional[PositionStore] = None
+_store_lock = threading.Lock()
 
 
 def get_position_store(db_path: str = "data/positions.db") -> PositionStore:
-    """Obtiene instancia singleton del store."""
+    """
+    Obtiene instancia singleton del store.
+
+    v1.7: Thread-safe con double-checked locking pattern.
+    """
     global _store_instance
-    if _store_instance is None:
-        _store_instance = PositionStore(db_path)
+
+    # First check without lock (fast path)
+    if _store_instance is not None:
+        return _store_instance
+
+    # Acquire lock for thread-safe initialization
+    with _store_lock:
+        # Double-check inside lock
+        if _store_instance is None:
+            _store_instance = PositionStore(db_path)
+            logger.info("PositionStore singleton inicializado (thread-safe)")
+
     return _store_instance
+
+
+def reset_position_store():
+    """
+    v1.7: Resetea el singleton (útil para tests).
+    """
+    global _store_instance
+    with _store_lock:
+        _store_instance = None

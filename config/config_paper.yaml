@@ -128,11 +128,16 @@ position_management:
     enabled: true
     check_interval_ms: 500 # Verificar cada 500ms
 
-  # Trailing Stop inteligente - CONSERVADOR para $100
+  # Trailing Stop inteligente - v1.7 INSTITUCIONAL
+  # IMPORTANTE: trail_distance debe ser >= activation para evitar triggers inmediatos
   trailing_stop:
     enabled: true
-    activation_profit_percent: 1.5 # Activar antes (1.5%) para asegurar ganancias pequeñas
-    trail_distance_percent: 1.0    # Trailing más ajustado (1%) para capturar ganancias rápido
+    activation_profit_percent: 2.0  # Activar solo con 2% profit confirmado
+    trail_distance_percent: 1.5     # Trailing 1.5% (debe ser < activation)
+    # v1.7: Nuevos parámetros de seguridad
+    min_profit_to_lock: 0.5         # Mínimo 0.5% profit asegurado al activar
+    cooldown_seconds: 3             # Segundos entre actualizaciones de SL
+    min_safety_margin_percent: 0.3  # Margen mínimo entre precio y SL
 
   # Supervisión IA de posiciones
   supervision:
@@ -205,6 +210,26 @@ websockets:
   ticker: true
   trades: true
   orderbook_depth: 10
+
+# ===== v1.7: SIMULACIÓN REALISTA PARA PAPER MODE =====
+paper_simulation:
+  # Latencia de red simulada (ms)
+  min_latency_ms: 50
+  max_latency_ms: 200
+
+  # Slippage simulado (%)
+  base_slippage_percent: 0.05   # Slippage mínimo
+  max_slippage_percent: 0.15    # Slippage máximo
+
+  # Tasa de fallos simulados (red, timeout)
+  failure_rate: 0.02  # 2% de fallos
+
+# ===== v1.7: VALIDACIÓN DE LIQUIDEZ =====
+liquidity_validation:
+  enabled: true
+  max_slippage_percent: 0.5     # Slippage máximo aceptable
+  min_spread_warning: 0.3       # Advertir si spread > 0.3%
+  max_spread_reject: 0.5        # Rechazar si spread > 0.5%
 
 # ===== LOGGING =====
 logging:

@@ -734,6 +734,139 @@ class MarketEngine:
             logger.error(f"Error obteniendo order book de {symbol}: {e}")
             return None
 
+    def validate_liquidity(
+        self,
+        symbol: str,
+        order_size_usd: float,
+        side: str,
+        max_slippage_percent: float = 0.5
+    ) -> Dict[str, Any]:
+        """
+        v1.7: Valida que hay suficiente liquidez para ejecutar una orden.
+
+        Análisis institucional de liquidez:
+        1. Verifica profundidad del order book
+        2. Estima slippage basado en tamaño de orden
+        3. Verifica spread
+        4. Detecta condiciones de baja liquidez
+
+        Args:
+            symbol: Par de trading
+            order_size_usd: Tamaño de la orden en USD
+            side: 'buy' o 'sell'
+            max_slippage_percent: Slippage máximo aceptable
+
+        Returns:
+            Dict con validación y estimaciones
+        """
+        try:
+            # Obtener order book profundo
+            orderbook = self.connection.fetch_order_book(symbol, limit=50)
+
+            bids = orderbook.get('bids', [])
+            asks = orderbook.get('asks', [])
+
+            if not bids or not asks:
+                return {
+                    'valid': False,
+                    'reason': 'Order book vacío',
+                    'estimated_slippage': None
+                }
+
+            best_bid = bids[0][0]
+            best_ask = asks[0][0]
+            mid_price = (best_bid + best_ask) / 2
+
+            # Spread actual
+            spread_percent = ((best_ask - best_bid) / mid_price) * 100
+
+            # Verificar spread máximo
+            if spread_percent > 0.5:  # >0.5% spread es peligroso
+                return {
+                    'valid': False,
+                    'reason': f'Spread muy alto: {spread_percent:.3f}%',
+                    'spread_percent': spread_percent,
+                    'estimated_slippage': None
+                }
+
+            # Calcular liquidez disponible en el lado relevante
+            if side == 'buy':
+                # Para comprar, miramos los asks
+                book_side = asks
+                reference_price = best_ask
+            else:
+                # Para vender, miramos los bids
+                book_side = bids
+                reference_price = best_bid
+
+            # Calcular cantidad necesaria en unidades del activo
+            order_size_units = order_size_usd / reference_price
+
+            # Simular ejecución para estimar slippage
+            filled_units = 0
+            total_cost = 0
+            levels_consumed = 0
+
+            for price, volume in book_side:
+                if filled_units >= order_size_units:
+                    break
+
+                fill_amount = min(volume, order_size_units - filled_units)
+                filled_units += fill_amount
+                total_cost += fill_amount * price
+                levels_consumed += 1
+
+            # Verificar si hay suficiente liquidez
+            if filled_units < order_size_units * 0.95:  # Al menos 95% de la orden
+                return {
+                    'valid': False,
+                    'reason': f'Liquidez insuficiente: solo {filled_units/order_size_units*100:.1f}% disponible',
+                    'available_liquidity_usd': filled_units * reference_price,
+                    'required_usd': order_size_usd
+                }
+
+            # Calcular slippage estimado
+            avg_fill_price = total_cost / filled_units if filled_units > 0 else reference_price
+
+            if side == 'buy':
+                estimated_slippage = ((avg_fill_price - best_ask) / best_ask) * 100
+            else:
+                estimated_slippage = ((best_bid - avg_fill_price) / best_bid) * 100
+
+            # Verificar slippage
+            if estimated_slippage > max_slippage_percent:
+                return {
+                    'valid': False,
+                    'reason': f'Slippage estimado muy alto: {estimated_slippage:.3f}%',
+                    'estimated_slippage': estimated_slippage,
+                    'max_allowed': max_slippage_percent
+                }
+
+            # Calcular métricas adicionales
+            bid_volume_usd = sum([b[0] * b[1] for b in bids[:20]])
+            ask_volume_usd = sum([a[0] * a[1] for a in asks[:20]])
+
+            # Todo OK
+            return {
+                'valid': True,
+                'estimated_slippage': round(estimated_slippage, 4),
+                'spread_percent': round(spread_percent, 4),
+                'levels_consumed': levels_consumed,
+                'avg_fill_price': round(avg_fill_price, 2),
+                'best_price': reference_price,
+                'bid_liquidity_usd': round(bid_volume_usd, 2),
+                'ask_liquidity_usd': round(ask_volume_usd, 2),
+                'liquidity_score': min(100, (bid_volume_usd + ask_volume_usd) / order_size_usd * 10)
+            }
+
+        except Exception as e:
+            logger.error(f"Error validando liquidez para {symbol}: {e}")
+            return {
+                'valid': True,  # En caso de error, permitir pero loggear
+                'reason': f'Error de validación: {str(e)}',
+                'estimated_slippage': None
+            }
+
     def get_funding_rate(self, symbol: str) -> Optional[Dict[str, Any]]:
         """
         Obtiene el funding rate para contratos perpetuos.

@@ -92,6 +92,16 @@ except ImportError as e:
     create_database_check = None
     print(f"Warning: Advanced features not available: {e}")
 
+# v1.7: Métricas institucionales
+try:
+    from modules.institutional_metrics import get_institutional_metrics, InstitutionalMetrics
+    INSTITUTIONAL_METRICS_AVAILABLE = True
+except ImportError as e:
+    INSTITUTIONAL_METRICS_AVAILABLE = False
+    get_institutional_metrics = None
+    InstitutionalMetrics = None
+    print(f"Warning: Institutional metrics not available: {e}")
+
 
 class TradingBot:
     """
@@ -241,6 +251,18 @@ class TradingBot:
 
                 except Exception as e:
                     logger.warning(f"No se pudieron inicializar features avanzados: {e}")
+
+            # v1.7: Métricas institucionales
+            self.institutional_metrics = None
+            self.use_liquidity_validation = self.config.get('liquidity_validation', {}).get('enabled', True)
+
+            if INSTITUTIONAL_METRICS_AVAILABLE:
+                try:
+                    self.institutional_metrics = get_institutional_metrics(self.config)
+                    logger.info("v1.7 Institutional Metrics: ACTIVO")
+                    logger.info(f"  - Liquidity Validation: {'ON' if self.use_liquidity_validation else 'OFF'}")
+                except Exception as e:
+                    logger.warning(f"No se pudieron inicializar métricas institucionales: {e}")
 
             self.symbols = self.config['trading']['symbols']
             self.scan_interval = self.config['trading']['scan_interval']
@@ -766,6 +788,24 @@ class TradingBot:
         try:
             # Marcar que hay un trade en progreso
             self.is_trading = True
+
+            # v1.7: Validación de liquidez antes de ejecutar
+            if self.use_liquidity_validation and hasattr(self.market_engine, 'validate_liquidity'):
+                order_value_usd = amount * analysis_price
+                liquidity_check = self.market_engine.validate_liquidity(
+                    symbol=symbol,
+                    order_size_usd=order_value_usd,
+                    side=side,
+                    max_slippage_percent=self.config.get('liquidity_validation', {}).get('max_slippage_percent', 0.5)
+                )
+
+                if not liquidity_check.get('valid', True):
+                    logger.warning(f"{tag} ⚠️ LIQUIDEZ INSUFICIENTE: {liquidity_check.get('reason', 'Unknown')}")
+                    self.is_trading = False
+                    return
+
+                if liquidity_check.get('estimated_slippage'):
+                    logger.info(f"{tag} 📊 Liquidez OK - Slippage estimado: {liquidity_check['estimated_slippage']:.3f}%")
 
             # Ejecutar orden con verificación de precio y protección slippage
             order = self.market_engine.execute_order(
