@@ -6,6 +6,83 @@ El formato está basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.
 
 ---
 
+## [1.6.1] - 2024-12-01 (Monitor de Posiciones y Optimización de Capital)
+
+### Agregado
+
+- **Monitor de Posiciones en Tiempo Real** (`main.py:875-947`)
+  - Nuevo método `_show_position_monitor()` que muestra estado detallado cada scan_interval
+  - Información mostrada:
+    - Símbolo, dirección (LONG/SHORT) y tiempo transcurrido desde apertura
+    - Precio de entrada vs precio actual
+    - PnL no realizado ($ y %)
+    - Distancia a Stop Loss y Take Profit
+  - Ejemplo de output:
+    ```
+    📊 MONITOR DE POSICIONES (1/1)
+    --------------------------------------------------
+       ┌─ BTC/USDT LONG | ⏱️ 2h 15m
+       │  💰 Entrada: $95000.00 → Actual: $95500.00
+       │  🟢 PnL: $+25.00 (+0.53%)
+       │  🛑 SL: $93100.00 (a 2.51%)
+       └─ 🎯 TP: $97850.00 (a 2.46%)
+    --------------------------------------------------
+    ```
+  - Se muestra SIEMPRE que hay posiciones abiertas (no solo al máximo)
+
+- **Validación de Posiciones Recuperadas** (`position_engine.py`)
+  - Al reiniciar, valida que las posiciones en SQLite realmente existen en el exchange
+  - Método `_validate_position_exists()`:
+    - Para LONG: verifica que balance del activo >= cantidad esperada
+    - Verifica estado de órdenes OCO asociadas
+  - Marca automáticamente como cerradas las posiciones inválidas
+
+- **Método Público `can_open_position()`** (`position_engine.py`)
+  - Anteriormente `_can_open_position()` (privado)
+  - Ahora público para verificar ANTES de ejecutar órdenes
+  - Previene race condition donde se ejecutaba orden y luego fallaba por límite
+
+### Mejorado
+
+- **Capital Fijo para Operaciones** (`main.py`)
+  - COMPRA y VENTA ahora limitadas al capital configurado ($100)
+  - No usa balance real de wallet para calcular tamaño
+  - Respeta `max_exposure_percent` (50%) = máximo $50 por operación
+  - Previene operar con más capital del asignado al bot
+
+- **Verificación Pre-Ejecución de Posiciones** (`main.py:667-670`)
+  - Verifica `can_open_position()` ANTES de `_execute_trade()`
+  - Si límite alcanzado, no ejecuta y muestra warning
+  - Elimina race condition de versiones anteriores
+
+- **Ahorro de Tokens de IA** (`main.py:426-444`)
+  - Si no hay capacidad para nuevas posiciones, salta análisis
+  - Muestra estado de posiciones mientras espera
+  - Log: `"⏸️ Sin capacidad (1/1) - Ahorrando tokens de IA"`
+
+- **Notificaciones de Cierre** (`notifications.py`)
+  - SL hit ahora muestra: `"💸 PÉRDIDA: $X.XX"`
+  - TP hit ahora muestra: `"💰 GANANCIA: $X.XX"`
+  - Clarifica resultado de cada operación
+
+### Configuración
+
+- **Volatilidad Mínima Ajustada** (`config_live.yaml`, `config_paper.yaml`)
+  - `min_volatility_percent: 0.25` (antes 0.2)
+  - Balance entre filtrar ruido y capturar oportunidades
+
+### Archivos Modificados
+
+| Archivo | Cambios |
+|---------|---------|
+| `main.py` | Monitor posiciones, límite capital, verificación pre-orden |
+| `src/engines/position_engine.py` | `can_open_position()` público, validación recovery |
+| `src/modules/notifications.py` | Labels GANANCIA/PÉRDIDA |
+| `config/config_live.yaml` | min_volatility 0.25 |
+| `config/config_paper.yaml` | min_volatility 0.25 |
+
+---
+
 ## [1.6.0] - 2024-12-01 (Escalabilidad y Robustez Institucional)
 
 ### Agregado

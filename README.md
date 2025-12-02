@@ -1,8 +1,10 @@
-# Sistema Autónomo de Trading Híbrido (SATH) v1.5
+# Sistema Autónomo de Trading Híbrido (SATH) v1.6
 
 Bot de trading profesional que combina análisis técnico cuantitativo con razonamiento de IA para trading autónomo en criptomonedas y mercados tradicionales.
 
-**Nuevo en v1.5**: Sistema completo de gestión de posiciones con órdenes OCO reales, supervisión IA, trailing stop inteligente y persistencia SQLite.
+**Nuevo en v1.6**: Circuit Breaker, Health Monitor, AI Ensemble, Monitor de Posiciones en tiempo real, y optimización de capital para cuentas pequeñas ($100).
+
+**Nuevo en v1.6.1**: Monitor de posiciones con PnL en tiempo real, validación de posiciones recuperadas, y capital fijo para operaciones.
 
 ## Características Principales
 
@@ -23,6 +25,38 @@ Bot de trading profesional que combina análisis técnico cuantitativo con razon
 - **Portfolio Management**: Límite de posiciones concurrentes y exposición máxima
 - **Notificaciones**: Alertas Telegram para SL/TP triggers y ajustes IA
 
+### Robustez y Escalabilidad v1.6
+
+- **Circuit Breaker Pattern**: Previene cascadas de fallos en llamadas al exchange
+- **Health Monitor**: Monitoreo de salud del sistema con alertas automáticas
+- **AI Ensemble System**: Votación ponderada entre múltiples modelos de IA
+- **Arquitectura Async**: Engine asíncrono para operaciones paralelas
+- **Control de Fees**: Validación automática de rentabilidad después de comisiones
+
+### Monitor de Posiciones v1.6.1
+
+- **Monitor en Tiempo Real**: Muestra estado de posiciones cada scan_interval (3 min)
+- **Información Mostrada**:
+  - Símbolo, dirección (LONG/SHORT) y tiempo transcurrido
+  - Precio de entrada vs precio actual
+  - PnL no realizado ($ y %)
+  - Distancia a Stop Loss y Take Profit
+- **Validación de Posiciones**: Al reiniciar, valida que las posiciones existen en exchange
+- **Capital Fijo**: Operaciones limitadas a capital configurado (no usa balance real)
+- **Ahorro de Tokens**: Salta análisis IA cuando posiciones al máximo
+
+Ejemplo de Monitor:
+```
+📊 MONITOR DE POSICIONES (1/1)
+--------------------------------------------------
+   ┌─ BTC/USDT LONG | ⏱️ 2h 15m
+   │  💰 Entrada: $95000.00 → Actual: $95500.00
+   │  🟢 PnL: $+25.00 (+0.53%)
+   │  🛑 SL: $93100.00 (a 2.51%)
+   └─ 🎯 TP: $97850.00 (a 2.46%)
+--------------------------------------------------
+```
+
 ### Optimizaciones v1.1-v1.4
 - **Análisis Paralelo**: Analiza múltiples símbolos simultáneamente (4x más rápido)
 - **Protección Anti-Slippage**: Verificación de precio pre-ejecución y órdenes limit inteligentes
@@ -30,11 +64,11 @@ Bot de trading profesional que combina análisis técnico cuantitativo con razon
 - **Pre-Filtro Local**: Reduce 50-75% llamadas API
 - **Kelly Criterion**: Position sizing dinámico basado en confianza
 
-## Arquitectura del Sistema v1.5
+## Arquitectura del Sistema v1.6
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                          SATH BOT v1.5                                       │
+│                          SATH BOT v1.6                                       │
 │                                                                              │
 │  ┌────────────────────────────────────────────────────────────────────────┐ │
 │  │                     MAIN ORCHESTRATOR                                   │ │
@@ -411,6 +445,22 @@ El bot envía alertas para:
 
 Ver [CHANGELOG.md](CHANGELOG.md) para historial completo de cambios.
 
+### v1.6.1 (Diciembre 2024)
+- Monitor de posiciones en tiempo real con PnL y tiempo transcurrido
+- Validación de posiciones recuperadas (verifica existencia en exchange)
+- Capital fijo para operaciones (no usa balance real de wallet)
+- Método `can_open_position()` público para verificación pre-ejecución
+- Ahorro de tokens de IA cuando posiciones al máximo
+- Notificaciones de cierre con labels GANANCIA/PÉRDIDA
+
+### v1.6 (Diciembre 2024)
+- Circuit Breaker Pattern para prevenir cascadas de fallos
+- Health Monitor con alertas automáticas
+- AI Ensemble System con votación ponderada
+- Arquitectura Async para escalabilidad
+- Control de fees y validación de rentabilidad
+- Optimización de portfolio para capital pequeño ($100)
+
 ### v1.5 (Diciembre 2024)
 - Sistema completo de gestión de posiciones
 - Órdenes OCO reales (Stop Loss + Take Profit)
@@ -424,4 +474,4 @@ Ver [CHANGELOG.md](CHANGELOG.md) para historial completo de cambios.
 
 **Desarrollado con ❤️ para traders algorítmicos**
 
-Versión 1.5 - Diciembre 2024
+Versión 1.6.1 - Diciembre 2024
