@@ -1,0 +1,192 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [
+    { "asDropdown": true, "icon": "external link", "includeVars": true, "keepTime": true, "tags": ["sath"], "targetBlank": false, "title": "SATH Dashboards", "type": "dashboards" }
+  ],
+  "liveNow": false,
+  "panels": [
+    {
+      "gridPos": { "h": 2, "w": 24, "x": 0, "y": 0 },
+      "id": 99,
+      "options": { "code": { "language": "plaintext", "showLineNumbers": false, "showMiniMap": false }, "content": "# Executive Overview - SATH v1.7+\n**Nivel Institucional Superior** | KPIs principales y resumen ejecutivo del trading bot", "mode": "markdown" },
+      "title": "",
+      "transparent": true,
+      "type": "text"
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influxdb-sath" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "yellow", "value": 0 }, { "color": "green", "value": 0.01 }] },
+          "unit": "currencyUSD"
+        }
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 2 },
+      "id": 1,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["sum"], "fields": "", "values": false }, "textMode": "auto" },
+      "title": "PnL Total",
+      "type": "stat",
+      "targets": [{ "query": "from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"trade_result\")\n  |> filter(fn: (r) => r._field == \"pnl\")\n  |> sum()", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influxdb-sath" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "yellow", "value": 40 }, { "color": "green", "value": 55 }] },
+          "unit": "percent"
+        }
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 2 },
+      "id": 2,
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["mean"], "fields": "", "values": false }, "textMode": "auto" },
+      "title": "Win Rate",
+      "type": "stat",
+      "targets": [{ "query": "import \"array\"\n\nwins = from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"trade_result\")\n  |> filter(fn: (r) => r.result == \"WIN\")\n  |> count()\n  |> findColumn(fn: (key) => true, column: \"_value\")\n\ntotal = from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"trade_result\")\n  |> filter(fn: (r) => r._field == \"pnl\")\n  |> count()\n  |> findColumn(fn: (key) => true, column: \"_value\")\n\narray.from(rows: [{_value: if length(arr: total) > 0 and total[0] > 0 then float(v: wins[0]) / float(v: total[0]) * 100.0 else 0.0}])", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influxdb-sath" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "yellow", "value": 0.5 }, { "color": "green", "value": 1.0 }] },
+          "unit": "short", "decimals": 2
+        }
+      },
+      "gridPos": { "h": 5, "w": 4, "x": 12, "y": 2 },
+      "id": 3,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "title": "Sharpe Ratio",
+      "type": "stat",
+      "targets": [{ "query": "from(bucket: v.bucket)\n  |> range(start: -1h)\n  |> filter(fn: (r) => r._measurement == \"institutional_metrics\")\n  |> filter(fn: (r) => r._field == \"sharpe_ratio\")\n  |> last()", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influxdb-sath" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "yellow", "value": 1.0 }, { "color": "green", "value": 2.0 }] },
+          "unit": "short", "decimals": 2
+        }
+      },
+      "gridPos": { "h": 5, "w": 4, "x": 16, "y": 2 },
+      "id": 4,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "title": "Sortino Ratio",
+      "type": "stat",
+      "targets": [{ "query": "from(bucket: v.bucket)\n  |> range(start: -1h)\n  |> filter(fn: (r) => r._measurement == \"institutional_metrics\")\n  |> filter(fn: (r) => r._field == \"sortino_ratio\")\n  |> last()", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influxdb-sath" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 5 }, { "color": "red", "value": 10 }] },
+          "unit": "percent", "decimals": 1
+        }
+      },
+      "gridPos": { "h": 5, "w": 4, "x": 20, "y": 2 },
+      "id": 5,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "title": "Max Drawdown",
+      "type": "stat",
+      "targets": [{ "query": "from(bucket: v.bucket)\n  |> range(start: -1h)\n  |> filter(fn: (r) => r._measurement == \"institutional_metrics\")\n  |> filter(fn: (r) => r._field == \"max_drawdown\")\n  |> last()", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influxdb-sath" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "barAlignment": 0, "drawStyle": "line", "fillOpacity": 20, "gradientMode": "scheme", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "auto", "spanNulls": false, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "currencyUSD"
+        }
+      },
+      "gridPos": { "h": 10, "w": 16, "x": 0, "y": 7 },
+      "id": 6,
+      "options": { "legend": { "calcs": ["sum"], "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "title": "PnL Acumulado por Simbolo",
+      "type": "timeseries",
+      "targets": [{ "query": "from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"trade_result\")\n  |> filter(fn: (r) => r._field == \"pnl\")\n  |> cumulativeSum()", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influxdb-sath" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "mappings": [], "unit": "short" } },
+      "gridPos": { "h": 5, "w": 8, "x": 16, "y": 7 },
+      "id": 7,
+      "options": { "legend": { "displayMode": "table", "placement": "right", "showLegend": true, "values": ["value", "percent"] }, "pieType": "donut", "reduceOptions": { "calcs": ["sum"], "fields": "", "values": false }, "tooltip": { "mode": "single", "sort": "none" } },
+      "title": "Trades por Simbolo",
+      "type": "piechart",
+      "targets": [{ "query": "from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"trade_result\")\n  |> filter(fn: (r) => r._field == \"pnl\")\n  |> group(columns: [\"symbol\"])\n  |> count()", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influxdb-sath" },
+      "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "mappings": [], "unit": "short" } },
+      "gridPos": { "h": 5, "w": 8, "x": 16, "y": 12 },
+      "id": 8,
+      "options": { "legend": { "displayMode": "table", "placement": "right", "showLegend": true, "values": ["value", "percent"] }, "pieType": "donut", "reduceOptions": { "calcs": ["sum"], "fields": "", "values": false }, "tooltip": { "mode": "single", "sort": "none" } },
+      "title": "Resultados (Win/Loss)",
+      "type": "piechart",
+      "targets": [{ "query": "from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"trade_result\")\n  |> filter(fn: (r) => r._field == \"pnl\")\n  |> group(columns: [\"result\"])\n  |> count()", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influxdb-sath" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": { "align": "auto", "displayMode": "auto", "inspect": false },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "pnl" }, "properties": [{ "id": "unit", "value": "currencyUSD" }, { "id": "custom.cellOptions", "value": { "mode": "gradient", "type": "color-background" } }, { "id": "thresholds", "value": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 0 }] } }] },
+          { "matcher": { "id": "byName", "options": "pnl_percent" }, "properties": [{ "id": "unit", "value": "percent" }] },
+          { "matcher": { "id": "byName", "options": "confidence" }, "properties": [{ "id": "unit", "value": "percentunit" }] }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 17 },
+      "id": 9,
+      "options": { "showHeader": true, "sortBy": [{ "desc": true, "displayName": "_time" }] },
+      "title": "Ultimos Trades",
+      "type": "table",
+      "targets": [{ "query": "from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"trade_result\")\n  |> pivot(rowKey: [\"_time\"], columnKey: [\"_field\"], valueColumn: \"_value\")\n  |> keep(columns: [\"_time\", \"symbol\", \"side\", \"result\", \"entry_price\", \"exit_price\", \"pnl\", \"pnl_percent\", \"agent_type\", \"hold_time_minutes\"])\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 20)", "refId": "A" }]
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["sath", "trading", "executive", "overview"],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "datasource": { "type": "influxdb", "uid": "influxdb-sath" },
+        "definition": "import \"influxdata/influxdb/schema\"\n\nschema.tagValues(bucket: v.bucket, tag: \"symbol\")",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Symbol",
+        "multi": true,
+        "name": "symbol",
+        "options": [],
+        "query": "import \"influxdata/influxdb/schema\"\n\nschema.tagValues(bucket: v.bucket, tag: \"symbol\")",
+        "refresh": 2,
+        "regex": "",
+        "type": "query"
+      }
+    ]
+  },
+  "time": { "from": "now-7d", "to": "now" },
+  "timepicker": { "refresh_intervals": ["5s", "10s", "30s", "1m", "5m", "15m", "30m", "1h", "2h", "1d"] },
+  "timezone": "browser",
+  "title": "1. Executive Overview",
+  "uid": "sath-executive",
+  "version": 1
+}

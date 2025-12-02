@@ -1,0 +1,260 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [
+    { "asDropdown": true, "icon": "external link", "includeVars": true, "keepTime": true, "tags": ["sath"], "targetBlank": false, "title": "SATH Dashboards", "type": "dashboards" }
+  ],
+  "liveNow": false,
+  "panels": [
+    {
+      "gridPos": { "h": 2, "w": 24, "x": 0, "y": 0 },
+      "id": 99,
+      "options": { "code": { "language": "plaintext", "showLineNumbers": false, "showMiniMap": false }, "content": "# Institutional Filters v1.7+ - SATH\n**Filtros Avanzados** | Multi-Timeframe, Correlation, Adaptive Parameters - Nivel Institucional Superior", "mode": "markdown" },
+      "title": "",
+      "transparent": true,
+      "type": "text"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 2 },
+      "id": 100,
+      "panels": [],
+      "title": "Multi-Timeframe Analysis (4H -> 1H -> 15m)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influxdb-sath" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "yellow", "value": 0.5 }, { "color": "green", "value": 0.7 }] },
+          "unit": "percentunit", "decimals": 1
+        }
+      },
+      "gridPos": { "h": 5, "w": 8, "x": 0, "y": 3 },
+      "id": 1,
+      "options": { "colorMode": "value", "graphMode": "area", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "title": "MTF Alignment Score",
+      "type": "stat",
+      "targets": [{ "query": "from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"mtf_analysis\")\n  |> filter(fn: (r) => r._field == \"alignment_score\")\n  |> last()", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influxdb-sath" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 0.1 }] },
+          "unit": "percentunit", "decimals": 1
+        }
+      },
+      "gridPos": { "h": 5, "w": 8, "x": 8, "y": 3 },
+      "id": 2,
+      "options": { "colorMode": "value", "graphMode": "area", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "title": "Confidence Boost (MTF)",
+      "type": "stat",
+      "targets": [{ "query": "from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"mtf_analysis\")\n  |> filter(fn: (r) => r._field == \"confidence_boost\")\n  |> last()", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influxdb-sath" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "true": { "color": "green", "index": 0, "text": "ALIGNED" } }, "type": "value" },
+            { "options": { "false": { "color": "red", "index": 1, "text": "NOT ALIGNED" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        }
+      },
+      "gridPos": { "h": 5, "w": 8, "x": 16, "y": 3 },
+      "id": 3,
+      "options": { "colorMode": "background", "graphMode": "none", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "title": "MTF Filter Status",
+      "type": "stat",
+      "targets": [{ "query": "from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"mtf_analysis\")\n  |> filter(fn: (r) => r._field == \"aligned\")\n  |> last()", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influxdb-sath" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "fillOpacity": 50, "gradientMode": "opacity", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "auto", "spanNulls": false, "stacking": { "group": "A", "mode": "none" } },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "percentunit"
+        }
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 8 },
+      "id": 4,
+      "options": { "legend": { "calcs": ["mean", "lastNotNull"], "displayMode": "table", "placement": "right", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "title": "MTF Alignment Score Over Time",
+      "type": "timeseries",
+      "targets": [{ "query": "from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"mtf_analysis\")\n  |> filter(fn: (r) => r._field == \"alignment_score\")", "refId": "A" }]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 16 },
+      "id": 101,
+      "panels": [],
+      "title": "Correlation Filter (Anti-Overexposure)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influxdb-sath" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 0.5 }, { "color": "red", "value": 0.7 }] },
+          "unit": "percentunit", "decimals": 1
+        }
+      },
+      "gridPos": { "h": 5, "w": 8, "x": 0, "y": 17 },
+      "id": 5,
+      "options": { "colorMode": "value", "graphMode": "area", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "title": "Diversification Score",
+      "type": "stat",
+      "targets": [{ "query": "from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"correlation_check\")\n  |> filter(fn: (r) => r._field == \"diversification_score\")\n  |> last()", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influxdb-sath" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 0.5 }, { "color": "red", "value": 0.7 }] },
+          "unit": "percentunit", "decimals": 1
+        }
+      },
+      "gridPos": { "h": 5, "w": 8, "x": 8, "y": 17 },
+      "id": 6,
+      "options": { "colorMode": "value", "graphMode": "area", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "title": "Max Correlation Found",
+      "type": "stat",
+      "targets": [{ "query": "from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"correlation_check\")\n  |> filter(fn: (r) => r._field == \"max_correlation\")\n  |> last()", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influxdb-sath" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "true": { "color": "green", "index": 0, "text": "ALLOWED" } }, "type": "value" },
+            { "options": { "false": { "color": "red", "index": 1, "text": "BLOCKED" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        }
+      },
+      "gridPos": { "h": 5, "w": 8, "x": 16, "y": 17 },
+      "id": 7,
+      "options": { "colorMode": "background", "graphMode": "none", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "title": "Correlation Filter Status",
+      "type": "stat",
+      "targets": [{ "query": "from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"correlation_check\")\n  |> filter(fn: (r) => r._field == \"allowed\")\n  |> last()", "refId": "A" }]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 22 },
+      "id": 102,
+      "panels": [],
+      "title": "Adaptive Parameters (Auto-Adjustment)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influxdb-sath" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 2 }, { "color": "red", "value": 3 }] }
+        }
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 23 },
+      "id": 8,
+      "options": { "colorMode": "value", "graphMode": "area", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "title": "Loss Streak",
+      "type": "stat",
+      "targets": [{ "query": "from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"adaptive_params\")\n  |> filter(fn: (r) => r._field == \"loss_streak\")\n  |> last()", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influxdb-sath" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "yellow", "value": 2 }, { "color": "green", "value": 3 }] }
+        }
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 23 },
+      "id": 9,
+      "options": { "colorMode": "value", "graphMode": "area", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "title": "Win Streak",
+      "type": "stat",
+      "targets": [{ "query": "from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"adaptive_params\")\n  |> filter(fn: (r) => r._field == \"win_streak\")\n  |> last()", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influxdb-sath" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "yellow", "value": 0.6 }, { "color": "green", "value": 0.65 }] },
+          "unit": "percentunit", "decimals": 2
+        }
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 23 },
+      "id": 10,
+      "options": { "colorMode": "value", "graphMode": "area", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "title": "Min Confidence (Adjusted)",
+      "type": "stat",
+      "targets": [{ "query": "from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"adaptive_params\")\n  |> filter(fn: (r) => r._field == \"min_confidence\")\n  |> last()", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influxdb-sath" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 1.5 }, { "color": "red", "value": 2.0 }] },
+          "unit": "percent", "decimals": 2
+        }
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 23 },
+      "id": 11,
+      "options": { "colorMode": "value", "graphMode": "area", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "title": "Max Risk (Adjusted)",
+      "type": "stat",
+      "targets": [{ "query": "from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"adaptive_params\")\n  |> filter(fn: (r) => r._field == \"max_risk\")\n  |> last()", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influxdb-sath" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "", "axisPlacement": "auto", "fillOpacity": 30, "gradientMode": "opacity", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "auto", "spanNulls": false, "stacking": { "group": "A", "mode": "none" } },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "percentunit"
+        }
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 28 },
+      "id": 12,
+      "options": { "legend": { "calcs": ["mean", "lastNotNull"], "displayMode": "table", "placement": "right", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "title": "Adaptive Parameters Over Time",
+      "type": "timeseries",
+      "targets": [{ "query": "from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"adaptive_params\")\n  |> filter(fn: (r) => r._field == \"min_confidence\" or r._field == \"max_risk\" or r._field == \"win_rate\")", "refId": "A" }]
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["sath", "trading", "filters", "institutional", "v17"],
+  "templating": { "list": [] },
+  "time": { "from": "now-7d", "to": "now" },
+  "timepicker": { "refresh_intervals": ["5s", "10s", "30s", "1m", "5m", "15m", "30m", "1h", "2h", "1d"] },
+  "timezone": "browser",
+  "title": "4. Institutional Filters v1.7+",
+  "uid": "sath-filters",
+  "version": 1
+}

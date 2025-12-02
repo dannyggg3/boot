@@ -1,6 +1,7 @@
 apiVersion: 1
 
-# SATH v1.6 - InfluxDB Datasource Configuration
+# SATH v1.7+ - InfluxDB Datasource Configuration
+# Bucket se configura dinamicamente via variable de entorno
 
 deleteDatasources:
   - name: InfluxDB
@@ -15,10 +16,9 @@ datasources:
     jsonData:
       version: Flux
       organization: trading_bot
-      defaultBucket: trading_decisions
+      defaultBucket: ${INFLUXDB_BUCKET:trading_decisions}
       tlsSkipVerify: true
     secureJsonData:
-      # Token se obtiene de variable de entorno INFLUXDB_TOKEN
-      token: e961eeb978537b3f67684065435613c5d13a29ba7a38f7768d929126eb11423b
+      token: ${INFLUXDB_TOKEN:e961eeb978537b3f67684065435613c5d13a29ba7a38f7768d929126eb11423b}
     isDefault: true
     editable: true

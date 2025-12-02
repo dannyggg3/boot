@@ -1,0 +1,223 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [
+    { "asDropdown": true, "icon": "external link", "includeVars": true, "keepTime": true, "tags": ["sath"], "targetBlank": false, "title": "SATH Dashboards", "type": "dashboards" }
+  ],
+  "liveNow": false,
+  "panels": [
+    {
+      "gridPos": { "h": 2, "w": 24, "x": 0, "y": 0 },
+      "id": 99,
+      "options": { "code": { "language": "plaintext", "showLineNumbers": false, "showMiniMap": false }, "content": "# Risk Management - SATH v1.7+\n**Gestion de Riesgo** | Kelly Criterion, drawdown, circuit breaker y protecciones del sistema", "mode": "markdown" },
+      "title": "",
+      "transparent": true,
+      "type": "text"
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influxdb-sath" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 5 }, { "color": "red", "value": 10 }] },
+          "unit": "percent", "decimals": 2
+        }
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 2 },
+      "id": 1,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "title": "Max Drawdown",
+      "type": "stat",
+      "targets": [{ "query": "from(bucket: v.bucket)\n  |> range(start: -1h)\n  |> filter(fn: (r) => r._measurement == \"institutional_metrics\")\n  |> filter(fn: (r) => r._field == \"max_drawdown\")\n  |> last()", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influxdb-sath" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "yellow", "value": 0.5 }, { "color": "green", "value": 1.0 }] },
+          "unit": "short", "decimals": 2
+        }
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 2 },
+      "id": 2,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "title": "Calmar Ratio",
+      "type": "stat",
+      "targets": [{ "query": "from(bucket: v.bucket)\n  |> range(start: -1h)\n  |> filter(fn: (r) => r._measurement == \"institutional_metrics\")\n  |> filter(fn: (r) => r._field == \"calmar_ratio\")\n  |> last()", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influxdb-sath" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "CLOSED": { "color": "green", "index": 0, "text": "CLOSED" } }, "type": "value" },
+            { "options": { "HALF_OPEN": { "color": "yellow", "index": 1, "text": "HALF_OPEN" } }, "type": "value" },
+            { "options": { "OPEN": { "color": "red", "index": 2, "text": "OPEN (BLOCKED)" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        }
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 2 },
+      "id": 3,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "title": "Circuit Breaker Status",
+      "type": "stat",
+      "targets": [{ "query": "from(bucket: v.bucket)\n  |> range(start: -1h)\n  |> filter(fn: (r) => r._measurement == \"circuit_breaker\")\n  |> filter(fn: (r) => r._field == \"state\")\n  |> last()", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influxdb-sath" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [
+            { "options": { "0": { "color": "green", "index": 0, "text": "HEALTHY" } }, "type": "value" },
+            { "options": { "1": { "color": "yellow", "index": 1, "text": "DEGRADED" } }, "type": "value" },
+            { "options": { "2": { "color": "red", "index": 2, "text": "UNHEALTHY" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 2 }] }
+        }
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 2 },
+      "id": 4,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "center", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "title": "System Health",
+      "type": "stat",
+      "targets": [{ "query": "from(bucket: v.bucket)\n  |> range(start: -1h)\n  |> filter(fn: (r) => r._measurement == \"system_health\")\n  |> filter(fn: (r) => r._field == \"health_status\")\n  |> last()", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influxdb-sath" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "axisCenteredZero": false, "axisColorMode": "text", "axisLabel": "USD", "axisPlacement": "auto", "drawStyle": "line", "fillOpacity": 20, "gradientMode": "scheme", "lineInterpolation": "smooth", "lineWidth": 2, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": false, "stacking": { "group": "A", "mode": "none" } },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "currencyUSD"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 7 },
+      "id": 5,
+      "options": { "legend": { "calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "right", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "desc" } },
+      "title": "Capital (Current vs Peak)",
+      "type": "timeseries",
+      "targets": [{ "query": "from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"institutional_metrics\")\n  |> filter(fn: (r) => r._field == \"current_capital\" or r._field == \"peak_capital\")", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influxdb-sath" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "max": 1,
+          "min": 0,
+          "thresholds": { "mode": "percentage", "steps": [{ "color": "red", "value": null }, { "color": "yellow", "value": 50 }, { "color": "green", "value": 70 }] },
+          "unit": "percentunit"
+        }
+      },
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 7 },
+      "id": 6,
+      "options": { "orientation": "horizontal", "reduceOptions": { "calcs": ["mean"], "fields": "", "values": false }, "showThresholdLabels": false, "showThresholdMarkers": true },
+      "title": "AI Ensemble Consenso",
+      "type": "gauge",
+      "targets": [{ "query": "from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"ai_ensemble\")\n  |> filter(fn: (r) => r._field == \"consensus_strength\")\n  |> mean()", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influxdb-sath" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "axisCenteredZero": false, "axisColorMode": "text", "axisPlacement": "auto", "drawStyle": "bars", "fillOpacity": 80, "gradientMode": "scheme", "lineWidth": 1, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": false, "stacking": { "group": "A", "mode": "none" } },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "short"
+        }
+      },
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 7 },
+      "id": 7,
+      "options": { "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "single", "sort": "none" } },
+      "title": "Votos por Modelo IA",
+      "type": "timeseries",
+      "targets": [{ "query": "from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"ai_ensemble\")\n  |> filter(fn: (r) => r._field == \"votes\")\n  |> group(columns: [\"model_name\"])\n  |> aggregateWindow(every: 1h, fn: count, createEmpty: false)", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influxdb-sath" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 2 }, { "color": "red", "value": 3 }] }
+        }
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 15 },
+      "id": 8,
+      "options": { "colorMode": "value", "graphMode": "area", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "title": "Loss Streak Actual",
+      "type": "stat",
+      "targets": [{ "query": "from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"adaptive_params\")\n  |> filter(fn: (r) => r._field == \"loss_streak\")\n  |> last()", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influxdb-sath" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "yellow", "value": 2 }, { "color": "green", "value": 3 }] }
+        }
+      },
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 15 },
+      "id": 9,
+      "options": { "colorMode": "value", "graphMode": "area", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "title": "Win Streak Actual",
+      "type": "stat",
+      "targets": [{ "query": "from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"adaptive_params\")\n  |> filter(fn: (r) => r._field == \"win_streak\")\n  |> last()", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influxdb-sath" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "axisCenteredZero": false, "axisColorMode": "text", "axisPlacement": "auto", "fillOpacity": 10, "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "lineInterpolation": "smooth", "lineWidth": 1, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": false, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "dashed" } },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "#EAB839", "value": 30 }, { "color": "red", "value": 70 }] },
+          "unit": "short", "min": 0, "max": 100
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 15 },
+      "id": 10,
+      "options": { "legend": { "calcs": ["mean", "last"], "displayMode": "table", "placement": "right", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "none" } },
+      "title": "RSI por Simbolo",
+      "type": "timeseries",
+      "targets": [{ "query": "from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"trading_decision\")\n  |> filter(fn: (r) => r._field == \"rsi\")\n  |> aggregateWindow(every: 15m, fn: mean, createEmpty: false)", "refId": "A" }]
+    },
+    {
+      "datasource": { "type": "influxdb", "uid": "influxdb-sath" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "axisCenteredZero": false, "axisColorMode": "text", "axisPlacement": "auto", "fillOpacity": 10, "gradientMode": "none", "hideFrom": { "legend": false, "tooltip": false, "viz": false }, "lineInterpolation": "smooth", "lineWidth": 1, "pointSize": 5, "scaleDistribution": { "type": "linear" }, "showPoints": "never", "spanNulls": false, "stacking": { "group": "A", "mode": "none" }, "thresholdsStyle": { "mode": "off" } },
+          "mappings": [],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "percentunit"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+      "id": 11,
+      "options": { "legend": { "calcs": ["mean", "last"], "displayMode": "table", "placement": "right", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "none" } },
+      "title": "Confianza IA en el Tiempo",
+      "type": "timeseries",
+      "targets": [{ "query": "from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"trading_decision\")\n  |> filter(fn: (r) => r._field == \"confidence\")\n  |> aggregateWindow(every: 15m, fn: mean, createEmpty: false)", "refId": "A" }]
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["sath", "trading", "risk", "management"],
+  "templating": { "list": [] },
+  "time": { "from": "now-7d", "to": "now" },
+  "timepicker": { "refresh_intervals": ["5s", "10s", "30s", "1m", "5m", "15m", "30m", "1h", "2h", "1d"] },
+  "timezone": "browser",
+  "title": "3. Risk Management",
+  "uid": "sath-risk",
+  "version": 1
+}

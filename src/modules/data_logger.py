@@ -261,6 +261,123 @@ class DataLogger:
         except Exception as e:
             logger.error(f"Error guardando snapshot: {e}")
 
+    # ==================== MÉTRICAS DE SISTEMA v1.6 ====================
+
+    def log_system_health(
+        self,
+        health_status: int,
+        api_latency_ms: float,
+        api_success_rate: float,
+        memory_usage_mb: float = 0,
+        cpu_usage_percent: float = 0
+    ):
+        """
+        Registra estado de salud del sistema.
+
+        Args:
+            health_status: 0=HEALTHY, 1=DEGRADED, 2=UNHEALTHY
+            api_latency_ms: Latencia promedio de API en ms
+            api_success_rate: Tasa de éxito de API (0-100)
+            memory_usage_mb: Uso de memoria en MB
+            cpu_usage_percent: Uso de CPU en porcentaje
+        """
+        if not self.enabled or not self.write_api:
+            return
+
+        try:
+            point = Point("system_health") \
+                .field("health_status", int(health_status)) \
+                .field("api_latency_ms", float(api_latency_ms)) \
+                .field("api_success_rate", float(api_success_rate)) \
+                .field("memory_usage_mb", float(memory_usage_mb)) \
+                .field("cpu_usage_percent", float(cpu_usage_percent)) \
+                .time(datetime.utcnow(), WritePrecision.NS)
+
+            self.write_api.write(bucket=self.bucket, org=self.org, record=point)
+            logger.debug(f"System health logged: status={health_status}")
+
+        except Exception as e:
+            logger.error(f"Error guardando system health: {e}")
+
+    def log_circuit_breaker(
+        self,
+        state: str,
+        failure_count: int = 0,
+        last_failure_time: str = "",
+        cooldown_remaining_seconds: int = 0
+    ):
+        """
+        Registra estado del circuit breaker.
+
+        Args:
+            state: CLOSED, HALF_OPEN, OPEN
+            failure_count: Número de fallos consecutivos
+            last_failure_time: Timestamp del último fallo
+            cooldown_remaining_seconds: Segundos restantes de cooldown
+        """
+        if not self.enabled or not self.write_api:
+            return
+
+        try:
+            point = Point("circuit_breaker") \
+                .field("state", state) \
+                .field("failure_count", int(failure_count)) \
+                .field("last_failure_time", last_failure_time) \
+                .field("cooldown_remaining_seconds", int(cooldown_remaining_seconds)) \
+                .time(datetime.utcnow(), WritePrecision.NS)
+
+            self.write_api.write(bucket=self.bucket, org=self.org, record=point)
+            logger.debug(f"Circuit breaker logged: state={state}")
+
+        except Exception as e:
+            logger.error(f"Error guardando circuit breaker: {e}")
+
+    def log_ai_ensemble(
+        self,
+        consensus_strength: float,
+        models_agreed: int,
+        total_models: int,
+        final_decision: str,
+        model_votes: Dict[str, str] = None
+    ):
+        """
+        Registra decisión del ensemble de IA.
+
+        Args:
+            consensus_strength: Fuerza del consenso (0-1)
+            models_agreed: Número de modelos de acuerdo
+            total_models: Total de modelos consultados
+            final_decision: Decisión final (COMPRA, VENTA, ESPERA)
+            model_votes: Votos de cada modelo {model_name: decision}
+        """
+        if not self.enabled or not self.write_api:
+            return
+
+        try:
+            point = Point("ai_ensemble") \
+                .tag("final_decision", final_decision) \
+                .field("consensus_strength", float(consensus_strength)) \
+                .field("models_agreed", int(models_agreed)) \
+                .field("total_models", int(total_models)) \
+                .time(datetime.utcnow(), WritePrecision.NS)
+
+            self.write_api.write(bucket=self.bucket, org=self.org, record=point)
+
+            # Log individual votes if provided
+            if model_votes:
+                for model_name, vote in model_votes.items():
+                    vote_point = Point("ai_ensemble") \
+                        .tag("model_name", model_name) \
+                        .tag("vote", vote) \
+                        .field("votes", 1) \
+                        .time(datetime.utcnow(), WritePrecision.NS)
+                    self.write_api.write(bucket=self.bucket, org=self.org, record=vote_point)
+
+            logger.debug(f"AI ensemble logged: consensus={consensus_strength:.0%}")
+
+        except Exception as e:
+            logger.error(f"Error guardando ai ensemble: {e}")
+
     # ==================== MÉTRICAS INSTITUCIONALES v1.7 ====================
 
     def log_institutional_metrics(
@@ -568,6 +685,11 @@ class DataLogger:
             return
 
         try:
+            # Determinar si está alineado (>= 70%)
+            aligned = alignment_score >= 0.70
+            # Calcular confidence boost (0% a 20% basado en alignment)
+            confidence_boost = max(0, (alignment_score - 0.70) / 0.30 * 0.20) if aligned else 0
+
             point = Point("mtf_analysis") \
                 .tag("symbol", symbol) \
                 .tag("signal", signal) \
@@ -575,6 +697,8 @@ class DataLogger:
                 .tag("medium_direction", medium_direction) \
                 .tag("lower_direction", lower_direction) \
                 .field("alignment_score", float(alignment_score)) \
+                .field("aligned", aligned) \
+                .field("confidence_boost", float(confidence_boost)) \
                 .field("higher_tf", higher_tf) \
                 .field("medium_tf", medium_tf) \
                 .field("lower_tf", lower_tf) \
@@ -613,7 +737,9 @@ class DataLogger:
                 .tag("blocked", str(blocked)) \
                 .tag("blocking_symbol", blocking_symbol or "none") \
                 .field("correlation", float(correlation)) \
+                .field("max_correlation", float(correlation)) \
                 .field("diversification_score", float(diversification_score)) \
+                .field("allowed", not blocked) \
                 .time(datetime.utcnow(), WritePrecision.NS)
 
             self.write_api.write(bucket=self.bucket, org=self.org, record=point)

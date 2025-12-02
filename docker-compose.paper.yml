@@ -18,7 +18,7 @@ services:
       - DOCKER_INFLUXDB_INIT_USERNAME=admin
       - DOCKER_INFLUXDB_INIT_PASSWORD=${INFLUXDB_PASSWORD}
       - DOCKER_INFLUXDB_INIT_ORG=trading_bot
-      - DOCKER_INFLUXDB_INIT_BUCKET=trading_decisions_paper
+      - DOCKER_INFLUXDB_INIT_BUCKET=${INFLUXDB_BUCKET}
       - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${INFLUXDB_TOKEN}
     volumes:
       - influxdb_data_paper:/var/lib/influxdb2
@@ -53,7 +53,7 @@ services:
       - INFLUXDB_URL=http://influxdb:8086
       - INFLUXDB_TOKEN=${INFLUXDB_TOKEN}
       - INFLUXDB_ORG=trading_bot
-      - INFLUXDB_BUCKET=trading_decisions_paper
+      - INFLUXDB_BUCKET=${INFLUXDB_BUCKET}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
       - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
       # Usar configuración PAPER (TESTNET)
@@ -88,6 +88,7 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-sath_grafana_2024}
       - GF_USERS_ALLOW_SIGN_UP=false
       - INFLUXDB_TOKEN=${INFLUXDB_TOKEN}
+      - INFLUXDB_BUCKET=${INFLUXDB_BUCKET}
     depends_on:
       - influxdb
     networks:
