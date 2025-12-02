@@ -25,7 +25,7 @@ services:
   # ============================================
   postgres:
     image: postgres:15
-    container_name: sath_postgres
+    container_name: platform_postgres
     restart: always
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-sath}
@@ -35,7 +35,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./scripts/init_db.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
-      - sath_network
+      - platform_network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sath}"]
       interval: 10s
@@ -49,13 +49,13 @@ services:
   # ============================================
   redis:
     image: redis:7-alpine
-    container_name: sath_redis
+    container_name: platform_redis
     restart: always
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-sath_redis_2024}
     volumes:
       - redis_data:/data
     networks:
-      - sath_network
+      - platform_network
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -67,7 +67,7 @@ services:
   # ============================================
   influxdb:
     image: influxdb:2.7
-    container_name: sath_influxdb
+    container_name: platform_influxdb
     restart: always
     environment:
       DOCKER_INFLUXDB_INIT_MODE: setup
@@ -79,7 +79,7 @@ services:
     volumes:
       - influxdb_data:/var/lib/influxdb2
     networks:
-      - sath_network
+      - platform_network
     ports:
       - "8086:8086"
 
@@ -88,7 +88,7 @@ services:
   # ============================================
   api:
     build: ./api
-    container_name: sath_api
+    container_name: platform_api
     restart: always
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-sath}:${POSTGRES_PASSWORD}@postgres:5432/sath_platform
@@ -108,7 +108,7 @@ services:
       redis:
         condition: service_healthy
     networks:
-      - sath_network
+      - platform_network
     ports:
       - "8080:8000"
 
@@ -117,7 +117,7 @@ services:
   # ============================================
   grafana:
     image: grafana/grafana:latest
-    container_name: sath_grafana
+    container_name: platform_grafana
     restart: always
     environment:
       GF_SECURITY_ADMIN_USER: admin
@@ -129,12 +129,12 @@ services:
     depends_on:
       - influxdb
     networks:
-      - sath_network
+      - platform_network
     ports:
       - "3001:3000"
 
 networks:
-  sath_network:
+  platform_network:
     driver: bridge
 
 volumes:
