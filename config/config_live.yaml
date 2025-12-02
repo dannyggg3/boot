@@ -16,7 +16,7 @@ ai_model_deep: "deepseek-reasoner"
 ai_agents:
   enabled: true
   # Volatilidad mínima para operar (AJUSTADO: 0.1% para mercados tranquilos)
-  min_volatility_percent: 0.2
+  min_volatility_percent: 0.25
   min_volume_ratio: 0.3  # Bajado de 0.8 - volumen bajo no invalida señales fuertes
 
 # ===== SELECCIÓN DE MERCADO =====
