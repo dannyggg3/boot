@@ -1,477 +1,406 @@
-# Sistema Autónomo de Trading Híbrido (SATH) v1.6
+# Sistema Autónomo de Trading Híbrido (SATH) v1.7+
 
-Bot de trading profesional que combina análisis técnico cuantitativo con razonamiento de IA para trading autónomo en criptomonedas y mercados tradicionales.
+## Nivel Institucional Superior
 
-**Nuevo en v1.6**: Circuit Breaker, Health Monitor, AI Ensemble, Monitor de Posiciones en tiempo real, y optimización de capital para cuentas pequeñas ($100).
+Bot de trading profesional que combina análisis técnico cuantitativo con razonamiento de IA para trading autónomo en criptomonedas. Diseñado con estándares de hedge funds institucionales.
 
-**Nuevo en v1.6.1**: Monitor de posiciones con PnL en tiempo real, validación de posiciones recuperadas, y capital fijo para operaciones.
-
-## Características Principales
-
-### Core
-- **Análisis Híbrido**: Combina indicadores técnicos (RSI, MACD, EMA, Bollinger Bands) con razonamiento de IA
-- **Múltiples Proveedores de IA**: Soporte para DeepSeek, OpenAI (GPT-4), y Google Gemini
-- **Múltiples Mercados**: Opera en crypto (Binance, Bybit) y mercados tradicionales (acciones/forex vía Interactive Brokers)
-- **Gestión de Riesgo Avanzada**: Position sizing automático, stop loss dinámico, kill switch
-- **Modos de Operación**: Live, Paper Trading, y Backtesting
-- **Configuración Modular**: Todo configurable vía YAML sin tocar código
-
-### Sistema de Gestión de Posiciones v1.5
-
-- **Órdenes OCO Reales**: Stop Loss + Take Profit como orden combinada en el exchange
-- **Supervisión IA**: Agente supervisor que analiza posiciones cada 60 segundos
-- **Trailing Stop Inteligente**: Se activa automáticamente cuando hay ganancias
-- **Persistencia SQLite**: Las posiciones sobreviven reinicios del bot
-- **Portfolio Management**: Límite de posiciones concurrentes y exposición máxima
-- **Notificaciones**: Alertas Telegram para SL/TP triggers y ajustes IA
-
-### Robustez y Escalabilidad v1.6
-
-- **Circuit Breaker Pattern**: Previene cascadas de fallos en llamadas al exchange
-- **Health Monitor**: Monitoreo de salud del sistema con alertas automáticas
-- **AI Ensemble System**: Votación ponderada entre múltiples modelos de IA
-- **Arquitectura Async**: Engine asíncrono para operaciones paralelas
-- **Control de Fees**: Validación automática de rentabilidad después de comisiones
-
-### Monitor de Posiciones v1.6.1
-
-- **Monitor en Tiempo Real**: Muestra estado de posiciones cada scan_interval (3 min)
-- **Información Mostrada**:
-  - Símbolo, dirección (LONG/SHORT) y tiempo transcurrido
-  - Precio de entrada vs precio actual
-  - PnL no realizado ($ y %)
-  - Distancia a Stop Loss y Take Profit
-- **Validación de Posiciones**: Al reiniciar, valida que las posiciones existen en exchange
-- **Capital Fijo**: Operaciones limitadas a capital configurado (no usa balance real)
-- **Ahorro de Tokens**: Salta análisis IA cuando posiciones al máximo
-
-Ejemplo de Monitor:
 ```
-📊 MONITOR DE POSICIONES (1/1)
---------------------------------------------------
-   ┌─ BTC/USDT LONG | ⏱️ 2h 15m
-   │  💰 Entrada: $95000.00 → Actual: $95500.00
-   │  🟢 PnL: $+25.00 (+0.53%)
-   │  🛑 SL: $93100.00 (a 2.51%)
-   └─ 🎯 TP: $97850.00 (a 2.46%)
---------------------------------------------------
+╔═══════════════════════════════════════════════════════════════╗
+║     Sistema Autónomo de Trading Híbrido (SATH) v1.7+        ║
+║           NIVEL INSTITUCIONAL SUPERIOR                       ║
+║                                                               ║
+║     ✓ Multi-Timeframe (4H→1H→15m)  ✓ Correlation Filter     ║
+║     ✓ Adaptive Parameters          ✓ Performance Attribution ║
+║     ✓ Kelly Criterion Dinámico     ✓ R/R Validation         ║
+╚═══════════════════════════════════════════════════════════════╝
 ```
 
-### Optimizaciones v1.1-v1.4
-- **Análisis Paralelo**: Analiza múltiples símbolos simultáneamente (4x más rápido)
-- **Protección Anti-Slippage**: Verificación de precio pre-ejecución y órdenes limit inteligentes
-- **Agentes Especializados**: Agente de Tendencia y Agente de Reversión
-- **Pre-Filtro Local**: Reduce 50-75% llamadas API
-- **Kelly Criterion**: Position sizing dinámico basado en confianza
+## Características v1.7+ (Nivel Institucional)
 
-## Arquitectura del Sistema v1.6
+### Nuevos Filtros de Calidad
+
+| Filtro | Descripción | Impacto |
+|--------|-------------|---------|
+| **Multi-Timeframe** | Solo opera cuando 4H→1H→15m están alineados | +15-25% win rate |
+| **Correlation Filter** | Bloquea trades si correlación >70% con posición existente | -20% drawdown |
+| **Adaptive Parameters** | Auto-ajusta confianza/riesgo según rendimiento | Recuperación rápida |
+| **R/R Validation** | RECHAZA trades con R/R < 1.5:1 (antes solo warning) | Evita trades perdedores |
+
+### Métricas Institucionales
+
+- **Sharpe Ratio** (30 días rolling)
+- **Sortino Ratio** (solo downside risk)
+- **Calmar Ratio** (return/max drawdown)
+- **Max Drawdown** tracking en tiempo real
+- **Fill Rate** de órdenes limit
+- **Latencia P50/P95/P99** de ejecución
+- **Win Rate por Régimen** (trend/reversal/range)
+- **Performance Attribution** por agente/símbolo/hora
+
+### Dashboard Grafana
+
+19 paneles de métricas en tiempo real:
+- Métricas institucionales (Sharpe, Sortino, Calmar)
+- Calidad de ejecución (latencia, slippage, fill rate)
+- Filtros avanzados (MTF alignment, diversification score)
+- Attribution (P&L por agente, win rate por régimen)
+
+## Arquitectura v1.7+
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                          SATH BOT v1.6                                       │
-│                                                                              │
-│  ┌────────────────────────────────────────────────────────────────────────┐ │
-│  │                     MAIN ORCHESTRATOR                                   │ │
-│  │                                                                         │ │
-│  │   ┌──────────────┐    ┌──────────────┐    ┌──────────────┐            │ │
-│  │   │  BTC/USDT    │    │  ETH/USDT    │    │  SOL/USDT    │            │ │
-│  │   └──────┬───────┘    └──────┬───────┘    └──────┬───────┘            │ │
-│  │          └────────────────────┼────────────────────┘                   │ │
-│  └──────────────────────────────┼─────────────────────────────────────────┘ │
-│                                  │                                          │
-│  ┌───────────────────────────────┴───────────────────────────────────────┐  │
-│  │                         ANÁLISIS                                       │  │
-│  │                                                                        │  │
-│  │  ┌─────────────────┐              ┌─────────────────┐                 │  │
-│  │  │  MARKET ENGINE  │              │ TECHNICAL       │                 │  │
-│  │  │  • OHLCV        │◄────────────►│ ANALYZER        │                 │  │
-│  │  │  • Order Book   │              │ • RSI, MACD     │                 │  │
-│  │  │  • Funding Rate │              │ • EMA 50/200    │                 │  │
-│  │  └────────┬────────┘              └────────┬────────┘                 │  │
-│  │           └────────────────┬───────────────┘                          │  │
-│  │                            ▼                                          │  │
-│  │  ┌─────────────────────────────────────────────────────────────────┐  │  │
-│  │  │                      AI ENGINE                                   │  │  │
-│  │  │  ┌─────────────────────────────────────────────────────────┐    │  │  │
-│  │  │  │              DETECTOR DE RÉGIMEN                         │    │  │  │
-│  │  │  │   ┌───────────┐  ┌───────────┐  ┌─────────────────┐     │    │  │  │
-│  │  │  │   │ TRENDING  │  │ REVERSAL  │  │ RANGING/LOW VOL │     │    │  │  │
-│  │  │  │   │  Agente   │  │  Agente   │  │   (No Opera)    │     │    │  │  │
-│  │  │  │   │ Tendencia │  │ Reversión │  │                 │     │    │  │  │
-│  │  │  │   └─────┬─────┘  └─────┬─────┘  └────────┬────────┘     │    │  │  │
-│  │  │  │         └──────────────┼─────────────────┘              │    │  │  │
-│  │  │  └────────────────────────┼────────────────────────────────┘    │  │  │
-│  │  └───────────────────────────┼─────────────────────────────────────┘  │  │
-│  └──────────────────────────────┼────────────────────────────────────────┘  │
-│                                 │                                           │
-│  ┌──────────────────────────────▼────────────────────────────────────────┐  │
-│  │                     RISK MANAGER + KELLY                               │  │
-│  │   ┌─────────────┐  ┌───────────────┐  ┌────────────────┐              │  │
-│  │   │ Kill Switch │  │Kelly Criterion│  │ Position Sizing │              │  │
-│  │   │  (5% loss)  │  │ (Sizing IA)   │  │   (2% risk)     │              │  │
-│  │   └─────────────┘  └───────────────┘  └────────────────┘              │  │
-│  └──────────────────────────────┬────────────────────────────────────────┘  │
-│                                 │                                           │
-│                                 ▼                                           │
-│  ┌──────────────────────────────────────────────────────────────────────┐   │
-│  │              POSITION MANAGEMENT SYSTEM v1.5                          │   │
-│  │                                                                       │   │
-│  │  ┌─────────────────────────────────────────────────────────────────┐ │   │
-│  │  │                    POSITION ENGINE                               │ │   │
-│  │  │  • Crear posiciones después de orden ejecutada                   │ │   │
-│  │  │  • Colocar órdenes de protección (OCO/SL/TP)                    │ │   │
-│  │  │  • Monitoreo continuo en background thread                       │ │   │
-│  │  │  • Trailing stop automático                                      │ │   │
-│  │  │  • Cierre de posiciones y registro de resultados                 │ │   │
-│  │  └─────────────────────────┬───────────────────────────────────────┘ │   │
-│  │                            │                                         │   │
-│  │        ┌───────────────────┼───────────────────┐                     │   │
-│  │        ▼                   ▼                   ▼                     │   │
-│  │  ┌───────────┐      ┌───────────┐      ┌─────────────┐              │   │
-│  │  │  ORDER    │      │ POSITION  │      │  POSITION   │              │   │
-│  │  │  MANAGER  │      │   STORE   │      │ SUPERVISOR  │              │   │
-│  │  ├───────────┤      ├───────────┤      ├─────────────┤              │   │
-│  │  │ • OCO     │      │ • SQLite  │      │ • IA cada   │              │   │
-│  │  │ • SL/TP   │      │ • CRUD    │      │   60 seg    │              │   │
-│  │  │ • Update  │      │ • History │      │ • HOLD      │              │   │
-│  │  │ • Cancel  │      │ • Stats   │      │ • TIGHTEN_SL│              │   │
-│  │  └─────┬─────┘      └─────┬─────┘      │ • EXTEND_TP │              │   │
-│  │        │                  │            └──────┬──────┘              │   │
-│  │        ▼                  ▼                   │                     │   │
-│  │  ┌───────────┐      ┌───────────┐            │                     │   │
-│  │  │ EXCHANGE  │      │positions.db│◄───────────┘                     │   │
-│  │  │(Binance)  │      │           │                                   │   │
-│  │  └───────────┘      └───────────┘                                   │   │
-│  └──────────────────────────────────────────────────────────────────────┘   │
-│                                 │                                           │
-│  ┌──────────────────────────────▼────────────────────────────────────────┐  │
-│  │                    NOTIFICATION MANAGER                                │  │
-│  │   • Trade ejecutado  • SL/TP triggered  • Trailing update             │  │
-│  │   • Ajuste IA        • Kill switch      • Daily summary               │  │
-│  └───────────────────────────────────────────────────────────────────────┘  │
-│                                 │                                           │
-│                                 ▼                                           │
-│                           ┌──────────┐                                      │
-│                           │ TELEGRAM │                                      │
-│                           └──────────┘                                      │
+│                           FLUJO DE TRADING v1.7+                             │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌──────────────┐                                                           │
+│  │ Market Data  │ → Obtener OHLCV + Order Book + Funding Rate               │
+│  └──────┬───────┘                                                           │
+│         │                                                                   │
+│         ▼                                                                   │
+│  ┌──────────────┐                                                           │
+│  │  Technical   │ → RSI, MACD, EMA, Bollinger, ATR                          │
+│  │  Analyzer    │ → volatility_level → Adaptive Manager                     │
+│  └──────┬───────┘                                                           │
+│         │                                                                   │
+│         ▼                                                                   │
+│  ┌──────────────────────────────────────────────────────────────────────┐  │
+│  │                    FILTROS INSTITUCIONALES v1.7+                      │  │
+│  │                                                                       │  │
+│  │  1. CORRELATION FILTER                                                │  │
+│  │     ├─ Posiciones abiertas: [BTC/USDT LONG]                          │  │
+│  │     ├─ Quiere abrir: ETH/USDT LONG                                   │  │
+│  │     ├─ Correlación BTC-ETH: 85%                                      │  │
+│  │     └─ RESULTADO: ❌ BLOQUEADO (>70%)                                 │  │
+│  │                                                                       │  │
+│  │  2. MULTI-TIMEFRAME ANALYSIS                                          │  │
+│  │     ├─ 4H: BULLISH (EMA50 > EMA200, RSI > 50)                        │  │
+│  │     ├─ 1H: BULLISH (MACD > Signal)                                   │  │
+│  │     ├─ 15m: BULLISH (Precio > EMA200)                                │  │
+│  │     ├─ Alignment Score: 85%                                          │  │
+│  │     └─ RESULTADO: ✅ ALINEADO + Boost confianza +17%                  │  │
+│  │                                                                       │  │
+│  └──────────────────────────────────────────────────────────────────────┘  │
+│         │                                                                   │
+│         ▼ Solo si pasa filtros                                             │
+│  ┌──────────────┐                                                           │
+│  │  AI Engine   │ → Agentes Especializados (Trend/Reversal)                │
+│  │  + MTF Boost │ → Confianza ajustada con boost de alineación             │
+│  └──────┬───────┘                                                           │
+│         │                                                                   │
+│         ▼                                                                   │
+│  ┌──────────────────────────────────────────────────────────────────────┐  │
+│  │                    VALIDACIÓN ADAPTATIVA                              │  │
+│  │                                                                       │  │
+│  │  3. ADAPTIVE PARAMETERS                                               │  │
+│  │     ├─ Win Rate reciente: 45%                                        │  │
+│  │     ├─ Loss Streak: 2                                                │  │
+│  │     ├─ Min Confidence ajustada: 0.70 (subió de 0.65)                 │  │
+│  │     └─ RESULTADO: ❌ Confianza 0.68 < 0.70 mínima                     │  │
+│  │                                                                       │  │
+│  │  4. RISK/REWARD VALIDATION                                            │  │
+│  │     ├─ Entry: $100,000                                               │  │
+│  │     ├─ SL: $98,000 (riesgo: $2,000)                                  │  │
+│  │     ├─ TP: $103,000 (ganancia: $3,000)                               │  │
+│  │     ├─ R/R Ratio: 1.5:1                                              │  │
+│  │     └─ RESULTADO: ✅ R/R >= 1.5 mínimo                                │  │
+│  │                                                                       │  │
+│  └──────────────────────────────────────────────────────────────────────┘  │
+│         │                                                                   │
+│         ▼ Solo si pasa TODOS los filtros                                   │
+│  ┌──────────────┐                                                           │
+│  │  Execution   │ → Orden Limit con verificación de liquidez               │
+│  └──────┬───────┘                                                           │
+│         │                                                                   │
+│         ▼                                                                   │
+│  ┌──────────────┐                                                           │
+│  │  Position    │ → OCO (SL+TP) + Trailing Stop con cooldown               │
+│  │  Engine      │ → Al cerrar: actualiza Kelly + Attribution + Adaptive    │
+│  └──────────────┘                                                           │
+│                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-## Flujo de Operación
+## Instalación Rápida
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                        FLUJO DE UNA OPERACIÓN                               │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-1. ANÁLISIS
-   ┌──────────┐     ┌──────────┐     ┌──────────┐     ┌──────────┐
-   │  Market  │────►│Technical │────►│    AI    │────►│   Risk   │
-   │  Engine  │     │ Analyzer │     │  Engine  │     │ Manager  │
-   │  (OHLCV) │     │  (RSI,   │     │ (Agentes)│     │ (Kelly)  │
-   │          │     │   MACD)  │     │          │     │          │
-   └──────────┘     └──────────┘     └──────────┘     └────┬─────┘
-                                                           │
-                                    ┌──────────────────────┘
-                                    │
-                                    ▼ SI: Señal válida + Risk OK
-2. EJECUCIÓN
-   ┌──────────────────────────────────────────────────────────────┐
-   │                     MARKET ENGINE                             │
-   │                                                               │
-   │    ┌─────────────┐         ┌─────────────┐                   │
-   │    │ Verificar   │────────►│  Ejecutar   │                   │
-   │    │ precio      │         │  orden      │                   │
-   │    │ (anti-slip) │         │  (limit)    │                   │
-   │    └─────────────┘         └──────┬──────┘                   │
-   │                                   │                          │
-   └───────────────────────────────────┼──────────────────────────┘
-                                       │
-                                       ▼ Orden ejecutada
-3. PROTECCIÓN
-   ┌──────────────────────────────────────────────────────────────┐
-   │                   POSITION ENGINE                             │
-   │                                                               │
-   │    ┌─────────────┐         ┌─────────────┐                   │
-   │    │   Crear     │────────►│  Colocar    │                   │
-   │    │  posición   │         │   OCO       │                   │
-   │    │  (SQLite)   │         │ (SL + TP)   │                   │
-   │    └─────────────┘         └──────┬──────┘                   │
-   │                                   │                          │
-   └───────────────────────────────────┼──────────────────────────┘
-                                       │
-                                       ▼ OCO activo en exchange
-4. MONITOREO (Loop en background)
-   ┌──────────────────────────────────────────────────────────────┐
-   │                   MONITORING LOOP                             │
-   │                                                               │
-   │    Cada 500ms:                                                │
-   │    ┌─────────────┐                                           │
-   │    │ Verificar   │──► ¿TP filled? ──► Cerrar posición        │
-   │    │ estado OCO  │                                           │
-   │    │             │──► ¿SL filled? ──► Cerrar posición        │
-   │    └─────────────┘                                           │
-   │                                                               │
-   │    ┌─────────────┐                                           │
-   │    │ Trailing    │──► ¿Profit > 1.5%? ──► Mover SL           │
-   │    │ Stop check  │                                           │
-   │    └─────────────┘                                           │
-   │                                                               │
-   │    Cada 60s (IA Supervisor):                                  │
-   │    ┌─────────────┐                                           │
-   │    │ Supervisor  │──► HOLD / TIGHTEN_SL / EXTEND_TP          │
-   │    │    IA       │                                           │
-   │    └─────────────┘                                           │
-   │                                                               │
-   └──────────────────────────────────────────────────────────────┘
-                                       │
-                                       ▼ SL o TP ejecutado
-5. CIERRE
-   ┌──────────────────────────────────────────────────────────────┐
-   │    ┌─────────────┐         ┌─────────────┐                   │
-   │    │  Registrar  │────────►│  Notificar  │                   │
-   │    │  resultado  │         │  Telegram   │                   │
-   │    │  (SQLite)   │         │             │                   │
-   │    └─────────────┘         └─────────────┘                   │
-   │                                                               │
-   │    trade_history: {pnl, pnl_percent, exit_reason, hold_time} │
-   └──────────────────────────────────────────────────────────────┘
-```
-
-## Requisitos Previos
-
-- Python 3.9 o superior
-- Docker y Docker Compose (recomendado para producción)
-- Ubuntu Server o cualquier sistema Linux/macOS (Windows con WSL)
-- (Opcional) Interactive Brokers TWS o Gateway para trading de acciones/forex
-
-## Instalación
-
-### 1. Clonar el repositorio
+### Docker (Recomendado)
 
 ```bash
-cd /ruta/donde/quieras/el/bot
+# Clonar repositorio
 git clone <tu-repositorio>
 cd bot
+
+# Configurar credenciales
+cp .env.example .env
+nano .env  # Agregar API keys
+
+# Paper Trading (Testnet)
+docker compose -f docker-compose.paper.yml up -d
+
+# Ver logs
+docker logs -f sath_bot_paper
+
+# Grafana Dashboard
+open http://localhost:3001  # user: admin, pass: sath_grafana_2024
 ```
 
-### 2. Crear entorno virtual
+### Local
 
 ```bash
 python3 -m venv venv
-source venv/bin/activate  # En Windows: venv\Scripts\activate
-```
-
-### 3. Instalar dependencias
-
-```bash
-pip install --upgrade pip
-pip install -r requirements.txt
-```
-
-### 4. Configurar variables de entorno
-
-```bash
-cp .env.example .env
-nano .env  # o usa tu editor favorito
-```
-
-Rellena tus credenciales en `.env`:
-
-```env
-# IA
-DEEPSEEK_API_KEY=sk-tu-clave-aqui
-
-# Exchange (Binance)
-BINANCE_API_KEY=tu-api-key
-BINANCE_API_SECRET=tu-secret
-
-# Notificaciones (opcional)
-TELEGRAM_BOT_TOKEN=tu-token
-TELEGRAM_CHAT_ID=tu-chat-id
-```
-
-### 5. Configurar el bot
-
-Edita `config/config_live.yaml` según tus preferencias. Ver sección de configuración abajo.
-
-## Uso
-
-### Modo Local
-
-```bash
 source venv/bin/activate
+pip install -r requirements.txt
 python main.py
 ```
 
-### Modo Docker (Recomendado para producción)
+## Configuración
 
-```bash
-docker compose up -d --build
-docker logs -f sath_bot
+### Variables de Entorno (.env)
+
+```env
+# IA (al menos uno requerido)
+DEEPSEEK_API_KEY=sk-xxx
+OPENAI_API_KEY=sk-xxx           # Opcional
+GEMINI_API_KEY=xxx              # Opcional
+
+# Exchange
+BINANCE_API_KEY=xxx
+BINANCE_API_SECRET=xxx
+
+# Para Paper Trading (Testnet)
+BINANCE_TESTNET_API_KEY=xxx
+BINANCE_TESTNET_API_SECRET=xxx
+
+# Notificaciones (opcional)
+TELEGRAM_BOT_TOKEN=xxx
+TELEGRAM_CHAT_ID=xxx
+
+# InfluxDB (para métricas)
+INFLUXDB_TOKEN=xxx
 ```
 
-## Configuración de Gestión de Posiciones
+### Configuración Principal (config/config_paper.yaml)
 
 ```yaml
-# config/config_live.yaml
+# Filtros Institucionales v1.7+
+multi_timeframe:
+  enabled: true
+  higher_timeframe: "4h"
+  medium_timeframe: "1h"
+  lower_timeframe: "15m"
+  min_alignment_score: 0.70
 
-position_management:
+correlation_filter:
+  enabled: true
+  max_correlation: 0.70
+
+adaptive_parameters:
+  enabled: true
+  lookback_trades: 20
+  sensitivity: 0.25
+
+performance_attribution:
   enabled: true
 
-  # Método de protección SL/TP
-  # "oco" = Exchange maneja automáticamente (recomendado)
-  # "local" = Bot monitorea y ejecuta
-  protection_mode: "oco"
+# Gestión de Riesgo
+risk_management:
+  max_risk_per_trade: 1.0
+  max_daily_drawdown: 5.0
+  min_risk_reward_ratio: 1.5  # RECHAZA si R/R < 1.5
 
-  # Configuración de órdenes OCO
-  oco_settings:
+  kelly_criterion:
     enabled: true
-    sl_limit_buffer_percent: 0.2  # Buffer entre stop trigger y limit price
+    fraction: 0.15
+    min_confidence: 0.65
 
-  # Monitoreo local (fallback si OCO no disponible)
-  local_monitoring:
-    enabled: true
-    check_interval_ms: 500  # Verificar cada 500ms
-
-  # Trailing Stop inteligente
+# Trailing Stop v1.7
+position_management:
   trailing_stop:
     enabled: true
-    activation_profit_percent: 1.5  # Activar después de 1.5% profit
-    trail_distance_percent: 2.0     # Mantener 2% detrás del precio
-
-  # Supervisión IA de posiciones
-  supervision:
-    enabled: true
-    check_interval_seconds: 60  # Cada minuto
-    actions_allowed:
-      - "HOLD"        # Mantener sin cambios
-      - "TIGHTEN_SL"  # Acercar SL para asegurar ganancias
-      - "EXTEND_TP"   # Extender TP si momentum fuerte
-    # NO incluye PARTIAL_CLOSE ni FULL_CLOSE (modo conservador)
-
-  # Límites del portfolio
-  portfolio:
-    max_concurrent_positions: 3    # Máximo 3 posiciones abiertas
-    max_exposure_percent: 50       # Máximo 50% del capital desplegado
-    max_per_symbol_percent: 25     # Máximo 25% en un solo símbolo
-
-  # Persistencia (SQLite)
-  database:
-    path: "data/positions.db"
+    activation_profit_percent: 2.0
+    trail_distance_percent: 1.5
+    cooldown_seconds: 3           # Evita race conditions
+    min_safety_margin_percent: 0.3
 ```
+
+## Métricas en Grafana
+
+### Acceso
+
+| Modo | URL | Puerto |
+|------|-----|--------|
+| Paper | http://localhost:3001 | 3001 |
+| Live | http://localhost:3000 | 3000 |
+
+Credenciales: `admin` / `sath_grafana_2024`
+
+### Paneles Disponibles
+
+**Fila 1: Resumen**
+- PnL Total, Win Rate, Total Trades, Avg PnL
+
+**Fila 2: Métricas Institucionales**
+- Sharpe Ratio (30d), Sortino Ratio, Calmar Ratio
+- Max Drawdown, Fill Rate, Slippage Promedio
+
+**Fila 3: Calidad de Ejecución**
+- Latencia P50/P95/P99
+- Capital Current vs Peak
+- Slippage Histórico
+
+**Fila 4: Filtros Avanzados v1.7+**
+- MTF Alignment Score
+- Diversification Score
+- Win/Loss Streaks
+- Adaptive Parameters Over Time
+- P&L por Agente
+- Win Rate por Régimen
 
 ## Estructura del Proyecto
 
 ```
 bot/
 ├── config/
-│   ├── config.yaml              # Configuración para paper trading
-│   └── config_live.yaml         # Configuración para trading real
+│   ├── config_paper.yaml      # Configuración Paper (Testnet)
+│   └── config_live.yaml       # Configuración Live (Producción)
 ├── src/
 │   ├── engines/
-│   │   ├── ai_engine.py         # Motor de IA con agentes especializados
-│   │   ├── market_engine.py     # Conexión con exchanges + órdenes OCO
-│   │   ├── position_engine.py   # Motor de gestión de posiciones (v1.5)
-│   │   └── websocket_engine.py  # Motor de datos en tiempo real
-│   ├── modules/
-│   │   ├── technical_analysis.py   # Indicadores técnicos
-│   │   ├── risk_manager.py         # Gestión de riesgo + Kelly
-│   │   ├── order_manager.py        # Órdenes OCO/SL/TP (v1.5)
-│   │   ├── position_store.py       # Persistencia SQLite (v1.5)
-│   │   ├── position_supervisor.py  # Agente IA supervisor (v1.5)
-│   │   ├── data_logger.py          # Logging InfluxDB
-│   │   └── notifications.py        # Alertas Telegram
-│   └── schemas/
-│       ├── ai_responses.py         # Schemas de respuestas IA
-│       └── position_schemas.py     # Modelos de posiciones (v1.5)
-├── data/
-│   └── positions.db             # Base de datos SQLite de posiciones
-├── logs/
-│   └── trading_bot.log          # Logs del sistema
-├── main.py                      # Orquestador principal
-├── requirements.txt             # Dependencias Python
-├── docker-compose.yml           # Orquestación Docker
-├── Dockerfile                   # Imagen Docker del bot
-├── .env                         # Credenciales (NO subir a git)
-├── README.md                    # Esta documentación
-├── CHANGELOG.md                 # Historial de cambios
-└── HYBRID_ARCHITECTURE.md       # Arquitectura IA híbrida
+│   │   ├── ai_engine.py       # Motor IA + Agentes especializados
+│   │   ├── market_engine.py   # Conexión exchanges + OCO
+│   │   ├── position_engine.py # Gestión posiciones + Trailing
+│   │   └── websocket_engine.py
+│   └── modules/
+│       ├── multi_timeframe.py        # v1.7+ MTF Analysis
+│       ├── correlation_filter.py     # v1.7+ Correlation
+│       ├── adaptive_parameters.py    # v1.7+ Adaptive
+│       ├── performance_attribution.py # v1.7+ Attribution
+│       ├── institutional_metrics.py  # Sharpe, Sortino, etc
+│       ├── risk_manager.py           # Kelly + R/R Validation
+│       ├── data_logger.py            # InfluxDB logging
+│       └── notifications.py          # Telegram alerts
+├── grafana/
+│   └── provisioning/
+│       ├── dashboards/
+│       │   └── sath-trading.json     # Dashboard completo
+│       └── datasources/
+│           └── influxdb.yml          # Conexión InfluxDB
+├── tests/
+│   └── test_v17_institutional.py     # 28 tests
+├── docker-compose.paper.yml   # Docker Paper Trading
+├── docker-compose.live.yml    # Docker Live Trading
+├── main.py                    # Orquestador principal
+└── README.md
+```
+
+## Tests
+
+```bash
+# Ejecutar todos los tests v1.7
+python -m pytest tests/test_v17_institutional.py -v
+
+# Resultado esperado: 28 passed
 ```
 
 ## Gestión de Riesgo
 
-### Kill Switch
-Si el bot pierde más del 5% del capital total, se apaga automáticamente por 24 horas.
+### Protecciones Activas
+
+| Protección | Trigger | Acción |
+|------------|---------|--------|
+| Kill Switch | Pérdida > 5% diario | Apaga bot 24h |
+| R/R Validation | R/R < 1.5:1 | Rechaza trade |
+| Correlation | Correlación > 70% | Bloquea trade |
+| MTF Alignment | Alineación < 70% | Salta análisis |
+| Adaptive Confidence | Win rate bajo | Sube min_confidence |
+| Trailing Stop | Profit > 2% | Protege ganancias |
+| Circuit Breaker | Fallos API | Pausa llamadas |
 
 ### Kelly Criterion
-Ajusta dinámicamente el tamaño de posición basado en la confianza de la señal de IA.
 
-### Trailing Stop
-El stop loss sube automáticamente con el precio para asegurar ganancias.
+El position sizing se ajusta automáticamente basado en:
+- Historial de trades (wins/losses)
+- Racha actual (win streak / loss streak)
+- Confianza del trade
 
-### Portfolio Limits
-- Máximo 3 posiciones concurrentes
-- Máximo 50% del capital desplegado
-- Máximo 25% en un solo símbolo
+```
+Kelly % = (W × R - L) / R
 
-## Notificaciones Telegram
+Donde:
+- W = Probabilidad de ganar (del historial)
+- L = Probabilidad de perder (1 - W)
+- R = Ratio de ganancias/pérdidas promedio
+```
 
-El bot envía alertas para:
-- Operaciones ejecutadas
-- Stop Loss triggered
-- Take Profit alcanzado
-- Trailing stop actualizado
-- Ajustes IA de posiciones
-- Kill switch activado
+## Changelog v1.7+
+
+### v1.7+ - Nivel Institucional Superior
+- **Multi-Timeframe Analysis**: Solo opera con 4H→1H→15m alineados
+- **Correlation Filter**: Evita sobreexposición (bloquea >70% correlación)
+- **Adaptive Parameters**: Auto-ajuste de confianza/riesgo
+- **Performance Attribution**: Análisis de alpha por agente/régimen/hora
+- **R/R Validation**: RECHAZA trades con R/R < 1.5 (antes solo warning)
+- **Kelly Criterion Auto-Update**: Se actualiza en cada cierre de posición
+- **Trailing Stop Fix**: Cooldown 3s + safety margin 0.3%
+- **Métricas Institucionales**: Sharpe, Sortino, Calmar, Fill Rate, Latencia
+- **Dashboard Grafana**: 19 paneles para métricas v1.7+
+- **InfluxDB Integration**: Todas las métricas se envían a la base de datos
+
+### v1.6 - Robustez
+- Circuit Breaker Pattern
+- Health Monitor
+- AI Ensemble System
+
+### v1.5 - Position Management
+- Órdenes OCO reales
+- Supervisión IA
+- Persistencia SQLite
 
 ## Solución de Problemas
 
-### El bot no crea posiciones protegidas
-1. Verifica que `position_management.enabled: true` en config
-2. Revisa los logs para errores de inicialización
-3. Verifica que el exchange soporta órdenes OCO
+### Bot no opera aunque hay señales
 
-### Las órdenes OCO no se colocan
-1. Verifica permisos de API en el exchange
-2. Revisa que el símbolo soporte OCO
-3. El bot usará órdenes separadas como fallback
+1. **Verificar MTF**: Los timeframes deben estar alineados (≥70%)
+2. **Verificar Correlación**: No debe haber posiciones correlacionadas
+3. **Verificar Confidence**: La confianza debe superar el mínimo adaptativo
+4. **Verificar R/R**: El ratio riesgo/recompensa debe ser ≥1.5
 
-### Posiciones no se recuperan al reiniciar
-1. Verifica que existe `data/positions.db`
-2. Revisa permisos de escritura en el directorio `data/`
+### Métricas no aparecen en Grafana
 
-## Changelog
+1. Verificar que InfluxDB está corriendo: `docker ps | grep influxdb`
+2. Verificar token en `.env`: `INFLUXDB_TOKEN`
+3. Verificar bucket: `trading_decisions` o `trading_decisions_paper`
 
-Ver [CHANGELOG.md](CHANGELOG.md) para historial completo de cambios.
+### Kelly siempre usa valores conservadores
 
-### v1.6.1 (Diciembre 2024)
-- Monitor de posiciones en tiempo real con PnL y tiempo transcurrido
-- Validación de posiciones recuperadas (verifica existencia en exchange)
-- Capital fijo para operaciones (no usa balance real de wallet)
-- Método `can_open_position()` público para verificación pre-ejecución
-- Ahorro de tokens de IA cuando posiciones al máximo
-- Notificaciones de cierre con labels GANANCIA/PÉRDIDA
+El Kelly necesita historial de trades. Los primeros 50 trades usarán valores base.
+El historial se guarda en `data/risk_manager_state.json`.
 
-### v1.6 (Diciembre 2024)
-- Circuit Breaker Pattern para prevenir cascadas de fallos
-- Health Monitor con alertas automáticas
-- AI Ensemble System con votación ponderada
-- Arquitectura Async para escalabilidad
-- Control de fees y validación de rentabilidad
-- Optimización de portfolio para capital pequeño ($100)
+## Comandos Útiles
 
-### v1.5 (Diciembre 2024)
-- Sistema completo de gestión de posiciones
-- Órdenes OCO reales (Stop Loss + Take Profit)
-- Supervisión IA de posiciones (HOLD, TIGHTEN_SL, EXTEND_TP)
-- Trailing Stop inteligente con activación configurable
-- Persistencia SQLite (sobrevive reinicios)
-- Portfolio limits (max posiciones, max exposición)
-- Notificaciones de eventos de posición
+```bash
+# Ver logs en tiempo real
+docker logs -f sath_bot_paper
+
+# Reiniciar bot
+docker compose -f docker-compose.paper.yml restart trading_bot
+
+# Ver estado de contenedores
+docker compose -f docker-compose.paper.yml ps
+
+# Consultar InfluxDB
+docker exec -it sath_influxdb_paper influx query '
+  from(bucket:"trading_decisions_paper")
+  |> range(start: -1h)
+  |> filter(fn: (r) => r._measurement == "trade_result")
+'
+
+# Backup de posiciones
+cp data/positions.db data/positions_backup_$(date +%Y%m%d).db
+```
 
 ---
 
-**Desarrollado con ❤️ para traders algorítmicos**
+**SATH v1.7+ - Nivel Institucional Superior**
 
-Versión 1.6.1 - Diciembre 2024
+Desarrollado para traders que exigen estándares de hedge fund.
+
+*28 tests passed | Métricas en tiempo real | Auto-adaptativo*

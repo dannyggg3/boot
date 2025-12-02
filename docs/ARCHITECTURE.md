@@ -1,17 +1,29 @@
-# Arquitectura del Sistema SATH v1.7
+# Arquitectura del Sistema SATH v1.7+
 
-Este documento describe la arquitectura completa del Sistema Autónomo de Trading Híbrido.
+Este documento describe la arquitectura completa del Sistema Autónomo de Trading Híbrido - Nivel Institucional Superior.
 
-## Cambios v1.7 (Mejoras Institucionales)
+## Cambios v1.7+ (Nivel Institucional Superior)
+
+### Nuevos Módulos v1.7+
+
+| Módulo | Descripción | Archivo |
+|--------|-------------|---------|
+| **Multi-Timeframe** | Solo opera cuando 4H→1H→15m están alineados | `multi_timeframe.py` |
+| **Correlation Filter** | Bloquea trades si correlación >70% con posición existente | `correlation_filter.py` |
+| **Adaptive Parameters** | Auto-ajusta confianza/riesgo según rendimiento | `adaptive_parameters.py` |
+| **Performance Attribution** | Análisis de alpha por agente/régimen/hora | `performance_attribution.py` |
+
+### Mejoras Anteriores v1.7
 
 | Componente | Cambio | Archivo |
 |------------|--------|---------|
-| Trailing Stop | Fix race condition + cooldown | `position_engine.py` |
+| Trailing Stop | Fix race condition + cooldown 3s | `position_engine.py` |
 | Paper Mode | Simulador latencia/slippage | `order_manager.py` |
-| Kelly Criterion | Conservador con pocos trades | `risk_manager.py` |
-| Métricas | Sharpe, Sortino, Calmar | `institutional_metrics.py` |
+| Kelly Criterion | Auto-update en cierre + conservador | `risk_manager.py` |
+| Métricas | Sharpe, Sortino, Calmar, Fill Rate | `institutional_metrics.py` |
 | Liquidez | Validación pre-ejecución | `market_engine.py` |
 | Singletons | Thread-safe | `position_store.py` |
+| R/R Validation | RECHAZA trades con R/R < 1.5 | `risk_manager.py` |
 
 ## Árbol de Archivos
 
@@ -125,6 +137,39 @@ bot/
 │   │   │       ├── get_latency_stats()
 │   │   │       └── get_comprehensive_report()
 │   │   │
+│   │   ├── multi_timeframe.py        # [v1.7+] Análisis Multi-Timeframe
+│   │   │   └── MultiTimeframeAnalyzer
+│   │   │       ├── analyze_timeframe()           # Analiza un TF individual
+│   │   │       ├── get_mtf_filter_result()       # Resultado filtro MTF
+│   │   │       ├── _calculate_alignment_score()  # Calcula alineación
+│   │   │       └── _calculate_confidence_boost() # Boost de confianza
+│   │   │
+│   │   ├── correlation_filter.py     # [v1.7+] Filtro de Correlación
+│   │   │   └── CorrelationFilter
+│   │   │       ├── can_open_position()          # Verifica si puede abrir
+│   │   │       ├── get_diversification_score()  # Score diversificación
+│   │   │       ├── update_correlation()         # Actualiza correlación
+│   │   │       └── _get_correlation()           # Obtiene correlación par
+│   │   │
+│   │   ├── adaptive_parameters.py    # [v1.7+] Parámetros Adaptativos
+│   │   │   └── AdaptiveParameterManager
+│   │   │       ├── update_from_trade()          # Actualiza con trade
+│   │   │       ├── update_volatility()          # Actualiza volatilidad
+│   │   │       ├── get_adjusted_confidence()    # Confianza ajustada
+│   │   │       ├── get_adjusted_risk()          # Riesgo ajustado
+│   │   │       ├── get_current_state()          # Estado actual
+│   │   │       └── _save/load_state()           # Persistencia
+│   │   │
+│   │   ├── performance_attribution.py # [v1.7+] Attribution de Performance
+│   │   │   └── PerformanceAttribution
+│   │   │       ├── record_trade()               # Registra trade
+│   │   │       ├── get_attribution_by_agent()   # P&L por agente
+│   │   │       ├── get_attribution_by_regime()  # P&L por régimen
+│   │   │       ├── get_attribution_by_symbol()  # P&L por símbolo
+│   │   │       ├── get_attribution_by_hour()    # P&L por hora
+│   │   │       ├── get_full_attribution_report()# Reporte completo
+│   │   │       └── get_recommendations()        # Recomendaciones
+│   │   │
 │   │   ├── position_store.py         # [v1.5+v1.7] Persistencia SQLite (thread-safe)
 │   │   │   └── PositionStore
 │   │   │       ├── save_position()
@@ -192,16 +237,16 @@ bot/
     └── ARCHITECTURE.md               # Este archivo
 ```
 
-## Flujo de Datos Principal
+## Flujo de Datos Principal v1.7+
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                              CICLO DE TRADING                                │
+│                         CICLO DE TRADING v1.7+                               │
 └─────────────────────────────────────────────────────────────────────────────┘
 
                               ┌─────────────────┐
                               │   main.py run() │
-                              │   Loop cada 60s │
+                              │  Loop cada 180s │
                               └────────┬────────┘
                                        │
                     ┌──────────────────┼──────────────────┐
@@ -217,26 +262,89 @@ bot/
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                            _analyze_symbol()                                 │
 │                                                                              │
-│  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐          │
-│  │  Market Engine  │───►│   Technical     │───►│   AI Engine     │          │
-│  │  get_ohlcv()    │    │   Analyzer      │    │                 │          │
-│  │  get_order_book │    │  RSI,MACD,EMA   │    │ Nivel 0: Local  │          │
-│  └─────────────────┘    └─────────────────┘    │ Nivel 1: Fast   │          │
-│                                                │ Nivel 2: Deep   │          │
-│                                                └────────┬────────┘          │
-│                                                         │                   │
+│  ┌─────────────────┐    ┌─────────────────┐                                 │
+│  │  Market Engine  │───►│   Technical     │                                 │
+│  │  get_ohlcv()    │    │   Analyzer      │                                 │
+│  │  get_order_book │    │  RSI,MACD,EMA   │                                 │
+│  └─────────────────┘    └─────────────────┘                                 │
+│                                                                              │
+└──────────────────────────────────┬──────────────────────────────────────────┘
+                                   │
+                                   ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                     FILTROS INSTITUCIONALES v1.7+ (PRE-IA)                   │
+│                                                                              │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │  1. CORRELATION FILTER                                               │    │
+│  │     ├─ Posiciones abiertas: [BTC/USDT LONG]                         │    │
+│  │     ├─ Quiere abrir: ETH/USDT LONG                                  │    │
+│  │     ├─ Correlación BTC-ETH: 85%                                     │    │
+│  │     └─ RESULTADO: ❌ BLOQUEADO (>70%) → Log InfluxDB                │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+│                                   │                                          │
+│                                   ▼ (si pasa)                               │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │  2. MULTI-TIMEFRAME ANALYSIS                                         │    │
+│  │     ├─ 4H: BULLISH (EMA50 > EMA200, RSI > 50)     [peso: 50%]       │    │
+│  │     ├─ 1H: BULLISH (MACD > Signal)                [peso: 30%]       │    │
+│  │     ├─ 15m: BULLISH (Precio > EMA200)             [peso: 20%]       │    │
+│  │     ├─ Alignment Score: 85%                                         │    │
+│  │     └─ RESULTADO: ✅ ALINEADO + Boost confianza +17% → Log InfluxDB │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+│                                                                              │
+└──────────────────────────────────┬──────────────────────────────────────────┘
+                                   │ Solo si pasa filtros PRE-IA
+                                   ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              AI ENGINE + MTF BOOST                           │
+│                                                                              │
+│  ┌─────────────────┐                                                        │
+│  │   AI Engine     │    Confianza Base: 0.70                                │
+│  │                 │    MTF Boost: +0.12 (17%)                              │
+│  │ Nivel 0: Local  │    ─────────────────                                   │
+│  │ Nivel 1: Fast   │    Confianza Final: 0.82                               │
+│  │ Nivel 2: Deep   │                                                        │
+│  └────────┬────────┘                                                        │
+│           │                                                                  │
+│           └──────────────────────────────────────────────────────────────   │
+│                                                                              │
 │                                              COMPRA / VENTA / ESPERA        │
-└─────────────────────────────────────────────────────────┼───────────────────┘
+└─────────────────────────────────────────────────────────────────────────────┘
                                                           │
                                ┌──────────────────────────┘
                                │ SI: COMPRA o VENTA
                                ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
+│                     VALIDACIÓN ADAPTATIVA v1.7+ (POST-IA)                    │
+│                                                                              │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │  3. ADAPTIVE PARAMETERS CHECK                                        │    │
+│  │     ├─ Win Rate reciente (20 trades): 45%                           │    │
+│  │     ├─ Loss Streak actual: 2                                        │    │
+│  │     ├─ Volatilidad mercado: HIGH                                    │    │
+│  │     ├─ Min Confidence ajustada: 0.70 (subió de 0.65)                │    │
+│  │     └─ RESULTADO: ❌ Confianza 0.68 < 0.70 mínima                   │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+│                                   │                                          │
+│                                   ▼ (si pasa)                               │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │  4. RISK/REWARD VALIDATION                                           │    │
+│  │     ├─ Entry: $100,000                                              │    │
+│  │     ├─ SL: $98,000 (riesgo: $2,000)                                 │    │
+│  │     ├─ TP: $103,000 (ganancia: $3,000)                              │    │
+│  │     ├─ R/R Ratio: 1.5:1                                             │    │
+│  │     └─ RESULTADO: ✅ R/R >= 1.5 mínimo (RECHAZA si < 1.5)           │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+│                                                                              │
+└──────────────────────────────────┬──────────────────────────────────────────┘
+                                   │ Solo si pasa TODOS los filtros
+                                   ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
 │                              Risk Manager                                    │
 │                                                                              │
 │  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐          │
 │  │ validate_trade  │───►│ Kelly Criterion │───►│ Position Size   │          │
-│  │ check_kill_sw.  │    │ (confianza IA)  │    │ SL, TP calc     │          │
+│  │ check_kill_sw.  │    │ (auto-update)   │    │ SL, TP calc     │          │
 │  └─────────────────┘    └─────────────────┘    └────────┬────────┘          │
 │                                                         │                   │
 │                                                   risk_params               │
@@ -260,7 +368,7 @@ bot/
                                │ SI: Orden ejecutada
                                ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                     POSITION MANAGEMENT SYSTEM v1.5                          │
+│                   POSITION MANAGEMENT SYSTEM v1.5 + v1.7+                    │
 │                                                                              │
 │  ┌─────────────────────────────────────────────────────────────────────┐    │
 │  │                        Position Engine                               │    │
@@ -343,6 +451,16 @@ bot/
 │  │ cancel_oco()    │   │ close_position()│              │  │    │
 │  └─────────────────┘   │ record_trade()  │              │  │    │
 │                        └─────────────────┘              │  │    │
+│                                                          │  │    │
+│  ┌────────────────────────────────────────────────────┐ │  │    │
+│  │ v1.7+ CALLBACKS (ON POSITION CLOSE)                │ │  │    │
+│  │                                                     │ │  │    │
+│  │  • Kelly Criterion auto-update                     │ │  │    │
+│  │  • Institutional Metrics (Sharpe, Sortino, etc)    │ │  │    │
+│  │  • Performance Attribution (por agente/régimen)    │ │  │    │
+│  │  • Adaptive Parameters update (win/loss streak)    │ │  │    │
+│  │  • InfluxDB logging (todas las métricas)           │ │  │    │
+│  └────────────────────────────────────────────────────┘ │  │    │
 │                                                          │  │    │
 │  ┌─────────────────┐                                    │  │    │
 │  │  Notifications  │                                    │  │    │
@@ -488,37 +606,44 @@ bot/
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-## Dependencias entre Módulos
+## Dependencias entre Módulos v1.7+
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                        GRAFO DE DEPENDENCIAS                                 │
+│                        GRAFO DE DEPENDENCIAS v1.7+                           │
 └─────────────────────────────────────────────────────────────────────────────┘
 
-                              main.py
-                                 │
-          ┌──────────────────────┼──────────────────────┐
-          │                      │                      │
-          ▼                      ▼                      ▼
-    ┌───────────┐         ┌───────────┐         ┌───────────┐
-    │ AIEngine  │         │ Market    │         │ Risk      │
-    │           │         │ Engine    │         │ Manager   │
-    └─────┬─────┘         └─────┬─────┘         └───────────┘
-          │                     │
-          │                     │
-          ▼                     ▼
-    ┌───────────┐         ┌───────────┐
-    │ Technical │         │ Position  │◄─────┐
-    │ Analyzer  │         │ Engine    │      │
-    └───────────┘         └─────┬─────┘      │
-                                │            │
-              ┌─────────────────┼────────────┤
-              │                 │            │
-              ▼                 ▼            ▼
-        ┌───────────┐    ┌───────────┐ ┌───────────┐
-        │ Order     │    │ Position  │ │ Position  │
-        │ Manager   │    │ Store     │ │ Supervisor│
-        └─────┬─────┘    └───────────┘ └───────────┘
+                                    main.py
+                                       │
+     ┌─────────────────┬───────────────┼───────────────┬──────────────────┐
+     │                 │               │               │                  │
+     ▼                 ▼               ▼               ▼                  ▼
+┌───────────┐   ┌───────────┐   ┌───────────┐   ┌───────────┐   ┌────────────────┐
+│ AIEngine  │   │ Market    │   │ Risk      │   │ Position  │   │ v1.7+ FILTERS  │
+│           │   │ Engine    │   │ Manager   │   │ Engine    │   │                │
+└─────┬─────┘   └─────┬─────┘   └───────────┘   └─────┬─────┘   │ MTF Analyzer   │
+      │               │                               │         │ Correlation    │
+      │               │                               │         │ Adaptive Params│
+      ▼               │                               │         │ Attribution    │
+┌───────────┐         │                               │         └────────────────┘
+│ Technical │         │                               │
+│ Analyzer  │◄────────┘                               │
+└───────────┘                                         │
+      │                                               │
+      │ (volatility_level)                            │
+      ▼                                               │
+┌───────────┐                                         │
+│ Adaptive  │◄────────────────────────────────────────┤ (on position close)
+│ Params    │                                         │
+└───────────┘                                         │
+                                                      │
+              ┌───────────────────────────────────────┤
+              │                                       │
+              ▼                                       ▼
+        ┌───────────┐                          ┌───────────────┐
+        │ Order     │                          │ Performance   │
+        │ Manager   │                          │ Attribution   │
+        └─────┬─────┘                          └───────────────┘
               │
               ▼
         ┌───────────┐
@@ -528,17 +653,81 @@ bot/
 
         ─────────────────────────────────────────────────
 
-                      Notifications
-                           │
-           ┌───────────────┼───────────────┐
-           │               │               │
-           ▼               ▼               ▼
-    ┌───────────┐   ┌───────────┐   ┌───────────┐
-    │   main    │   │ Position  │   │ Risk      │
-    │           │   │ Engine    │   │ Manager   │
-    └───────────┘   └───────────┘   └───────────┘
+                      Data Logger (InfluxDB)
+                              │
+        ┌─────────────────────┼─────────────────────┐
+        │                     │                     │
+        ▼                     ▼                     ▼
+  ┌───────────┐        ┌───────────┐        ┌───────────────────┐
+  │ Trade     │        │ MTF       │        │ v1.7+ Metrics     │
+  │ Results   │        │ Analysis  │        │ Correlation       │
+  │           │        │           │        │ Adaptive Params   │
+  └───────────┘        └───────────┘        │ Attribution       │
+                                            └───────────────────┘
+
+        ─────────────────────────────────────────────────
+
+                      Grafana Dashboard
+                              │
+        ┌─────────────────────┼─────────────────────┐
+        │                     │                     │
+        ▼                     ▼                     ▼
+  ┌───────────┐        ┌───────────┐        ┌───────────────────┐
+  │ Métricas  │        │ Filtros   │        │ Attribution       │
+  │ Básicas   │        │ v1.7+     │        │ Analysis          │
+  │ PnL, Win% │        │ MTF Score │        │ P&L por Agente    │
+  │ Trades    │        │ Div Score │        │ Win Rate Régimen  │
+  └───────────┘        └───────────┘        └───────────────────┘
+```
+
+## Flujo de Callbacks al Cerrar Posición
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                   CALLBACKS ON POSITION CLOSE (v1.7+)                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+                        Position Closed
+                              │
+                              ▼
+        ┌─────────────────────────────────────────────┐
+        │           _record_institutional_metrics()    │
+        └──────────────────────┬──────────────────────┘
+                               │
+          ┌────────────────────┼────────────────────┐
+          │                    │                    │
+          ▼                    ▼                    ▼
+   ┌────────────┐       ┌────────────┐      ┌────────────┐
+   │ Kelly      │       │ Instit.    │      │ DataLogger │
+   │ Criterion  │       │ Metrics    │      │ (InfluxDB) │
+   │ Update     │       │ Record     │      │            │
+   └────────────┘       └────────────┘      └────────────┘
+          │
+          ▼
+   ┌────────────────────────────────────────────────────┐
+   │              _record_performance_attribution()      │
+   └──────────────────────┬─────────────────────────────┘
+                          │
+                          ▼
+                   ┌────────────┐
+                   │ Perf.      │
+                   │ Attribution│
+                   │ Record     │
+                   └────────────┘
+          │
+          ▼
+   ┌────────────────────────────────────────────────────┐
+   │              _update_adaptive_params()              │
+   └──────────────────────┬─────────────────────────────┘
+                          │
+                          ▼
+                   ┌────────────┐
+                   │ Adaptive   │
+                   │ Manager    │
+                   │ Update     │
+                   └────────────┘
 ```
 
 ---
 
-**Última actualización**: Diciembre 2024 - v1.5.1
+**Última actualización**: Diciembre 2024 - v1.7+ Nivel Institucional Superior

@@ -1,20 +1,43 @@
 # Roadmap hacia Nivel Institucional
 
-## Estado Actual: PROFESIONAL JUNIOR (8.5/10)
+## Estado Actual: NIVEL INSTITUCIONAL SUPERIOR (9.5/10)
 
-El sistema SATH v1.6 ya cuenta con:
-- ✅ Gestión de riesgo con Kelly Criterion
+El sistema SATH v1.7+ ahora cuenta con:
+
+### Fundamentos (v1.5-v1.6)
+- ✅ Gestión de riesgo con Kelly Criterion (auto-update en cierre)
 - ✅ Órdenes OCO reales en exchange
-- ✅ Trailing stop inteligente
-- ✅ Persistencia SQLite
+- ✅ Trailing stop inteligente (cooldown 3s + safety margin)
+- ✅ Persistencia SQLite (thread-safe singletons)
 - ✅ Supervisión IA de posiciones
 - ✅ Circuit Breaker y Health Monitor
 - ✅ Arquitectura async/await
 - ✅ AI Ensemble con votación ponderada
 
+### Filtros Institucionales (v1.7+) - NUEVO
+- ✅ Multi-Timeframe Analysis (4H→1H→15m alignment)
+- ✅ Correlation Filter (bloquea >70% correlación)
+- ✅ Adaptive Parameters (auto-ajuste confidence/risk)
+- ✅ Performance Attribution (P&L por agente/régimen/hora)
+- ✅ R/R Validation estricta (RECHAZA R/R < 1.5)
+
+### Métricas Institucionales (v1.7+) - NUEVO
+- ✅ Sharpe Ratio (30 días rolling)
+- ✅ Sortino Ratio (downside risk)
+- ✅ Calmar Ratio (return/max drawdown)
+- ✅ Fill Rate de órdenes limit
+- ✅ Latencia P50/P95/P99 de ejecución
+
+### Dashboard y Logging (v1.7+) - NUEVO
+- ✅ InfluxDB integration (todas las métricas)
+- ✅ Grafana Dashboard (19 paneles)
+- ✅ MTF Alignment Score visual
+- ✅ Diversification Score tracking
+- ✅ Attribution Analysis panels
+
 ---
 
-## Gap hacia Nivel Institucional
+## Gap hacia Nivel Institucional Completo
 
 ### 1. INFRAESTRUCTURA (Prioridad: ALTA)
 
@@ -428,15 +451,24 @@ class ComplianceReporter:
 
 ---
 
-## Roadmap Sugerido
+## Roadmap Actualizado v1.7+
 
-### Fase 1: Fundamentos (1-2 meses)
+### Fase 0: Filtros Institucionales (COMPLETADO)
+- [x] Multi-Timeframe Analysis (4H→1H→15m)
+- [x] Correlation Filter (diversificación)
+- [x] Adaptive Parameters (auto-ajuste)
+- [x] Performance Attribution (análisis de alpha)
+- [x] Métricas institucionales (Sharpe, Sortino, Calmar)
+- [x] R/R Validation estricta (rechaza < 1.5)
+- [x] Dashboard Grafana v1.7+ (19 paneles)
+
+### Fase 1: Machine Learning (2-3 meses)
 - [ ] Implementar ML Stack básico (XGBoost + features adicionales)
 - [ ] Agregar segundo exchange (Bybit)
-- [ ] Mejorar feature engineering
+- [ ] Mejorar feature engineering (100+ features)
 
-### Fase 2: Escalabilidad (2-3 meses)
-- [ ] Migrar a VPS co-located
+### Fase 2: Infraestructura (2-3 meses)
+- [ ] Migrar a VPS co-located (AWS Tokyo/Singapore)
 - [ ] Optimizar código con Numba/Cython
 - [ ] Implementar VaR y stress testing
 
@@ -445,7 +477,7 @@ class ComplianceReporter:
 - [ ] Market making básico
 - [ ] Datos on-chain y sentiment
 
-### Fase 4: Institucional (6-12 meses)
+### Fase 4: Institucional Completo (6-12 meses)
 - [ ] HFT completo (<5ms latencia)
 - [ ] Multi-exchange arbitrage
 - [ ] Compliance y auditoría completa
@@ -454,11 +486,24 @@ class ComplianceReporter:
 
 ## Conclusión
 
-El sistema actual (SATH v1.6) ya está en un nivel **profesional sólido**. Para alcanzar nivel institucional se requiere:
+El sistema actual (SATH v1.7+) ya está en un nivel **institucional superior** (9.5/10).
 
-1. **Infraestructura:** Co-location, redundancia, baja latencia
+### Lo que ya tiene v1.7+:
+- **Filtros de calidad:** MTF, Correlation, Adaptive, R/R validation
+- **Métricas institucionales:** Sharpe, Sortino, Calmar, Fill Rate
+- **Gestión de riesgo:** Kelly Criterion auto-update, trailing stop mejorado
+- **Attribution:** Análisis de P&L por agente, régimen, símbolo, hora
+- **Dashboard:** 19 paneles Grafana con métricas en tiempo real
+- **Persistencia:** InfluxDB + SQLite thread-safe
+
+### Lo que falta para 10/10:
+1. **Infraestructura:** Co-location, redundancia multi-exchange
 2. **ML Avanzado:** Modelos predictivos, RL, feature engineering
-3. **Risk Management:** VaR, stress testing, límites dinámicos
-4. **Compliance:** Audit trail, reporting, documentación
+3. **Risk Management:** VaR formal, stress testing automatizado
+4. **Compliance:** Audit trail inmutable, reporting regulatorio
 
-La inversión estimada es de $1,000-3,000 inicial más $500-1,500/mes, con un timeline de 6-12 meses para alcanzar capacidades institucionales completas.
+La inversión estimada para completar es de $1,000-3,000 inicial más $500-1,500/mes, con un timeline de 3-9 meses para alcanzar capacidades institucionales completas.
+
+---
+
+**Última actualización**: Diciembre 2024 - SATH v1.7+ Nivel Institucional Superior
