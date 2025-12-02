@@ -20,12 +20,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copiar código
 COPY . .
 
-# Usuario no-root
-RUN useradd -m -u 1000 api && \
-    mkdir -p /app/tenants && \
-    chown -R api:api /app
+# Crear directorio para tenants
+RUN mkdir -p /app/tenants
 
-USER api
+# Nota: Corre como root para acceder al Docker socket
+# En producción, configurar permisos del socket apropiadamente
 
 # Puerto
 EXPOSE 8000
