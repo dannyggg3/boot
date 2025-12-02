@@ -19,6 +19,7 @@ redis==5.0.1
 
 # Docker
 docker==7.0.0
+requests<2.32.0
 
 # Encryption
 cryptography==42.0.0
