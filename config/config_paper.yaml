@@ -15,9 +15,9 @@ ai_model_deep: "deepseek-reasoner"
 # ===== AGENTES ESPECIALIZADOS =====
 ai_agents:
   enabled: true
-  # Volatilidad mínima para operar (AJUSTADO: 0.1% para mercados tranquilos)
-  min_volatility_percent: 0.25
-  min_volume_ratio: 0.3  # Bajado de 0.8 - volumen bajo no invalida señales fuertes
+  # Volatilidad mínima para operar - MÁS SELECTIVO para $100
+  min_volatility_percent: 0.30  # Solo operar cuando hay movimiento significativo
+  min_volume_ratio: 0.4  # Requerir volumen decente para confirmar señales
 
 # ===== SELECCIÓN DE MERCADO =====
 market_type: "crypto"
@@ -58,15 +58,15 @@ trading:
     open_interest: true
     correlations: true
 
-# ===== GESTIÓN DE RIESGO - OPTIMIZADA =====
+# ===== GESTIÓN DE RIESGO - OPTIMIZADA PARA $100 =====
 risk_management:
-  # Con $100, arriesgar 2% = $2 por operación
-  max_risk_per_trade: 2.0
+  # Con $100, arriesgar 1% = $1 por operación (ultra conservador)
+  max_risk_per_trade: 1.0
 
-  # Drawdown máximo diario: 10% = $10
-  max_daily_drawdown: 10.0
+  # Drawdown máximo diario: 5% = $5
+  max_daily_drawdown: 5.0
 
-  min_risk_reward_ratio: 2.0  # R/R de 2:1 para mejor expectativa
+  min_risk_reward_ratio: 1.5  # R/R de 1.5:1 más alcanzable
 
   use_trailing_stop: true
   trailing_stop_percentage: 2.0  # Consistente con trailing_stop config
@@ -76,12 +76,12 @@ risk_management:
 
   leverage: 1 # Sin apalancamiento
 
-  # Kelly Criterion - OPTIMIZADO para rentabilidad
+  # Kelly Criterion - CONSERVADOR para $100
   kelly_criterion:
     enabled: true
-    fraction: 0.25 # 1/4 Kelly (equilibrado)
-    min_confidence: 0.60 # Opera con >60% confianza (trades de calidad)
-    max_risk_cap: 3.0 # Permite escalar hasta 3% en señales fuertes
+    fraction: 0.15 # Fracción baja = más conservador
+    min_confidence: 0.65 # Solo opera con >65% confianza (máxima calidad)
+    max_risk_cap: 1.5 # Máximo 1.5% incluso en señales fuertes
 
   # ===== CONTROL DE COMISIONES Y TAMAÑOS MÍNIMOS =====
   fees:
@@ -128,11 +128,11 @@ position_management:
     enabled: true
     check_interval_ms: 500 # Verificar cada 500ms
 
-  # Trailing Stop inteligente (ajustado para cubrir fees)
+  # Trailing Stop inteligente - CONSERVADOR para $100
   trailing_stop:
     enabled: true
-    activation_profit_percent: 2.0 # Activar después de 2% profit (cubre fees + ganancia)
-    trail_distance_percent: 1.5    # Mantener 1.5% detrás del precio (captura más ganancia)
+    activation_profit_percent: 1.5 # Activar antes (1.5%) para asegurar ganancias pequeñas
+    trail_distance_percent: 1.0    # Trailing más ajustado (1%) para capturar ganancias rápido
 
   # Supervisión IA de posiciones
   supervision:
@@ -145,12 +145,12 @@ position_management:
       - "EXTEND_TP"   # Extender TP si momentum fuerte
     # NO incluye PARTIAL_CLOSE ni FULL_CLOSE (solo ajustes)
 
-  # Límites del portfolio - OPTIMIZADO para $100 (minimizar impacto de fees)
+  # Límites del portfolio - CONSERVADOR para $100
   portfolio:
     max_concurrent_positions: 1    # 1 posición a la vez = mayor tamaño = menos % en fees
-    max_exposure_percent: 50       # Máximo 50% del capital ($50) por posición
-    max_per_symbol_percent: 50     # Máximo 50% en un solo símbolo
-    # Con 1 posición de $50: fees = $0.10 (0.20%), ganancia 4% = $2.00, neto = $1.90
+    max_exposure_percent: 40       # Máximo 40% del capital ($40) por posición
+    max_per_symbol_percent: 40     # Máximo 40% en un solo símbolo
+    # Con 1 posición de $40: fees = $0.08, ganancia 3% = $1.20, neto = $1.12
 
   # Persistencia (SQLite)
   database:
@@ -221,7 +221,7 @@ logging:
 security:
   kill_switch:
     enabled: true
-    max_loss_percentage: 10.0 # $10 de pérdida máxima
+    max_loss_percentage: 5.0 # $5 de pérdida máxima (5% de $100)
     cooldown_period_hours: 24
   api_rate_limit:
     requests_per_minute: 60
