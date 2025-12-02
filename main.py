@@ -555,6 +555,50 @@ class TradingBot:
                     self.institutional_metrics.log_periodic_report("HOURLY", data_logger=self.data_logger)
                     last_metrics_report = time.time()
 
+                    # v1.7+: Registrar estado de adaptive params en InfluxDB
+                    if self.use_adaptive_params and self.adaptive_manager:
+                        params = self.adaptive_manager.get_current_parameters()
+                        metrics = params.get('metrics', {})
+                        self.data_logger.log_adaptive_params(
+                            min_confidence=params.get('min_confidence', 0.65),
+                            max_risk=params.get('max_risk_per_trade', 1.0),
+                            trailing_activation=params.get('trailing_activation', 2.0),
+                            scan_interval=params.get('scan_interval', 180),
+                            win_rate=metrics.get('recent_win_rate', 0.5),
+                            loss_streak=metrics.get('loss_streak', 0),
+                            win_streak=metrics.get('win_streak', 0),
+                            volatility=metrics.get('current_volatility', 'medium')
+                        )
+
+                    # v1.7+: Registrar performance attribution en InfluxDB
+                    if self.use_performance_attribution and self.performance_attributor:
+                        try:
+                            agent_perf = self.performance_attributor.get_agent_performance()
+                            for agent_type, perf in agent_perf.items():
+                                self.data_logger.log_performance_attribution(
+                                    agent_type=agent_type,
+                                    regime='all',
+                                    symbol='ALL',
+                                    trades=perf.get('trades', 0),
+                                    win_rate=perf.get('win_rate', 0),
+                                    total_pnl=perf.get('total_pnl', 0),
+                                    avg_pnl=perf.get('avg_pnl', 0)
+                                )
+
+                            regime_perf = self.performance_attributor.get_regime_performance()
+                            for regime, perf in regime_perf.items():
+                                self.data_logger.log_performance_attribution(
+                                    agent_type='all',
+                                    regime=regime,
+                                    symbol='ALL',
+                                    trades=perf.get('trades', 0),
+                                    win_rate=perf.get('win_rate', 0),
+                                    total_pnl=perf.get('total_pnl', 0),
+                                    avg_pnl=perf.get('avg_pnl', 0)
+                                )
+                        except Exception as e:
+                            logger.debug(f"Error registrando attribution: {e}")
+
                 # v1.6: Monitoreo de posiciones abiertas y control de capacidad
                 if self.position_engine:
                     positions = self.position_engine.store.get_open_positions()
@@ -672,12 +716,37 @@ class TradingBot:
         technical_data['symbol'] = symbol
         technical_data['market_type'] = self.market_engine.market_type
 
+        # 2.4 v1.7+: Actualizar volatilidad en Adaptive Manager
+        if self.use_adaptive_params and self.adaptive_manager:
+            volatility_level = technical_data.get('volatility_level', 'medium')
+            self.adaptive_manager.update_market_volatility(volatility_level)
+
         # 2.5 v1.7+: FILTRO DE CORRELACIÓN
         # Verificar ANTES de gastar tokens en IA si la correlación permite operar
         if self.use_correlation_filter and self.correlation_filter and self.position_engine:
             try:
                 open_positions = self.position_engine.store.get_open_positions()
                 correlation_check = self.correlation_filter.can_open_position(symbol, open_positions)
+
+                # Calcular diversification score
+                diversification = self.correlation_filter.get_diversification_score(open_positions)
+
+                # Registrar en InfluxDB para análisis
+                blocking_symbol = ""
+                max_corr = 0.0
+                if not correlation_check['allowed']:
+                    blocking_positions = correlation_check.get('blocking_positions', [])
+                    if blocking_positions:
+                        blocking_symbol = blocking_positions[0].get('symbol', '')
+                        max_corr = correlation_check.get('max_correlation_found', 0)
+
+                self.data_logger.log_correlation_check(
+                    symbol=symbol,
+                    blocked=not correlation_check['allowed'],
+                    blocking_symbol=blocking_symbol,
+                    correlation=max_corr,
+                    diversification_score=diversification.get('score', 1.0)
+                )
 
                 if not correlation_check['allowed']:
                     logger.info(f"{tag} 🔗 FILTRO CORRELACIÓN: {correlation_check['reason']}")
@@ -708,6 +777,20 @@ class TradingBot:
                         market_data_higher=data_higher,
                         market_data_medium=data_medium,
                         market_data_lower=technical_data
+                    )
+
+                    # Registrar MTF en InfluxDB para análisis
+                    details = mtf_result.get('details', {})
+                    self.data_logger.log_mtf_analysis(
+                        symbol=symbol,
+                        higher_tf=self.mtf_analyzer.higher_tf,
+                        higher_direction=details.get('higher', {}).get('direction', 'neutral'),
+                        medium_tf=self.mtf_analyzer.medium_tf,
+                        medium_direction=details.get('medium', {}).get('direction', 'neutral'),
+                        lower_tf=self.mtf_analyzer.lower_tf,
+                        lower_direction=details.get('lower', {}).get('direction', 'neutral'),
+                        alignment_score=mtf_result.get('alignment_score', 0),
+                        signal=mtf_result['signal']
                     )
 
                     if mtf_result['signal'] == 'ESPERA':

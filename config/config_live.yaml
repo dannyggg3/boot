@@ -237,3 +237,49 @@ security:
   api_rate_limit:
     requests_per_minute: 60
     wait_on_limit: true
+
+# ===== v1.7+: MULTI-TIMEFRAME ANALYSIS =====
+# CRÍTICO en LIVE: Solo opera cuando múltiples timeframes están alineados
+# Esto reduce falsos positivos y mejora win rate significativamente
+multi_timeframe:
+  enabled: true
+  higher_timeframe: "4h"   # Tendencia macro - dirección principal
+  medium_timeframe: "1h"   # Confirmación de tendencia
+  lower_timeframe: "15m"   # Timing de entrada
+  min_alignment_score: 0.70  # 70% mínimo de alineación para operar
+  weights:
+    higher: 0.50  # 50% peso del TF mayor (más importante)
+    medium: 0.30  # 30% peso del TF medio
+    lower: 0.20   # 20% peso del TF menor
+
+# ===== v1.7+: FILTRO DE CORRELACIÓN =====
+# CRÍTICO en LIVE: Evita sobreexposición a activos correlacionados
+# Si tienes BTC LONG y quieres ETH LONG, es casi como duplicar la posición
+correlation_filter:
+  enabled: true
+  max_correlation: 0.70  # No abrir si correlación > 70% con posición existente
+  # Correlaciones históricas conocidas (se actualizan dinámicamente)
+  correlations:
+    "BTC/USDT,ETH/USDT": 0.85
+    "BTC/USDT,SOL/USDT": 0.78
+    "ETH/USDT,SOL/USDT": 0.82
+
+# ===== v1.7+: PARÁMETROS ADAPTATIVOS =====
+# El bot ajusta automáticamente sus parámetros basado en rendimiento
+# Más conservador después de pérdidas, más agresivo después de ganancias consistentes
+adaptive_parameters:
+  enabled: true
+  lookback_trades: 20      # Número de trades para calcular métricas
+  sensitivity: 0.20        # 0.1=muy conservador, 0.5=agresivo (LIVE más conservador)
+  # Rangos de ajuste permitidos
+  ranges:
+    min_confidence: { min: 0.55, max: 0.80 }  # Confianza mínima
+    max_risk_per_trade: { min: 0.5, max: 1.5 }  # Riesgo máximo (más bajo en LIVE)
+    trailing_activation: { min: 1.5, max: 4.0 }  # Activación de trailing
+
+# ===== v1.7+: PERFORMANCE ATTRIBUTION =====
+# Analiza qué genera más alpha: qué agente, qué régimen, qué hora del día
+# Permite optimización continua y data-driven decisions
+performance_attribution:
+  enabled: true
+  log_interval_hours: 24   # Generar reporte cada 24h
