@@ -602,7 +602,7 @@ class TradingBot:
                 balances = self.market_engine.get_balance()
 
                 if decision == 'VENTA':
-                    # Para VENTA: usar balance del activo
+                    # Para VENTA: usar balance del activo LIMITADO al capital configurado
                     base_asset = symbol.split('/')[0]
                     asset_balance = balances.get(base_asset, 0)
                     asset_value_usd = asset_balance * current_price
@@ -612,11 +612,26 @@ class TradingBot:
                         logger.info(f"{tag} 💡 En modo SPOT solo puedes vender activos que posees")
                         return
                     else:
-                        logger.info(f"{tag} 💰 Balance {base_asset}: {asset_balance:.6f} (${asset_value_usd:.2f}) - Venta permitida")
-                        available_balance = asset_balance  # v1.5: Balance en unidades del activo
+                        # v1.6: Limitar VENTA al capital configurado
+                        initial_capital = self.risk_manager.initial_capital
+                        max_exposure = self.config.get('position_management', {}).get('portfolio', {}).get('max_exposure_percent', 50) / 100
+
+                        # Máximo USD a vender = capital * max_exposure
+                        max_sell_usd = initial_capital * max_exposure
+                        # Convertir a unidades del activo
+                        max_sell_units = max_sell_usd / current_price
+
+                        # Usar el menor entre: balance disponible y límite de capital
+                        limited_balance = min(asset_balance, max_sell_units)
+                        limited_value_usd = limited_balance * current_price
+
+                        logger.info(f"{tag} 💰 Balance {base_asset}: {asset_balance:.6f} (${asset_value_usd:.2f})")
+                        logger.info(f"{tag} 💵 Capital límite: ${initial_capital} x {max_exposure*100:.0f}% = ${max_sell_usd:.2f}")
+                        logger.info(f"{tag} 📊 Venta máxima permitida: {limited_balance:.6f} {base_asset} (${limited_value_usd:.2f})")
+                        available_balance = limited_balance  # v1.6: Balance limitado al capital
 
                 elif decision == 'COMPRA':
-                    # Para COMPRA: usar balance de USDT
+                    # Para COMPRA: usar balance de USDT LIMITADO al capital configurado
                     quote_asset = symbol.split('/')[1]  # USDT
                     usdt_balance = balances.get(quote_asset, 0)
 
@@ -624,8 +639,20 @@ class TradingBot:
                         logger.info(f"{tag} ⏭️ COMPRA ignorada - Balance {quote_asset} insuficiente: ${usdt_balance:.2f}")
                         return
                     else:
-                        logger.info(f"{tag} 💵 Balance {quote_asset}: ${usdt_balance:.2f} - Compra permitida")
-                        available_balance = usdt_balance  # v1.5: Balance en USDT
+                        # v1.6: Limitar COMPRA al capital configurado
+                        initial_capital = self.risk_manager.initial_capital
+                        max_exposure = self.config.get('position_management', {}).get('portfolio', {}).get('max_exposure_percent', 50) / 100
+
+                        # Máximo USD a comprar = capital * max_exposure
+                        max_buy_usd = initial_capital * max_exposure
+
+                        # Usar el menor entre: balance disponible y límite de capital
+                        limited_balance = min(usdt_balance, max_buy_usd)
+
+                        logger.info(f"{tag} 💵 Balance {quote_asset}: ${usdt_balance:.2f}")
+                        logger.info(f"{tag} 💰 Capital límite: ${initial_capital} x {max_exposure*100:.0f}% = ${max_buy_usd:.2f}")
+                        logger.info(f"{tag} 📊 Compra máxima permitida: ${limited_balance:.2f}")
+                        available_balance = limited_balance  # v1.6: Balance limitado al capital
 
             except Exception as e:
                 logger.warning(f"{tag} ⚠️ No se pudo verificar balance: {e}")
@@ -662,6 +689,11 @@ class TradingBot:
 
         if not risk_validation['approved']:
             logger.warning(f"{tag} ❌ RECHAZADO por Risk Manager: {risk_validation.get('reason', 'N/A')}")
+            return
+
+        # 5.5 v1.6: Verificar límite de posiciones ANTES de ejecutar
+        if self.position_engine and not self.position_engine.can_open_position(symbol):
+            logger.warning(f"{tag} ⏭️ Límite de posiciones alcanzado - Orden no ejecutada")
             return
 
         # 6. Ejecutar operación

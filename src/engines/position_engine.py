@@ -128,7 +128,7 @@ class PositionEngine:
                 side = side.value  # Si es enum PositionSide
 
             # Verificar límites de portfolio
-            if not self._can_open_position(symbol):
+            if not self.can_open_position(symbol):
                 logger.warning(f"No se puede abrir posición: límites de portfolio alcanzados")
                 return None
 
@@ -526,8 +526,17 @@ class PositionEngine:
     # PORTFOLIO MANAGEMENT
     # =========================================================================
 
-    def _can_open_position(self, symbol: str) -> bool:
-        """Verifica si se puede abrir una nueva posición."""
+    def can_open_position(self, symbol: str) -> bool:
+        """
+        Verifica si se puede abrir una nueva posición.
+        Método público para verificar ANTES de ejecutar órdenes.
+
+        Args:
+            symbol: Símbolo a verificar
+
+        Returns:
+            True si se puede abrir, False si no
+        """
         open_positions = self.store.get_open_positions()
 
         # Verificar límite de posiciones

@@ -348,7 +348,7 @@ Revisa tu cuenta inmediatamente.
 <b>Entrada:</b> ${entry_price:,.2f}
 <b>Salida:</b> ${exit_price:,.2f}
 
-<b>PnL:</b> ${pnl:+,.2f} ({pnl_percent:+.2f}%)
+💸 <b>PÉRDIDA:</b> ${abs(pnl):,.2f} ({pnl_percent:+.2f}%)
 
 ⚠️ Posición cerrada por protección de pérdida máxima
 
@@ -376,7 +376,7 @@ Revisa tu cuenta inmediatamente.
 <b>Entrada:</b> ${entry_price:,.2f}
 <b>Salida:</b> ${exit_price:,.2f}
 
-<b>💰 PnL:</b> ${pnl:+,.2f} ({pnl_percent:+.2f}%)
+💰 <b>GANANCIA:</b> ${abs(pnl):,.2f} (+{pnl_percent:.2f}%)
 
 ✅ Objetivo de ganancia alcanzado
 
