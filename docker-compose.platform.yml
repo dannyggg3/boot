@@ -91,6 +91,7 @@ services:
     container_name: platform_api
     restart: always
     environment:
+      TZ: America/Guayaquil
       DATABASE_URL: postgresql://${POSTGRES_USER:-sath}:${POSTGRES_PASSWORD}@postgres:5432/sath_platform
       REDIS_URL: redis://:${REDIS_PASSWORD:-sath_redis_2024}@redis:6379
       JWT_SECRET: ${JWT_SECRET}
