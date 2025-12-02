@@ -536,6 +536,179 @@ class DataLogger:
         logger.info(f"Consulta por condición: {condition_field} = {condition_value}")
         return []
 
+    # ==================== MÉTRICAS v1.7+ INSTITUCIONAL SUPERIOR ====================
+
+    def log_mtf_analysis(
+        self,
+        symbol: str,
+        higher_tf: str,
+        higher_direction: str,
+        medium_tf: str,
+        medium_direction: str,
+        lower_tf: str,
+        lower_direction: str,
+        alignment_score: float,
+        signal: str
+    ):
+        """
+        Registra análisis Multi-Timeframe.
+
+        Args:
+            symbol: Par de trading
+            higher_tf: Timeframe superior (ej: 4h)
+            higher_direction: Dirección del TF superior
+            medium_tf: Timeframe medio (ej: 1h)
+            medium_direction: Dirección del TF medio
+            lower_tf: Timeframe inferior (ej: 15m)
+            lower_direction: Dirección del TF inferior
+            alignment_score: Score de alineación (0-1)
+            signal: Señal resultante (COMPRA, VENTA, ESPERA)
+        """
+        if not self.enabled or not self.write_api:
+            return
+
+        try:
+            point = Point("mtf_analysis") \
+                .tag("symbol", symbol) \
+                .tag("signal", signal) \
+                .tag("higher_direction", higher_direction) \
+                .tag("medium_direction", medium_direction) \
+                .tag("lower_direction", lower_direction) \
+                .field("alignment_score", float(alignment_score)) \
+                .field("higher_tf", higher_tf) \
+                .field("medium_tf", medium_tf) \
+                .field("lower_tf", lower_tf) \
+                .time(datetime.utcnow(), WritePrecision.NS)
+
+            self.write_api.write(bucket=self.bucket, org=self.org, record=point)
+            logger.debug(f"MTF analysis logged: {symbol} alignment={alignment_score:.0%}")
+
+        except Exception as e:
+            logger.error(f"Error guardando MTF analysis: {e}")
+
+    def log_correlation_check(
+        self,
+        symbol: str,
+        blocked: bool,
+        blocking_symbol: str = "",
+        correlation: float = 0.0,
+        diversification_score: float = 1.0
+    ):
+        """
+        Registra verificación de correlación.
+
+        Args:
+            symbol: Par que intentó abrir
+            blocked: Si fue bloqueado por correlación
+            blocking_symbol: Símbolo que causó el bloqueo
+            correlation: Correlación encontrada
+            diversification_score: Score de diversificación actual
+        """
+        if not self.enabled or not self.write_api:
+            return
+
+        try:
+            point = Point("correlation_check") \
+                .tag("symbol", symbol) \
+                .tag("blocked", str(blocked)) \
+                .tag("blocking_symbol", blocking_symbol or "none") \
+                .field("correlation", float(correlation)) \
+                .field("diversification_score", float(diversification_score)) \
+                .time(datetime.utcnow(), WritePrecision.NS)
+
+            self.write_api.write(bucket=self.bucket, org=self.org, record=point)
+            logger.debug(f"Correlation check logged: {symbol} blocked={blocked}")
+
+        except Exception as e:
+            logger.error(f"Error guardando correlation check: {e}")
+
+    def log_adaptive_params(
+        self,
+        min_confidence: float,
+        max_risk: float,
+        trailing_activation: float,
+        scan_interval: int,
+        win_rate: float,
+        loss_streak: int,
+        win_streak: int,
+        volatility: str
+    ):
+        """
+        Registra estado de parámetros adaptativos.
+
+        Args:
+            min_confidence: Confianza mínima actual
+            max_risk: Riesgo máximo actual
+            trailing_activation: Activación de trailing actual
+            scan_interval: Intervalo de escaneo actual
+            win_rate: Win rate reciente
+            loss_streak: Racha de pérdidas actual
+            win_streak: Racha de ganancias actual
+            volatility: Nivel de volatilidad actual
+        """
+        if not self.enabled or not self.write_api:
+            return
+
+        try:
+            point = Point("adaptive_params") \
+                .tag("volatility", volatility) \
+                .field("min_confidence", float(min_confidence)) \
+                .field("max_risk", float(max_risk)) \
+                .field("trailing_activation", float(trailing_activation)) \
+                .field("scan_interval", int(scan_interval)) \
+                .field("win_rate", float(win_rate)) \
+                .field("loss_streak", int(loss_streak)) \
+                .field("win_streak", int(win_streak)) \
+                .time(datetime.utcnow(), WritePrecision.NS)
+
+            self.write_api.write(bucket=self.bucket, org=self.org, record=point)
+            logger.debug(f"Adaptive params logged: conf={min_confidence:.2f} risk={max_risk:.2f}")
+
+        except Exception as e:
+            logger.error(f"Error guardando adaptive params: {e}")
+
+    def log_performance_attribution(
+        self,
+        agent_type: str,
+        regime: str,
+        symbol: str,
+        trades: int,
+        win_rate: float,
+        total_pnl: float,
+        avg_pnl: float
+    ):
+        """
+        Registra atribución de rendimiento.
+
+        Args:
+            agent_type: Tipo de agente
+            regime: Régimen de mercado
+            symbol: Símbolo
+            trades: Número de trades
+            win_rate: Win rate
+            total_pnl: P&L total
+            avg_pnl: P&L promedio
+        """
+        if not self.enabled or not self.write_api:
+            return
+
+        try:
+            point = Point("performance_attribution") \
+                .tag("agent_type", agent_type) \
+                .tag("regime", regime) \
+                .tag("symbol", symbol) \
+                .field("trades", int(trades)) \
+                .field("win_rate", float(win_rate)) \
+                .field("total_pnl", float(total_pnl)) \
+                .field("avg_pnl", float(avg_pnl)) \
+                .time(datetime.utcnow(), WritePrecision.NS)
+
+            self.write_api.write(bucket=self.bucket, org=self.org, record=point)
+            logger.debug(f"Attribution logged: {agent_type}/{regime}/{symbol}")
+
+        except Exception as e:
+            logger.error(f"Error guardando attribution: {e}")
+
     def close(self):
         """Cierra la conexión con InfluxDB."""
         if self.client:

@@ -917,6 +917,20 @@ class PositionEngine:
             # Esto es ESENCIAL para que el position sizing mejore con el tiempo
             self._update_risk_manager_history(pnl)
 
+            # v1.7+: Registrar en Performance Attribution
+            self._record_performance_attribution(
+                position=position,
+                pnl=pnl,
+                pnl_pct=pnl_pct,
+                hold_time_minutes=int(hold_time_minutes),
+                exit_reason=exit_reason,
+                regime=regime,
+                agent_type=agent_type
+            )
+
+            # v1.7+: Actualizar Adaptive Parameters
+            self._update_adaptive_params(pnl, pnl_pct, regime)
+
         except Exception as e:
             logger.error(f"Error registrando métricas institucionales: {e}")
 
@@ -964,6 +978,71 @@ class PositionEngine:
 
         except Exception as e:
             logger.debug(f"No se pudo actualizar historial de Kelly: {e}")
+
+    def _record_performance_attribution(
+        self,
+        position: Dict,
+        pnl: float,
+        pnl_pct: float,
+        hold_time_minutes: int,
+        exit_reason: str,
+        regime: str,
+        agent_type: str
+    ):
+        """
+        v1.7+: Registra trade en Performance Attribution para análisis.
+
+        Permite saber qué agente/régimen/hora genera más alpha.
+        """
+        try:
+            from modules.performance_attribution import get_performance_attributor
+            attributor = get_performance_attributor()
+
+            if attributor:
+                attributor.record_trade(
+                    symbol=position['symbol'],
+                    side=position['side'],
+                    pnl=pnl,
+                    pnl_percent=pnl_pct,
+                    agent_type=agent_type,
+                    regime=regime,
+                    hold_time_minutes=hold_time_minutes,
+                    exit_reason=exit_reason
+                )
+                logger.debug(f"📊 Performance attribution registrado para {position['symbol']}")
+
+        except ImportError:
+            pass  # Módulo no disponible
+        except Exception as e:
+            logger.debug(f"No se pudo registrar attribution: {e}")
+
+    def _update_adaptive_params(self, pnl: float, pnl_pct: float, regime: str):
+        """
+        v1.7+: Actualiza los parámetros adaptativos con el resultado del trade.
+
+        Esto permite que el bot ajuste automáticamente:
+        - min_confidence (más selectivo después de pérdidas)
+        - max_risk (reduce después de rachas perdedoras)
+        - trailing_activation (según volatilidad)
+        """
+        try:
+            from modules.adaptive_parameters import get_adaptive_manager
+            manager = get_adaptive_manager()
+
+            if manager:
+                manager.record_trade_result(
+                    symbol="",  # Ya no es necesario el símbolo específico
+                    pnl=pnl,
+                    pnl_percent=pnl_pct,
+                    hold_time_minutes=0,  # Ya registrado en otra llamada
+                    regime=regime
+                )
+                logger.debug(f"📈 Adaptive parameters actualizados")
+
+        except ImportError:
+            pass  # Módulo no disponible
+        except Exception as e:
+            logger.debug(f"No se pudieron actualizar params adaptativos: {e}")
 
     def _notify_position_closed(
         self,

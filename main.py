@@ -6,7 +6,16 @@ Bot de trading profesional que combina análisis técnico cuantitativo
 con razonamiento de IA para trading autónomo en crypto y mercados tradicionales.
 
 Autor: Trading Bot System
-Versión: 1.6
+Versión: 1.7+
+
+Changelog v1.7+ (Nivel Institucional Superior):
+- Multi-Timeframe Analysis (4H → 1H → 15m) - Solo opera con TF alineados
+- Correlation Filter - Evita sobreexposición a activos correlacionados
+- Adaptive Parameters - Auto-ajuste de confianza/riesgo según rendimiento
+- Performance Attribution - Análisis de qué agente/régimen genera más alpha
+- Métricas institucionales completas en Grafana/InfluxDB
+- Kelly Criterion se actualiza automáticamente al cerrar posiciones
+- R/R < 1.5 ahora RECHAZA trades (antes solo warning)
 
 Changelog v1.6:
 - Circuit Breaker para protección contra fallos en cascada
@@ -101,6 +110,43 @@ except ImportError as e:
     get_institutional_metrics = None
     InstitutionalMetrics = None
     print(f"Warning: Institutional metrics not available: {e}")
+
+# v1.7+: Módulos de nivel institucional superior
+try:
+    from modules.multi_timeframe import MTFAnalyzer, get_mtf_analyzer
+    MTF_AVAILABLE = True
+except ImportError as e:
+    MTF_AVAILABLE = False
+    MTFAnalyzer = None
+    get_mtf_analyzer = None
+    print(f"Warning: Multi-timeframe analysis not available: {e}")
+
+try:
+    from modules.correlation_filter import CorrelationFilter, get_correlation_filter
+    CORRELATION_FILTER_AVAILABLE = True
+except ImportError as e:
+    CORRELATION_FILTER_AVAILABLE = False
+    CorrelationFilter = None
+    get_correlation_filter = None
+    print(f"Warning: Correlation filter not available: {e}")
+
+try:
+    from modules.adaptive_parameters import AdaptiveParameterManager, get_adaptive_manager
+    ADAPTIVE_PARAMS_AVAILABLE = True
+except ImportError as e:
+    ADAPTIVE_PARAMS_AVAILABLE = False
+    AdaptiveParameterManager = None
+    get_adaptive_manager = None
+    print(f"Warning: Adaptive parameters not available: {e}")
+
+try:
+    from modules.performance_attribution import PerformanceAttributor, get_performance_attributor
+    PERFORMANCE_ATTRIBUTION_AVAILABLE = True
+except ImportError as e:
+    PERFORMANCE_ATTRIBUTION_AVAILABLE = False
+    PerformanceAttributor = None
+    get_performance_attributor = None
+    print(f"Warning: Performance attribution not available: {e}")
 
 
 class TradingBot:
@@ -268,6 +314,54 @@ class TradingBot:
                     logger.info(f"  - Liquidity Validation: {'ON' if self.use_liquidity_validation else 'OFF'}")
                 except Exception as e:
                     logger.warning(f"No se pudieron inicializar métricas institucionales: {e}")
+
+            # v1.7+: Módulos de nivel institucional superior
+            self.mtf_analyzer = None
+            self.correlation_filter = None
+            self.adaptive_manager = None
+            self.performance_attributor = None
+
+            # Multi-Timeframe Analysis
+            self.use_mtf = self.config.get('multi_timeframe', {}).get('enabled', False)
+            if self.use_mtf and MTF_AVAILABLE:
+                try:
+                    self.mtf_analyzer = MTFAnalyzer(self.config)
+                    logger.info("v1.7+ Multi-Timeframe Analysis: ACTIVO")
+                    logger.info(f"  - Timeframes: {self.mtf_analyzer.higher_tf} → {self.mtf_analyzer.medium_tf} → {self.mtf_analyzer.lower_tf}")
+                except Exception as e:
+                    logger.warning(f"No se pudo inicializar MTF: {e}")
+                    self.use_mtf = False
+
+            # Correlation Filter
+            self.use_correlation_filter = self.config.get('correlation_filter', {}).get('enabled', False)
+            if self.use_correlation_filter and CORRELATION_FILTER_AVAILABLE:
+                try:
+                    self.correlation_filter = CorrelationFilter(self.config)
+                    logger.info("v1.7+ Correlation Filter: ACTIVO")
+                    logger.info(f"  - Max correlation: {self.correlation_filter.max_correlation:.0%}")
+                except Exception as e:
+                    logger.warning(f"No se pudo inicializar filtro de correlación: {e}")
+                    self.use_correlation_filter = False
+
+            # Adaptive Parameters
+            self.use_adaptive_params = self.config.get('adaptive_parameters', {}).get('enabled', False)
+            if self.use_adaptive_params and ADAPTIVE_PARAMS_AVAILABLE:
+                try:
+                    self.adaptive_manager = AdaptiveParameterManager(self.config)
+                    logger.info("v1.7+ Adaptive Parameters: ACTIVO")
+                except Exception as e:
+                    logger.warning(f"No se pudieron inicializar parámetros adaptativos: {e}")
+                    self.use_adaptive_params = False
+
+            # Performance Attribution
+            self.use_performance_attribution = self.config.get('performance_attribution', {}).get('enabled', True)
+            if self.use_performance_attribution and PERFORMANCE_ATTRIBUTION_AVAILABLE:
+                try:
+                    self.performance_attributor = PerformanceAttributor(self.config)
+                    logger.info("v1.7+ Performance Attribution: ACTIVO")
+                except Exception as e:
+                    logger.warning(f"No se pudo inicializar atribución de rendimiento: {e}")
+                    self.use_performance_attribution = False
 
             self.symbols = self.config['trading']['symbols']
             self.scan_interval = self.config['trading']['scan_interval']
@@ -578,7 +672,59 @@ class TradingBot:
         technical_data['symbol'] = symbol
         technical_data['market_type'] = self.market_engine.market_type
 
-        # 2.5 Obtener datos avanzados (Order Book, Funding Rate, etc.)
+        # 2.5 v1.7+: FILTRO DE CORRELACIÓN
+        # Verificar ANTES de gastar tokens en IA si la correlación permite operar
+        if self.use_correlation_filter and self.correlation_filter and self.position_engine:
+            try:
+                open_positions = self.position_engine.store.get_open_positions()
+                correlation_check = self.correlation_filter.can_open_position(symbol, open_positions)
+
+                if not correlation_check['allowed']:
+                    logger.info(f"{tag} 🔗 FILTRO CORRELACIÓN: {correlation_check['reason']}")
+                    logger.info(f"{tag} ⏭️ Saltando análisis para evitar sobreexposición correlacionada")
+                    return
+            except Exception as e:
+                logger.debug(f"{tag} Error verificando correlación: {e}")
+
+        # 2.6 v1.7+: MULTI-TIMEFRAME ANALYSIS
+        # Solo operar si múltiples timeframes están alineados
+        if self.use_mtf and self.mtf_analyzer:
+            try:
+                # Obtener datos de múltiples timeframes
+                higher_tf = self.mtf_analyzer.higher_tf
+                medium_tf = self.mtf_analyzer.medium_tf
+
+                # Obtener OHLCV de timeframes superiores
+                ohlcv_higher = self.market_engine.get_historical_data(symbol, timeframe=higher_tf, limit=250)
+                ohlcv_medium = self.market_engine.get_historical_data(symbol, timeframe=medium_tf, limit=250)
+
+                if ohlcv_higher and ohlcv_medium:
+                    # Calcular indicadores para cada timeframe
+                    data_higher = self.technical_analyzer.analyze(ohlcv_higher)
+                    data_medium = self.technical_analyzer.analyze(ohlcv_medium)
+
+                    # Verificar alineación
+                    mtf_result = self.mtf_analyzer.get_mtf_filter_result(
+                        market_data_higher=data_higher,
+                        market_data_medium=data_medium,
+                        market_data_lower=technical_data
+                    )
+
+                    if mtf_result['signal'] == 'ESPERA':
+                        logger.info(f"{tag} 📊 MTF NO ALINEADO: {mtf_result['reason']}")
+                        logger.info(f"{tag} ⏭️ Saltando - Solo operar cuando TF están alineados")
+                        return
+
+                    # Agregar boost de confianza si hay alineación
+                    confidence_boost = mtf_result.get('confidence_boost', 0)
+                    if confidence_boost > 0:
+                        technical_data['mtf_confidence_boost'] = confidence_boost
+                        logger.info(f"{tag} ✅ MTF ALINEADO ({mtf_result['alignment_score']:.0%}) - Boost: +{confidence_boost:.0%}")
+
+            except Exception as e:
+                logger.debug(f"{tag} Error en análisis MTF: {e}")
+
+        # 2.7 Obtener datos avanzados (Order Book, Funding Rate, etc.)
         advanced_data = None
         if self.use_advanced_data:
             # v1.3: Usar datos de WebSocket si están disponibles
@@ -629,6 +775,20 @@ class TradingBot:
         confidence = ai_decision.get('confidence', 0.0)
         reasoning = ai_decision.get('razonamiento', 'N/A')
         analysis_type = ai_decision.get('analysis_type', 'standard')
+
+        # v1.7+: Aplicar boost de confianza de MTF si está disponible
+        mtf_boost = technical_data.get('mtf_confidence_boost', 0)
+        if mtf_boost > 0:
+            original_confidence = confidence
+            confidence = min(1.0, confidence + mtf_boost)
+            logger.info(f"{tag} 📊 Confianza ajustada: {original_confidence:.2f} + {mtf_boost:.2f} = {confidence:.2f}")
+
+        # v1.7+: Verificar confianza mínima adaptativa
+        if self.use_adaptive_params and self.adaptive_manager:
+            min_confidence = self.adaptive_manager.get_adjusted_confidence()
+            if confidence < min_confidence:
+                logger.info(f"{tag} ⏭️ Confianza {confidence:.2f} < mínima adaptativa {min_confidence:.2f}")
+                return
 
         logger.info(f"{tag} 📋 Decisión: {decision} (Confianza: {confidence:.2f})")
         logger.info(f"{tag} 📝 Razonamiento: {reasoning}")
@@ -1220,10 +1380,12 @@ def main():
     print(f"""
     ╔═══════════════════════════════════════════════════════════════╗
     ║                                                               ║
-    ║     Sistema Autónomo de Trading Híbrido (SATH) v1.6         ║
+    ║     Sistema Autónomo de Trading Híbrido (SATH) v1.7+        ║
+    ║           NIVEL INSTITUCIONAL SUPERIOR                       ║
     ║                                                               ║
-    ║     Trading profesional con IA + Análisis Técnico            ║
-    ║     Circuit Breaker + Health Monitor + AI Ensemble           ║
+    ║     ✓ Multi-Timeframe (4H→1H→15m)  ✓ Correlation Filter     ║
+    ║     ✓ Adaptive Parameters          ✓ Performance Attribution ║
+    ║     ✓ Kelly Criterion Dinámico     ✓ R/R Validation         ║
     ║                                                               ║
     ║     MODO: {mode:^50}║
     ║     Config: {config_path:<47}║
