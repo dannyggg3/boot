@@ -767,10 +767,23 @@ class TradingBot:
                 ohlcv_higher = self.market_engine.get_historical_data(symbol, timeframe=higher_tf, limit=250)
                 ohlcv_medium = self.market_engine.get_historical_data(symbol, timeframe=medium_tf, limit=250)
 
+                # Debug: mostrar cuántas velas se obtuvieron (solo en primer análisis o si hay problema)
+                candles_higher = len(ohlcv_higher) if ohlcv_higher else 0
+                candles_medium = len(ohlcv_medium) if ohlcv_medium else 0
+
+                if candles_higher < 50 or candles_medium < 50:
+                    logger.warning(f"{tag} ⚠️ Velas insuficientes: {higher_tf}={candles_higher}, {medium_tf}={candles_medium}")
+
                 if ohlcv_higher and ohlcv_medium:
                     # Calcular indicadores para cada timeframe
                     data_higher = self.technical_analyzer.analyze(ohlcv_higher)
                     data_medium = self.technical_analyzer.analyze(ohlcv_medium)
+
+                    # Verificar si el análisis técnico tuvo éxito
+                    if not data_higher or not data_medium:
+                        logger.warning(f"{tag} ⚠️ Análisis técnico falló para MTF (data vacía)")
+                        logger.debug(f"   {higher_tf}: {candles_higher} velas → {'OK' if data_higher else 'VACÍO'}")
+                        logger.debug(f"   {medium_tf}: {candles_medium} velas → {'OK' if data_medium else 'VACÍO'}")
 
                     # Verificar alineación
                     mtf_result = self.mtf_analyzer.get_mtf_filter_result(

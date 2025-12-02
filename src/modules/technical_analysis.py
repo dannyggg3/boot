@@ -41,7 +41,14 @@ class TechnicalAnalyzer:
         """
         self.config = config
         self.indicators_config = config.get('technical_analysis', {}).get('indicators', {})
-        logger.info("Technical Analyzer inicializado")
+
+        # Modo de operación determina requerimientos mínimos
+        self.mode = config.get('trading', {}).get('mode', 'paper')
+
+        # Mínimo de velas: 50 para paper/testnet, 200 para live
+        self.min_candles = 50 if self.mode == 'paper' else 200
+
+        logger.info(f"Technical Analyzer inicializado (mode={self.mode}, min_candles={self.min_candles})")
 
     def analyze(self, ohlcv_data: List[List]) -> Dict[str, Any]:
         """
@@ -53,9 +60,14 @@ class TechnicalAnalyzer:
         Returns:
             Diccionario con todos los indicadores calculados
         """
-        if not ohlcv_data or len(ohlcv_data) < 200:
-            logger.warning("Datos insuficientes para análisis técnico")
+        candle_count = len(ohlcv_data) if ohlcv_data else 0
+
+        if candle_count < self.min_candles:
+            logger.warning(f"Datos insuficientes: {candle_count} velas (mínimo: {self.min_candles})")
             return {}
+
+        # Ajustar períodos de EMA según datos disponibles
+        self._adjust_ema_periods(candle_count)
 
         try:
             # Convertir a DataFrame
@@ -182,6 +194,26 @@ class TechnicalAnalyzer:
             'rsi_status': status
         }
 
+    def _adjust_ema_periods(self, candle_count: int) -> None:
+        """
+        Ajusta los períodos de EMA según la cantidad de datos disponibles.
+        Esto permite funcionar en testnet/paper con datos limitados.
+
+        Args:
+            candle_count: Número de velas disponibles
+        """
+        # Períodos adaptativos basados en datos disponibles
+        if candle_count >= 200:
+            self._ema_short = 50
+            self._ema_long = 200
+        elif candle_count >= 100:
+            self._ema_short = 20
+            self._ema_long = 100
+        else:
+            # Mínimo para funcionar con ~50 velas
+            self._ema_short = 12
+            self._ema_long = 26
+
     def _calculate_ema(self, df: pd.DataFrame) -> Dict[str, Any]:
         """
         Calcula las EMAs (Exponential Moving Averages).
@@ -192,9 +224,9 @@ class TechnicalAnalyzer:
         Returns:
             Diccionario con valores de EMA
         """
-        config = self.indicators_config.get('ema', {})
-        short_period = config.get('short_period', 50)
-        long_period = config.get('long_period', 200)
+        # Usar períodos ajustados si existen, sino usar config
+        short_period = getattr(self, '_ema_short', self.indicators_config.get('ema', {}).get('short_period', 50))
+        long_period = getattr(self, '_ema_long', self.indicators_config.get('ema', {}).get('long_period', 200))
 
         if TA_LIBRARY == "pandas_ta":
             ema_short = ta.ema(df['close'], length=short_period)

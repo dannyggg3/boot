@@ -45,6 +45,7 @@ class AdaptiveState:
     # Timestamps
     last_update: str = ""
     last_trade_result: str = ""  # "win" or "loss"
+    last_volatility_change: str = ""  # Timestamp del último cambio de volatilidad
 
 
 class AdaptiveParameterManager:
@@ -161,16 +162,34 @@ class AdaptiveParameterManager:
 
     def update_market_volatility(self, volatility_level: str):
         """
-        Actualiza la volatilidad actual del mercado.
+        Actualiza la volatilidad actual del mercado con hysteresis para evitar flip-flop.
 
         Args:
-            volatility_level: "low", "medium", "high"
+            volatility_level: "low", "medium", "high", "baja", "media", "alta"
         """
+        # Normalizar nombres de volatilidad (español → inglés)
+        vol_map = {"baja": "low", "media": "medium", "alta": "high"}
+        volatility_level = vol_map.get(volatility_level, volatility_level)
+
         with self._lock:
             old_vol = self.state.current_volatility
-            self.state.current_volatility = volatility_level
 
+            # Hysteresis: No cambiar si el último cambio fue hace menos de 5 minutos
+            if self.state.last_volatility_change:
+                try:
+                    last_change = datetime.fromisoformat(self.state.last_volatility_change)
+                    cooldown = timedelta(minutes=5)
+                    if datetime.now() - last_change < cooldown:
+                        # Silenciosamente ignorar cambios durante el cooldown
+                        return
+                except ValueError:
+                    pass
+
+            # Solo actualizar si hay un cambio real
             if old_vol != volatility_level:
+                self.state.current_volatility = volatility_level
+                self.state.last_volatility_change = datetime.now().isoformat()
+
                 logger.info(f"📈 Volatilidad cambió: {old_vol} → {volatility_level}")
 
                 if self.enabled:
