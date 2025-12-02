@@ -1,0 +1,59 @@
+# ============================================
+# SATH Bot - Solo el bot (para multi-tenant)
+# ============================================
+# Este compose es usado por el Orchestrator para crear
+# bots individuales por usuario. NO incluye InfluxDB/Grafana
+# porque esos servicios están en la plataforma central.
+#
+# USO: Solo el Orchestrator usa este archivo como template
+# ============================================
+
+version: '3.8'
+
+services:
+  trading_bot:
+    build: .
+    container_name: sath_bot_${TENANT_ID:-default}
+    restart: unless-stopped
+    stop_grace_period: 60s
+    environment:
+      # Tenant
+      - TENANT_ID=${TENANT_ID}
+      # Exchange Keys (inyectadas por orchestrator)
+      - BINANCE_API_KEY=${BINANCE_API_KEY:-}
+      - BINANCE_API_SECRET=${BINANCE_API_SECRET:-}
+      - BINANCE_TESTNET_API_KEY=${BINANCE_TESTNET_API_KEY:-}
+      - BINANCE_TESTNET_API_SECRET=${BINANCE_TESTNET_API_SECRET:-}
+      # AI Keys
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      # InfluxDB CENTRALIZADO (de la plataforma)
+      - INFLUXDB_URL=http://sath_influxdb:8086
+      - INFLUXDB_TOKEN=${INFLUXDB_TOKEN}
+      - INFLUXDB_ORG=sath_platform
+      - INFLUXDB_BUCKET=tenant_${TENANT_ID:-default}
+      # Telegram
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
+      # Config
+      - SATH_CONFIG=/app/config/config.yaml
+    volumes:
+      # Montados por el orchestrator desde /tenants/{user_id}/
+      - ./config:/app/config:ro
+      - ./data:/app/data
+      - ./logs:/app/logs
+    networks:
+      - sath_network
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+# Se conecta a la red de la plataforma (ya existente)
+networks:
+  sath_network:
+    external: true

@@ -1,7 +1,11 @@
 # ============================================
-# SATH v1.6 - Docker Compose PRODUCCIÓN
-# Capital: $100 USD
-# Incluye: Circuit Breaker, Health Monitor, AI Ensemble
+# SATH v1.6 - Docker Compose PRODUCCIÓN (LIVE)
+# ============================================
+# MODO: SINGLE-TENANT (un solo usuario)
+# USO: Servidor dedicado para UN usuario con dinero real
+#
+# Para MULTI-TENANT (SaaS múltiples usuarios):
+#   usar docker-compose.platform.yml
 # ============================================
 
 services:

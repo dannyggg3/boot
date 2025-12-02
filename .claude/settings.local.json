@@ -20,7 +20,8 @@
       "Bash(python3 -m py_compile:*)",
       "Bash(python3:*)",
       "Bash(jobs)",
-      "Bash(timeout 30 python:*)"
+      "Bash(timeout 30 python:*)",
+      "Bash(xargs:*)"
     ],
     "deny": [],
     "ask": []
