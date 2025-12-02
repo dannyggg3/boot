@@ -4,8 +4,10 @@ Risk Manager - Gestor de Riesgo
 Este módulo es el "policía" del bot. Valida todas las operaciones
 antes de ejecutarlas para proteger el capital y evitar pérdidas catastróficas.
 
+v1.6: Incluye validación de comisiones para asegurar rentabilidad.
+
 Autor: Trading Bot System
-Versión: 1.0
+Versión: 1.6
 """
 
 import logging
@@ -46,6 +48,27 @@ class RiskManager:
         self.kelly_fraction = kelly_config.get('fraction', 0.25)  # Fracción de Kelly (conservador)
         self.min_confidence_to_trade = kelly_config.get('min_confidence', 0.5)
         self.max_kelly_risk = kelly_config.get('max_risk_cap', 3.0)  # Riesgo máximo con Kelly
+
+        # v1.6: Configuración de comisiones y tamaños mínimos
+        fees_config = self.config.get('fees', {})
+        self.maker_fee_percent = fees_config.get('maker_fee_percent', 0.10)
+        self.taker_fee_percent = fees_config.get('taker_fee_percent', 0.10)
+        self.round_trip_fee_percent = self.maker_fee_percent + self.taker_fee_percent
+
+        sizing_config = self.config.get('position_sizing', {})
+        self.min_position_usd = sizing_config.get('min_position_usd', 15.0)
+        self.min_profit_after_fees = sizing_config.get('min_profit_after_fees_usd', 0.50)
+        self.profit_to_fees_ratio = sizing_config.get('profit_to_fees_ratio', 5.0)
+
+        # Mínimos del exchange
+        self.exchange_minimums = self.config.get('exchange_minimums', {
+            'BTC_USDT': 5.0,
+            'ETH_USDT': 5.0,
+            'SOL_USDT': 5.0,
+            'default': 10.0
+        })
+
+        logger.info(f"v1.6: Fees configuradas - Round-trip: {self.round_trip_fee_percent}%")
 
         # Historial para cálculo de Kelly
         self.trade_history = {
@@ -200,6 +223,26 @@ class RiskManager:
                 # Reducir tamaño de posición en mercados volátiles
                 position_size *= 0.5
                 logger.info(f"Posición reducida 50% por alta volatilidad en {symbol}")
+
+        # 7. v1.6: Validar rentabilidad después de comisiones
+        if suggested_take_profit and current_price > 0:
+            position_value_usd = position_size * current_price
+            expected_profit_percent = abs(suggested_take_profit - current_price) / current_price * 100
+
+            profitability_check = self.validate_trade_profitability(
+                symbol=symbol,
+                position_value_usd=position_value_usd,
+                expected_profit_percent=expected_profit_percent
+            )
+
+            if not profitability_check['valid']:
+                return self._reject_trade(
+                    f"v1.6 Fee Check: {profitability_check['reason']}",
+                    symbol
+                )
+
+            logger.info(f"v1.6 Fee Check OK: Ganancia neta ${profitability_check['net_profit_usd']:.2f} "
+                       f"(después de ${profitability_check['total_fees_usd']:.2f} en fees)")
 
         # Operación aprobada
         return {
@@ -703,6 +746,140 @@ class RiskManager:
         )
 
         self._save_state()
+
+    # ==================== v1.6: VALIDACIÓN DE FEES ====================
+
+    def validate_trade_profitability(
+        self,
+        symbol: str,
+        position_value_usd: float,
+        expected_profit_percent: float
+    ) -> Dict[str, Any]:
+        """
+        v1.6: Valida que un trade sea rentable después de comisiones.
+
+        Args:
+            symbol: Par de trading (ej: 'BTC/USDT')
+            position_value_usd: Valor de la posición en USD
+            expected_profit_percent: Ganancia esperada en porcentaje
+
+        Returns:
+            Dict con validación y detalles
+        """
+        # Obtener mínimo del exchange para este símbolo
+        symbol_key = symbol.replace('/', '_')
+        min_notional = self.exchange_minimums.get(
+            symbol_key,
+            self.exchange_minimums.get('default', 10.0)
+        )
+
+        # 1. Verificar tamaño mínimo del exchange
+        if position_value_usd < min_notional:
+            return {
+                'valid': False,
+                'reason': f'Posición ${position_value_usd:.2f} menor al mínimo del exchange ${min_notional}',
+                'min_required': min_notional
+            }
+
+        # 2. Verificar tamaño mínimo para rentabilidad
+        if position_value_usd < self.min_position_usd:
+            return {
+                'valid': False,
+                'reason': f'Posición ${position_value_usd:.2f} menor al mínimo rentable ${self.min_position_usd}',
+                'min_required': self.min_position_usd
+            }
+
+        # 3. Calcular fees
+        fees_usd = position_value_usd * (self.round_trip_fee_percent / 100)
+
+        # 4. Calcular ganancia esperada
+        expected_profit_usd = position_value_usd * (expected_profit_percent / 100)
+
+        # 5. Verificar ganancia neta
+        net_profit_usd = expected_profit_usd - fees_usd
+
+        if net_profit_usd < self.min_profit_after_fees:
+            return {
+                'valid': False,
+                'reason': f'Ganancia neta ${net_profit_usd:.2f} menor al mínimo ${self.min_profit_after_fees}',
+                'fees': fees_usd,
+                'expected_profit': expected_profit_usd,
+                'net_profit': net_profit_usd
+            }
+
+        # 6. Verificar ratio ganancia/fees
+        if fees_usd > 0 and (expected_profit_usd / fees_usd) < self.profit_to_fees_ratio:
+            return {
+                'valid': False,
+                'reason': f'Ratio ganancia/fees {expected_profit_usd/fees_usd:.1f}x menor al mínimo {self.profit_to_fees_ratio}x',
+                'ratio': expected_profit_usd / fees_usd,
+                'min_ratio': self.profit_to_fees_ratio
+            }
+
+        # Trade es rentable
+        return {
+            'valid': True,
+            'position_value': position_value_usd,
+            'fees': round(fees_usd, 4),
+            'expected_profit': round(expected_profit_usd, 2),
+            'net_profit': round(net_profit_usd, 2),
+            'profit_to_fees_ratio': round(expected_profit_usd / fees_usd, 1) if fees_usd > 0 else float('inf'),
+            'message': f'Trade rentable: ganancia neta ${net_profit_usd:.2f} después de fees ${fees_usd:.4f}'
+        }
+
+    def calculate_min_profitable_position(
+        self,
+        symbol: str,
+        target_profit_percent: float = 4.0
+    ) -> float:
+        """
+        v1.6: Calcula el tamaño mínimo de posición para ser rentable.
+
+        Args:
+            symbol: Par de trading
+            target_profit_percent: % de ganancia objetivo (default 4% = 2:1 R/R con 2% SL)
+
+        Returns:
+            Tamaño mínimo en USD
+        """
+        # Necesitamos: ganancia_esperada > fees * profit_to_fees_ratio
+        # ganancia = position * target_profit_percent / 100
+        # fees = position * round_trip_fee_percent / 100
+        # position * target_profit_percent > position * round_trip_fee_percent * ratio
+        # Ya que position se cancela, siempre es rentable si target_profit > fees * ratio
+
+        # Pero también necesitamos min_profit_after_fees
+        # net_profit = position * (target_profit - round_trip_fee) / 100 >= min_profit_after_fees
+        # position >= min_profit_after_fees * 100 / (target_profit - round_trip_fee)
+
+        net_profit_percent = target_profit_percent - self.round_trip_fee_percent
+        if net_profit_percent <= 0:
+            logger.warning("El target profit no cubre las comisiones")
+            return float('inf')
+
+        min_for_profit = (self.min_profit_after_fees * 100) / net_profit_percent
+
+        # También considerar mínimo del exchange
+        symbol_key = symbol.replace('/', '_')
+        exchange_min = self.exchange_minimums.get(
+            symbol_key,
+            self.exchange_minimums.get('default', 10.0)
+        )
+
+        # Retornar el mayor de los mínimos
+        return max(min_for_profit, exchange_min, self.min_position_usd)
+
+    def get_fee_summary(self) -> Dict[str, Any]:
+        """v1.6: Obtiene resumen de configuración de fees."""
+        return {
+            'maker_fee_percent': self.maker_fee_percent,
+            'taker_fee_percent': self.taker_fee_percent,
+            'round_trip_fee_percent': self.round_trip_fee_percent,
+            'min_position_usd': self.min_position_usd,
+            'min_profit_after_fees': self.min_profit_after_fees,
+            'profit_to_fees_ratio': self.profit_to_fees_ratio,
+            'exchange_minimums': self.exchange_minimums
+        }
 
 
 if __name__ == "__main__":

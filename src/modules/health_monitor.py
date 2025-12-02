@@ -90,7 +90,7 @@ class HealthMonitor:
         self._running = False
         self._thread: Optional[threading.Thread] = None
         self._start_time = time.time()
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()  # RLock para permitir reentrada
 
         # Callbacks para alertas
         self._alert_callbacks: List[Callable] = []

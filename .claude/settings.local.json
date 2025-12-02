@@ -19,7 +19,8 @@
       "Bash(curl:*)",
       "Bash(python3 -m py_compile:*)",
       "Bash(python3:*)",
-      "Bash(jobs)"
+      "Bash(jobs)",
+      "Bash(timeout 30 python:*)"
     ],
     "deny": [],
     "ask": []

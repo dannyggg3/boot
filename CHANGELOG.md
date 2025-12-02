@@ -15,12 +15,14 @@ El formato está basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.
   - Estados: CLOSED → OPEN → HALF_OPEN
   - Auto-recovery configurable
   - Registry global para monitorear todos los breakers
+  - Métodos públicos para testing: `can_execute()`, `record_failure()`, `record_success()`
 
 - **Health Monitor** (`src/modules/health_monitor.py`)
   - Monitoreo de salud del sistema en tiempo real
   - Health checks configurables (exchange, database, AI)
   - Alertas automáticas vía Telegram
   - Métricas de performance (API calls, trades, latencia)
+  - Fix: `RLock` para evitar deadlock en `get_health_report()`
 
 - **AI Ensemble System** (`src/modules/ai_ensemble.py`)
   - Votación ponderada entre múltiples modelos de IA
@@ -35,6 +37,48 @@ El formato está basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.
   - `AsyncEventBus` - Bus de eventos desacoplado
   - Funciones utilitarias: `retry_async`, `run_with_timeout`
 
+- **Sistema de Control de Fees** (`src/modules/risk_manager.py`)
+  - Validación automática de rentabilidad después de comisiones
+  - Soporte para descuento BNB (0.075% maker/taker vs 0.10% estándar)
+  - Round-trip fee calculation (entrada + salida = 0.15% con BNB)
+  - Métodos: `validate_trade_profitability()`, `calculate_min_profitable_position()`, `get_fee_summary()`
+  - Integración en `validate_trade()` - rechaza trades no rentables
+
+- **Configuración de Fees** (`config/config_live.yaml`)
+  ```yaml
+  risk_management:
+    fees:
+      maker_fee_percent: 0.075   # 0.075% con BNB
+      taker_fee_percent: 0.075
+    position_sizing:
+      min_position_usd: 15.0
+      min_profit_after_fees_usd: 0.50
+      profit_to_fees_ratio: 5.0   # Ganancia debe ser 5x fees
+    exchange_minimums:
+      BTC_USDT: 5.0
+      ETH_USDT: 5.0
+      SOL_USDT: 5.0
+  ```
+
+- **Notificaciones v1.6** (`src/modules/notifications.py`)
+  - `notify_health_alert()` - Alertas de salud del sistema
+  - `notify_circuit_breaker()` - Estado del circuit breaker
+  - `notify_ensemble_decision()` - Decisiones del ensemble AI
+  - `notify_system_metrics()` - Métricas del sistema
+
+- **Grafana Dashboards v1.6** (`grafana/provisioning/dashboards/`)
+  - Panel: API Latencia
+  - Panel: System Health
+  - Panel: Circuit Breaker Status
+  - Panel: AI Ensemble Consenso
+  - Panel: Votos por Modelo
+  - Panel: API Success Rate
+
+- **Docker Compose v1.6** (`docker-compose.live.yml`)
+  - Actualizado comentarios a v1.6
+  - Removido atributo `version` obsoleto
+  - Incluye: Circuit Breaker, Health Monitor, AI Ensemble
+
 - **Documentación Institucional** (`docs/INSTITUTIONAL_ROADMAP.md`)
   - Roadmap hacia nivel institucional
   - Guía de co-location y baja latencia
@@ -44,9 +88,18 @@ El formato está basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.
 
 ### Mejorado
 
+- **Portfolio optimizado para $100**
+  - 1 posición a la vez (mejor ratio fees/ganancia)
+  - Trailing stop: activación 2% (cubre fees + garantiza ganancia)
+  - Trail distance: 1.5% (captura más ganancia)
+
 - **Inicialización de módulos** - Corregido orden de `self.mode`
 - **WebSocket consistency** - Unificado `get_current_price` vs `get_latest_price`
 - **Error handling** - Mejor manejo de excepciones en todos los módulos
+
+### Corregido
+
+- **Deadlock en HealthMonitor** - Cambiado `Lock()` a `RLock()` para permitir reentrada en `get_health_report()` → `get_overall_status()`
 
 ### Calificación Actualizada
 
@@ -688,9 +741,18 @@ from(bucket:"trading_decisions")
 - [x] **Fix: Position size usa balance real** (USDT para compra, activo para venta)
 - [x] Validación de balance USDT antes de comprar
 
-### v1.6 (Planificado)
+### v1.6 (Completado)
 
-- [ ] Dashboard web de monitoreo (Grafana dashboards pre-configurados)
+- [x] Dashboard web de monitoreo (Grafana dashboards pre-configurados)
+- [x] Circuit Breaker Pattern
+- [x] Health Monitor con alertas
+- [x] AI Ensemble System
+- [x] Arquitectura Async
+- [x] Control de fees y validación de rentabilidad
+- [x] Optimización de portfolio para capital pequeño
+
+### v1.7 (Planificado)
+
 - [ ] Más agentes especializados (Breakout Agent, Scalping Agent)
 - [ ] Machine Learning para optimización de parámetros
 - [ ] Soporte para más exchanges (Kraken, Coinbase Pro)

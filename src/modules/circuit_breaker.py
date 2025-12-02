@@ -202,6 +202,18 @@ class CircuitBreaker:
             self._transition_to(CircuitState.OPEN)
         logger.warning(f"CircuitBreaker '{self.name}' forzado a OPEN")
 
+    def can_execute(self) -> bool:
+        """Verifica si se puede ejecutar una llamada (público para testing)."""
+        return self._should_allow_call()
+
+    def record_failure(self, exception: Exception = None):
+        """Registra un fallo manualmente (para testing)."""
+        self._record_failure(exception or Exception("Manual failure"))
+
+    def record_success(self):
+        """Registra un éxito manualmente (para testing)."""
+        self._record_success()
+
     def get_status(self) -> Dict[str, Any]:
         """Retorna estado completo del breaker."""
         return {

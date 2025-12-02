@@ -103,18 +103,26 @@ class MarketEngine:
 
         if exchange_config.get('binance', {}).get('enabled', True):
             exchange_name = 'binance'
-            api_key = os.getenv('BINANCE_API_KEY')
-            api_secret = os.getenv('BINANCE_API_SECRET')
+            use_testnet = exchange_config.get('binance', {}).get('testnet', False)
 
-            if self.mode == 'paper':
+            # v1.6: Usar keys de testnet si está habilitado
+            if use_testnet:
+                api_key = os.getenv('BINANCE_TESTNET_API_KEY') or os.getenv('BINANCE_API_KEY')
+                api_secret = os.getenv('BINANCE_TESTNET_API_SECRET') or os.getenv('BINANCE_API_SECRET')
+                logger.info("Modo TESTNET - Usando Binance Testnet con keys de testnet")
+            else:
+                api_key = os.getenv('BINANCE_API_KEY')
+                api_secret = os.getenv('BINANCE_API_SECRET')
+
+            if self.mode == 'paper' or use_testnet:
                 logger.info("Modo PAPER TRADING - Usando Binance Testnet")
                 self.connection = ccxt.binance({
                     'apiKey': api_key,
                     'secret': api_secret,
                     'enableRateLimit': True,
                     'options': {
-                        'defaultType': 'spot',  # spot, future, margin
-                        'testnet': True if exchange_config.get('binance', {}).get('testnet') else False
+                        'defaultType': 'spot',
+                        'testnet': True
                     }
                 })
             else:

@@ -1,6 +1,6 @@
 # ============================================
-# CONFIGURACIÓN LIVE - SATH v1.6
-# Capital inicial: $100 USD
+# CONFIGURACIÓN PAPER (TESTNET) - SATH v1.6
+# Usa Binance Testnet para pruebas sin dinero real
 # ============================================
 
 # ===== SELECCIÓN DE PROVEEDOR DE IA =====
@@ -34,8 +34,8 @@ trading:
   timeframe: "15m" # Más señales que 1h
   scan_interval: 180 # 3 minutos para timeframe 15m
 
-  # MODO LIVE - TRADING REAL
-  mode: "live"
+  # MODO PAPER - TESTNET (Sin dinero real)
+  mode: "paper"
 
   parallel_analysis: true
   max_parallel_workers: 2
@@ -185,7 +185,7 @@ technical_analysis:
 exchanges:
   binance:
     enabled: true
-    testnet: false # PRODUCCIÓN
+    testnet: true  # TESTNET - Paper trading
 
 # ===== NOTIFICACIONES =====
 notifications:
