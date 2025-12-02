@@ -214,12 +214,16 @@ class RiskManager:
             )
 
             if risk_reward < self.min_risk_reward_ratio:
+                # v1.7 FIX CRÍTICO: RECHAZAR trades con mal R/R (antes solo warning)
+                # Un trade con R/R < 1.5 tiene expectativa matemática negativa a largo plazo
                 logger.warning(
                     f"Ratio R/R bajo ({risk_reward:.2f}) para {symbol}. "
                     f"Mínimo requerido: {self.min_risk_reward_ratio}"
                 )
-                # Opcionalmente rechazar o ajustar
-                # return self._reject_trade("Ratio R/R insuficiente", symbol)
+                return self._reject_trade(
+                    f"Ratio R/R insuficiente ({risk_reward:.2f} < {self.min_risk_reward_ratio})",
+                    symbol
+                )
 
         # 6. Verificar volatilidad extrema
         if market_data and 'volatility_level' in market_data:

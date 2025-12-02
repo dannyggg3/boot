@@ -856,7 +856,7 @@ class PositionEngine:
 
         Incluye:
         - Trade en métricas institucionales
-        - Resultado para Kelly Criterion
+        - Resultado para Kelly Criterion (CRÍTICO para position sizing)
         """
         try:
             # Importar métricas institucionales
@@ -913,18 +913,57 @@ class PositionEngine:
 
                 logger.debug(f"📊 Métricas institucionales registradas para {position['symbol']}")
 
-            # Registrar resultado para Kelly Criterion
-            try:
-                from modules.risk_manager import RiskManager
-                # Intentar obtener el risk manager singleton si existe
-                # Por ahora solo registramos en el log
-                is_win = pnl > 0
-                logger.debug(f"📈 Trade result for Kelly: {'WIN' if is_win else 'LOSS'}")
-            except Exception:
-                pass
+            # v1.7 FIX CRÍTICO: Actualizar historial para Kelly Criterion
+            # Esto es ESENCIAL para que el position sizing mejore con el tiempo
+            self._update_risk_manager_history(pnl)
 
         except Exception as e:
             logger.error(f"Error registrando métricas institucionales: {e}")
+
+    def _update_risk_manager_history(self, pnl: float):
+        """
+        v1.7: Actualiza el historial del Risk Manager para Kelly Criterion.
+        CRÍTICO: Sin esto, Kelly usa probabilidad base 0.45 forever.
+        """
+        try:
+            # Intentar obtener el singleton de RiskManager
+            # Método 1: Buscar en el config path estándar
+            import os
+            import json
+
+            state_file = 'data/risk_manager_state.json'
+            if os.path.exists(state_file):
+                with open(state_file, 'r') as f:
+                    state = json.load(f)
+
+                trade_history = state.get('trade_history', {
+                    'wins': 0,
+                    'losses': 0,
+                    'total_win_amount': 0.0,
+                    'total_loss_amount': 0.0
+                })
+
+                # Actualizar historial
+                is_win = pnl > 0
+                if is_win:
+                    trade_history['wins'] += 1
+                    trade_history['total_win_amount'] += abs(pnl)
+                else:
+                    trade_history['losses'] += 1
+                    trade_history['total_loss_amount'] += abs(pnl)
+
+                state['trade_history'] = trade_history
+
+                # Guardar estado actualizado
+                with open(state_file, 'w') as f:
+                    json.dump(state, f, indent=2)
+
+                total_trades = trade_history['wins'] + trade_history['losses']
+                win_rate = trade_history['wins'] / total_trades if total_trades > 0 else 0
+                logger.info(f"📈 Kelly History Updated: {trade_history['wins']}W/{trade_history['losses']}L = {win_rate*100:.1f}%")
+
+        except Exception as e:
+            logger.debug(f"No se pudo actualizar historial de Kelly: {e}")
 
     def _notify_position_closed(
         self,
