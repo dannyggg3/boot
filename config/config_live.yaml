@@ -1,6 +1,6 @@
 # ============================================
-# CONFIGURACIÓN LIVE - SATH v1.5
-# Capital inicial: $50 USD
+# CONFIGURACIÓN LIVE - SATH v1.6
+# Capital inicial: $100 USD
 # ============================================
 
 # ===== SELECCIÓN DE PROVEEDOR DE IA =====
@@ -24,12 +24,12 @@ market_type: "crypto"
 
 # ===== CONFIGURACIÓN DE TRADING =====
 trading:
-  # Con $50: BTC/ETH para estabilidad + SOL para volatilidad
+  # Con $100: Enfoque en pares líquidos con mejor R/R
   symbols:
-    - "BTC/USDT" # Alta liquidez, spreads bajos
-    - "ETH/USDT" # Segunda más líquida
-    - "SOL/USDT" # Mayor volatilidad, más oportunidades
-    - "XRP/USDT" # Opcional: descorrelacionado del mercado
+    - "BTC/USDT"  # Alta liquidez, spreads bajos, estable
+    - "ETH/USDT"  # Segunda más líquida, buenas tendencias
+    - "SOL/USDT"  # Mayor volatilidad = más oportunidades
+    # XRP eliminado - concentrar capital en menos pares
 
   timeframe: "15m" # Más señales que 1h
   scan_interval: 180 # 3 minutos para timeframe 15m
@@ -58,30 +58,30 @@ trading:
     open_interest: true
     correlations: true
 
-# ===== GESTIÓN DE RIESGO - CONSERVADORA =====
+# ===== GESTIÓN DE RIESGO - OPTIMIZADA =====
 risk_management:
-  # Con $50, arriesgar 2% = $1 por operación
+  # Con $100, arriesgar 2% = $2 por operación
   max_risk_per_trade: 2.0
 
-  # Drawdown máximo diario: 10% = $5
+  # Drawdown máximo diario: 10% = $10
   max_daily_drawdown: 10.0
 
-  min_risk_reward_ratio: 1.5
+  min_risk_reward_ratio: 2.0  # R/R de 2:1 para mejor expectativa
 
   use_trailing_stop: true
-  trailing_stop_percentage: 2.5
+  trailing_stop_percentage: 2.0  # Consistente con trailing_stop config
 
   # CAPITAL LIVE
   initial_capital: 100
 
   leverage: 1 # Sin apalancamiento
 
-  # Kelly Criterion - CONSERVADOR
+  # Kelly Criterion - OPTIMIZADO para rentabilidad
   kelly_criterion:
     enabled: true
-    fraction: 0.2 # 1/5 Kelly (más conservador)
-    min_confidence: 0.5 # Opera con >50% confianza (permite más trades)
-    max_risk_cap: 2.0 # Máximo 2% por trade
+    fraction: 0.25 # 1/4 Kelly (equilibrado)
+    min_confidence: 0.60 # Opera con >60% confianza (trades de calidad)
+    max_risk_cap: 3.0 # Permite escalar hasta 3% en señales fuertes
 
 # ===== GESTIÓN DE POSICIONES v1.5 =====
 position_management:
@@ -119,11 +119,11 @@ position_management:
       - "EXTEND_TP"   # Extender TP si momentum fuerte
     # NO incluye PARTIAL_CLOSE ni FULL_CLOSE (solo ajustes)
 
-  # Límites del portfolio
+  # Límites del portfolio - OPTIMIZADO para $100
   portfolio:
-    max_concurrent_positions: 3    # Máximo 3 posiciones abiertas
-    max_exposure_percent: 50       # Máximo 50% del capital desplegado
-    max_per_symbol_percent: 25     # Máximo 25% en un solo símbolo
+    max_concurrent_positions: 2    # Máximo 2 posiciones (mejor concentración con $100)
+    max_exposure_percent: 60       # Máximo 60% del capital desplegado
+    max_per_symbol_percent: 40     # Máximo 40% en un solo símbolo (posiciones significativas)
 
   # Persistencia (SQLite)
   database:
@@ -194,7 +194,7 @@ logging:
 security:
   kill_switch:
     enabled: true
-    max_loss_percentage: 10.0 # $5 de pérdida máxima
+    max_loss_percentage: 10.0 # $10 de pérdida máxima
     cooldown_period_hours: 24
   api_rate_limit:
     requests_per_minute: 60

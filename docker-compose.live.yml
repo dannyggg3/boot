@@ -1,8 +1,9 @@
 version: '3.8'
 
 # ============================================
-# SATH v1.3 - Docker Compose PRODUCCIÓN
-# Capital: $50 USD
+# SATH v1.6 - Docker Compose PRODUCCIÓN
+# Capital: $100 USD
+# Incluye: Circuit Breaker, Health Monitor, AI Ensemble
 # ============================================
 
 services:

@@ -6,9 +6,10 @@ Envía notificaciones a Telegram cuando ocurren eventos importantes:
 - Kill switch activado
 - Errores críticos
 - Resumen diario
+- v1.6: Health alerts, Circuit breaker, AI Ensemble
 
 Autor: Trading Bot System
-Versión: 1.0
+Versión: 1.6
 """
 
 import os
@@ -506,6 +507,135 @@ Revisa tu cuenta inmediatamente.
         Alias para send() - envía mensaje personalizado.
         """
         self.send(message)
+
+    # ==================== v1.6: ALERTAS DE SISTEMA ====================
+
+    def notify_health_alert(
+        self,
+        status: str,
+        component: str,
+        message: str,
+        metrics: dict = None
+    ):
+        """
+        Notifica alertas del Health Monitor.
+        """
+        status_emoji = {
+            'healthy': '✅',
+            'degraded': '⚠️',
+            'unhealthy': '🔴',
+            'critical': '🚨'
+        }.get(status.lower(), '❓')
+
+        metrics_text = ""
+        if metrics:
+            metrics_text = "\n<b>Métricas:</b>\n"
+            for key, value in list(metrics.items())[:5]:
+                metrics_text += f"  • {key}: {value}\n"
+
+        msg = f"""
+{status_emoji} <b>ALERTA DE SALUD DEL SISTEMA</b>
+
+<b>Estado:</b> {status.upper()}
+<b>Componente:</b> {component}
+<b>Mensaje:</b> {message}
+{metrics_text}
+⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+"""
+        self.send(msg)
+
+    def notify_circuit_breaker(
+        self,
+        name: str,
+        state: str,
+        failures: int,
+        reason: str = ""
+    ):
+        """
+        Notifica cambios de estado del Circuit Breaker.
+        """
+        state_emoji = {
+            'CLOSED': '🟢',
+            'OPEN': '🔴',
+            'HALF_OPEN': '🟡'
+        }.get(state.upper(), '❓')
+
+        action_text = {
+            'CLOSED': 'Sistema operando normalmente',
+            'OPEN': 'Llamadas bloqueadas temporalmente',
+            'HALF_OPEN': 'Probando recuperación...'
+        }.get(state.upper(), '')
+
+        msg = f"""
+{state_emoji} <b>CIRCUIT BREAKER - {state.upper()}</b>
+
+<b>Servicio:</b> {name}
+<b>Fallos acumulados:</b> {failures}
+<b>Estado:</b> {action_text}
+{f'<b>Razón:</b> {reason}' if reason else ''}
+
+⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+"""
+        self.send(msg)
+
+    def notify_ensemble_decision(
+        self,
+        symbol: str,
+        decision: str,
+        consensus: float,
+        confidence: float,
+        models_agreed: int,
+        total_models: int
+    ):
+        """
+        Notifica decisión del AI Ensemble.
+        """
+        emoji = "🟢" if decision == "COMPRA" else "🔴" if decision == "VENTA" else "⏸️"
+        consensus_bar = "█" * int(consensus * 10) + "░" * (10 - int(consensus * 10))
+
+        msg = f"""
+{emoji} <b>DECISIÓN AI ENSEMBLE</b>
+
+<b>Par:</b> {symbol}
+<b>Decisión:</b> {decision}
+
+<b>Consenso:</b> [{consensus_bar}] {consensus*100:.0f}%
+<b>Confianza:</b> {confidence*100:.1f}%
+<b>Modelos de acuerdo:</b> {models_agreed}/{total_models}
+
+⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+"""
+        self.send(msg)
+
+    def notify_system_metrics(
+        self,
+        uptime_hours: float,
+        total_trades: int,
+        win_rate: float,
+        total_pnl: float,
+        api_success_rate: float,
+        avg_latency_ms: float
+    ):
+        """
+        Notifica métricas del sistema (resumen periódico).
+        """
+        health_emoji = "✅" if api_success_rate > 95 else "⚠️" if api_success_rate > 80 else "🔴"
+
+        msg = f"""
+📊 <b>MÉTRICAS DEL SISTEMA</b>
+
+<b>Uptime:</b> {uptime_hours:.1f} horas
+<b>Total trades:</b> {total_trades}
+<b>Win rate:</b> {win_rate:.1f}%
+<b>PnL total:</b> ${total_pnl:+,.2f}
+
+<b>API Health:</b> {health_emoji}
+<b>Success rate:</b> {api_success_rate:.1f}%
+<b>Latencia promedio:</b> {avg_latency_ms:.0f}ms
+
+⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+"""
+        self.send(msg)
 
 
 # Singleton para uso global

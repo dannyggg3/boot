@@ -79,15 +79,17 @@ except ImportError as e:
 
 # v1.6: Módulos de robustez y escalabilidad
 try:
-    from modules.circuit_breaker import CircuitBreaker, circuit_registry, create_breaker
+    from modules.circuit_breaker import create_breaker
     from modules.health_monitor import HealthMonitor, create_exchange_check, create_database_check
     from modules.ai_ensemble import AIEnsemble
     ADVANCED_FEATURES_AVAILABLE = True
 except ImportError as e:
     ADVANCED_FEATURES_AVAILABLE = False
-    CircuitBreaker = None
+    create_breaker = None
     HealthMonitor = None
     AIEnsemble = None
+    create_exchange_check = None
+    create_database_check = None
     print(f"Warning: Advanced features not available: {e}")
 
 
@@ -386,6 +388,11 @@ class TradingBot:
             symbols=self.symbols,
             capital=risk_status['current_capital']
         )
+
+        # v1.6: Iniciar Health Monitor si está disponible
+        if self.health_monitor:
+            self.health_monitor.start()
+            logger.info("🏥 Health Monitor ACTIVO - Monitoreo de salud del sistema")
 
         # v1.5: Recuperar posiciones abiertas y iniciar monitoreo
         if self.use_position_management and self.position_engine:
@@ -922,6 +929,11 @@ class TradingBot:
             else:
                 logger.warning("⚠️  Algunas posiciones no se pudieron cerrar")
                 self.notifier.notify_shutdown(reason="Apagado con errores en cierre de posiciones")
+
+            # v1.6: Detener Health Monitor
+            if self.health_monitor:
+                self.health_monitor.stop()
+                logger.info("Health Monitor detenido")
 
             # v1.3: Cerrar WebSocket Engine
             if self.websocket_engine:
