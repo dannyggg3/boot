@@ -423,19 +423,23 @@ class TradingBot:
                     logger.info("💓 Heartbeat - Bot operando normalmente")
                     self._print_status()
 
-                # v1.6: Verificar si hay capacidad para nuevas posiciones ANTES de analizar
+                # v1.6: Monitoreo de posiciones abiertas y control de capacidad
                 if self.position_engine:
-                    # Verificar si hay al menos un símbolo donde podamos abrir posición
+                    positions = self.position_engine.store.get_open_positions()
+                    max_positions = self.position_engine.max_positions
+
+                    # SIEMPRE mostrar estado de posiciones si hay alguna abierta
+                    if positions:
+                        self._show_position_monitor(positions, max_positions)
+
+                    # Verificar si hay capacidad para nuevas posiciones
                     can_open_any = any(
                         self.position_engine.can_open_position(symbol)
                         for symbol in self.symbols
                     )
 
                     if not can_open_any:
-                        open_positions = len(self.position_engine.store.get_open_positions())
-                        max_positions = self.position_engine.max_positions
-                        logger.info(f"⏸️ Sin capacidad para nuevas posiciones ({open_positions}/{max_positions}) - Saltando análisis")
-                        logger.info(f"   Ahorrando tokens de IA. Esperando cierre de posición...")
+                        logger.info(f"⏸️ Sin capacidad ({len(positions)}/{max_positions}) - Ahorrando tokens de IA")
                         time.sleep(self.scan_interval)
                         continue
 
@@ -867,6 +871,80 @@ class TradingBot:
                 logger.debug(f"Error obteniendo posiciones: {e}")
 
         logger.info("=" * 60 + "\n")
+
+    def _show_position_monitor(self, positions: list, max_positions: int):
+        """
+        Muestra el estado detallado de las posiciones abiertas en tiempo real.
+        Se llama en cada ciclo del loop principal si hay posiciones.
+        """
+        logger.info(f"📊 MONITOR DE POSICIONES ({len(positions)}/{max_positions})")
+        logger.info("-" * 50)
+
+        for pos in positions:
+            try:
+                symbol = pos['symbol']
+                side = pos['side'].upper()
+                entry = pos['entry_price']
+                sl = pos['stop_loss']
+                tp = pos.get('take_profit')
+                qty = pos['quantity']
+                opened_at = pos.get('opened_at')
+
+                # Calcular tiempo transcurrido
+                time_open = ""
+                if opened_at:
+                    try:
+                        if isinstance(opened_at, str):
+                            open_time = datetime.fromisoformat(opened_at.replace('Z', '+00:00'))
+                        else:
+                            open_time = opened_at
+                        delta = datetime.now(open_time.tzinfo) if open_time.tzinfo else datetime.now() - open_time.replace(tzinfo=None)
+                        hours, remainder = divmod(int(delta.total_seconds()), 3600)
+                        minutes, _ = divmod(remainder, 60)
+                        if hours > 0:
+                            time_open = f" | ⏱️ {hours}h {minutes}m"
+                        else:
+                            time_open = f" | ⏱️ {minutes}m"
+                    except:
+                        pass
+
+                # Obtener precio actual
+                current_price = None
+                if self.websocket_engine and self.websocket_engine.is_data_fresh(symbol):
+                    current_price = self.websocket_engine.get_current_price(symbol)
+                if not current_price:
+                    current_price = self.market_engine.get_current_price(symbol)
+
+                if current_price:
+                    # Calcular PnL no realizado
+                    if side == 'LONG':
+                        pnl = (current_price - entry) * qty
+                        pnl_pct = ((current_price - entry) / entry) * 100
+                        dist_sl = ((current_price - sl) / current_price) * 100
+                        dist_tp = ((tp - current_price) / current_price) * 100 if tp else 0
+                    else:  # SHORT
+                        pnl = (entry - current_price) * qty
+                        pnl_pct = ((entry - current_price) / entry) * 100
+                        dist_sl = ((sl - current_price) / current_price) * 100
+                        dist_tp = ((current_price - tp) / current_price) * 100 if tp else 0
+
+                    pnl_emoji = "🟢" if pnl >= 0 else "🔴"
+                    logger.info(f"   ┌─ {symbol} {side}{time_open}")
+                    logger.info(f"   │  💰 Entrada: ${entry:.2f} → Actual: ${current_price:.2f}")
+                    logger.info(f"   │  {pnl_emoji} PnL: ${pnl:+.2f} ({pnl_pct:+.2f}%)")
+                    logger.info(f"   │  🛑 SL: ${sl:.2f} (a {abs(dist_sl):.2f}%)")
+                    if tp:
+                        logger.info(f"   └─ 🎯 TP: ${tp:.2f} (a {abs(dist_tp):.2f}%)")
+                    else:
+                        logger.info(f"   └─ 🎯 TP: N/A (trailing stop activo)")
+                else:
+                    logger.info(f"   ┌─ {symbol} {side}{time_open}")
+                    logger.info(f"   └─ ⚠️ Sin precio actual disponible")
+
+            except Exception as e:
+                logger.debug(f"Error mostrando posición: {e}")
+
+        logger.info("-" * 50)
 
     def _close_all_positions(self) -> bool:
         """

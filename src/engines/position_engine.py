@@ -602,6 +602,7 @@ class PositionEngine:
     def recover_positions_on_startup(self) -> int:
         """
         Recupera posiciones abiertas al iniciar el bot.
+        Valida que las posiciones realmente existan en el exchange.
 
         Returns:
             Número de posiciones recuperadas
@@ -615,23 +616,116 @@ class PositionEngine:
 
             logger.info(f"🔄 Recuperando {len(open_positions)} posiciones abiertas...")
 
+            recovered = 0
             for pos in open_positions:
-                self.positions[pos['id']] = pos
-                logger.info(f"   {pos['symbol']} {pos['side']} @ ${pos['entry_price']:.2f}")
+                symbol = pos['symbol']
+                side = pos['side']
+                quantity = pos['quantity']
+                position_id = pos['id']
+
+                logger.info(f"   Verificando {symbol} {side} @ ${pos['entry_price']:.2f}...")
+
+                # v1.6: Validar que la posición realmente existe en el exchange
+                is_valid = self._validate_position_exists(pos)
+
+                if not is_valid:
+                    logger.warning(f"   ⚠️ Posición {position_id} no válida en exchange")
+                    logger.warning(f"   Marcando como cerrada (posiblemente ejecutada durante downtime)")
+
+                    # Obtener precio actual para estimar cierre
+                    current_price = self._get_current_price(symbol)
+                    if current_price:
+                        self.close_position(
+                            position_id=position_id,
+                            exit_price=current_price,
+                            exit_reason='recovered_closed'
+                        )
+                    continue
+
+                # Posición válida - agregar a memoria
+                self.positions[position_id] = pos
+                logger.info(f"   ✅ {symbol} {side} @ ${pos['entry_price']:.2f}")
 
                 # Verificar si las órdenes de protección siguen activas
                 if pos.get('oco_order_id') and self.protection_mode == 'oco':
-                    status = self.order_manager.check_oco_status(pos['id'], pos['symbol'])
-                    if status.get('status') not in ['active', 'unknown']:
-                        logger.warning(f"   OCO no activa, re-colocando...")
+                    status = self.order_manager.check_oco_status(position_id, symbol)
+                    oco_status = status.get('status', 'unknown')
+
+                    if oco_status == 'filled':
+                        # OCO ejecutada - posición cerrada
+                        logger.warning(f"   🔔 OCO ejecutada durante downtime")
+                        exit_price = status.get('executed_price') or self._get_current_price(symbol)
+                        self.close_position(
+                            position_id=position_id,
+                            exit_price=exit_price,
+                            exit_reason=status.get('executed_side', 'oco_executed')
+                        )
+                        continue
+                    elif oco_status not in ['active', 'unknown']:
+                        logger.warning(f"   OCO no activa ({oco_status}), re-colocando...")
                         self._place_protection_orders(pos)
 
-            logger.info("✅ Posiciones recuperadas")
-            return len(open_positions)
+                recovered += 1
+
+            if recovered > 0:
+                logger.info(f"✅ {recovered} posiciones recuperadas")
+            else:
+                logger.info("No hay posiciones válidas para recuperar")
+
+            return recovered
 
         except Exception as e:
             logger.error(f"Error recuperando posiciones: {e}")
             return 0
+
+    def _validate_position_exists(self, position: Dict) -> bool:
+        """
+        Valida que una posición realmente existe en el exchange.
+        Verifica el balance del activo correspondiente.
+
+        Args:
+            position: Datos de la posición
+
+        Returns:
+            True si la posición parece válida
+        """
+        try:
+            symbol = position['symbol']
+            side = position['side']
+            quantity = position['quantity']
+            base_asset = symbol.split('/')[0]  # BTC, ETH, SOL
+
+            # Obtener balance real del activo
+            balances = self.market_engine.get_balance()
+            if not balances:
+                logger.warning(f"No se pudo obtener balance - asumiendo posición válida")
+                return True
+
+            actual_balance = balances.get(base_asset, 0)
+
+            # Para SHORT: vendimos el activo, deberíamos tener MENOS del activo
+            # Para LONG: compramos el activo, deberíamos tener MÁS del activo
+            if side == 'short':
+                # En un short, necesitamos que el balance sea menor que antes de abrir
+                # Pero no podemos saber el balance anterior, así que solo verificamos
+                # que no haya señales de cierre
+                # Si el balance aumentó significativamente, probablemente se cerró
+                logger.debug(f"   Balance {base_asset}: {actual_balance}")
+                return True  # Difícil validar shorts sin historial
+
+            elif side == 'long':
+                # En un long, deberíamos tener al menos la cantidad de la posición
+                if actual_balance >= quantity * 0.95:  # 5% margen por fees
+                    return True
+                else:
+                    logger.warning(f"   Balance {base_asset}: {actual_balance} < {quantity} esperado")
+                    return False
+
+            return True
+
+        except Exception as e:
+            logger.warning(f"Error validando posición: {e}")
+            return True  # En caso de error, asumir válida
 
     # =========================================================================
     # HELPERS
