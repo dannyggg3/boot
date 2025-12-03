@@ -21,7 +21,12 @@
       "Bash(python3:*)",
       "Bash(jobs)",
       "Bash(timeout 30 python:*)",
-      "Bash(xargs:*)"
+      "Bash(xargs:*)",
+      "Bash(git add:*)",
+      "Bash(git push:*)",
+      "Bash(git commit:*)",
+      "Bash(ssh root@vps-e29bf455 \"docker ps -a --format ''table {{.Names}}\\t{{.Status}}\\t{{.Ports}}''\")",
+      "Bash(ssh root@vps-e29bf455:*)"
     ],
     "deny": [],
     "ask": []

@@ -58,30 +58,47 @@ trading:
     open_interest: true
     correlations: true
 
-# ===== GESTIÓN DE RIESGO - OPTIMIZADA =====
+# ===== GESTIÓN DE RIESGO - v1.8 INSTITUCIONAL =====
 risk_management:
-  # Con $100, arriesgar 2% = $2 por operación
-  max_risk_per_trade: 2.0
+  # v1.8: Con $100, arriesgar 1.5% = $1.50 por operación (balance riesgo/crecimiento)
+  max_risk_per_trade: 1.5
 
-  # Drawdown máximo diario: 10% = $10
-  max_daily_drawdown: 10.0
+  # Drawdown máximo diario: 5% = $5 (más estricto en LIVE)
+  max_daily_drawdown: 5.0
 
-  min_risk_reward_ratio: 2.0  # R/R de 2:1 para mejor expectativa
+  # v1.8 CRÍTICO: R/R mínimo de 2.0 para expectativa positiva
+  min_risk_reward_ratio: 2.0
 
   use_trailing_stop: true
-  trailing_stop_percentage: 2.0  # Consistente con trailing_stop config
+  trailing_stop_percentage: 2.0
 
   # CAPITAL LIVE
   initial_capital: 100
 
   leverage: 1 # Sin apalancamiento
 
-  # Kelly Criterion - OPTIMIZADO para rentabilidad
+  # v1.8 Kelly Criterion INSTITUCIONAL
   kelly_criterion:
     enabled: true
-    fraction: 0.25 # 1/4 Kelly (equilibrado)
-    min_confidence: 0.60 # Opera con >60% confianza (trades de calidad)
-    max_risk_cap: 3.0 # Permite escalar hasta 3% en señales fuertes
+    fraction: 0.20 # 1/5 Kelly (equilibrado para LIVE)
+    min_confidence: 0.65 # Solo >65% confianza en LIVE
+    max_risk_cap: 2.0 # Máximo 2% en señales muy fuertes
+
+  # v1.8 INSTITUCIONAL: ATR-based Stop Loss
+  # CRÍTICO: Los institucionales NUNCA usan % fijo
+  atr_stops:
+    enabled: true
+    sl_multiplier: 2.0      # SL a 2x ATR
+    tp_multiplier: 4.0      # TP a 4x ATR (R/R 2:1)
+    min_distance_percent: 0.5   # Mínimo 0.5%
+    max_distance_percent: 5.0   # Máximo 5% (más conservador en LIVE)
+
+  # v1.8: Session Filter (horarios óptimos de liquidez)
+  session_filter:
+    enabled: true  # ACTIVO en LIVE para mejor liquidez
+    optimal_hours_utc:
+      - [7, 16]   # Europa: 7:00-16:00 UTC
+      - [13, 22]  # USA: 13:00-22:00 UTC
 
   # ===== CONTROL DE COMISIONES Y TAMAÑOS MÍNIMOS =====
   fees:
@@ -158,8 +175,11 @@ position_management:
   database:
     path: "data/positions.db"
 
-# ===== ANÁLISIS TÉCNICO =====
+# ===== ANÁLISIS TÉCNICO - v1.8 INSTITUCIONAL =====
 technical_analysis:
+  # v1.8: Mínimo de velas para análisis confiable
+  min_candles: 200
+
   indicators:
     rsi:
       enabled: true

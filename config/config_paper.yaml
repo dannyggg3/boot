@@ -1,7 +1,7 @@
 # ============================================
-# CONFIGURACIÓN PAPER (TESTNET) - SATH v1.7
+# CONFIGURACIÓN PAPER (TESTNET) - SATH v1.8 INSTITUCIONAL
+# Capital: $300 USD
 # Usa Binance Testnet para pruebas sin dinero real
-# Incluye: Métricas institucionales, validación de liquidez
 # ============================================
 
 # ===== SELECCIÓN DE PROVEEDOR DE IA =====
@@ -16,21 +16,20 @@ ai_model_deep: "deepseek-reasoner"
 # ===== AGENTES ESPECIALIZADOS =====
 ai_agents:
   enabled: true
-  # Volatilidad mínima para operar - MÁS SELECTIVO para $100
-  min_volatility_percent: 0.30  # Solo operar cuando hay movimiento significativo
-  min_volume_ratio: 0.4  # Requerir volumen decente para confirmar señales
+  # Volatilidad mínima para operar - Ajustado para $300
+  min_volatility_percent: 0.25  # Más oportunidades que con $100
+  min_volume_ratio: 0.3  # Volumen moderado para confirmar señales
 
 # ===== SELECCIÓN DE MERCADO =====
 market_type: "crypto"
 
 # ===== CONFIGURACIÓN DE TRADING =====
 trading:
-  # Con $100: Enfoque en pares líquidos con mejor R/R
+  # Con $300: 3 pares líquidos para diversificación moderada
   symbols:
     - "BTC/USDT"  # Alta liquidez, spreads bajos, estable
     - "ETH/USDT"  # Segunda más líquida, buenas tendencias
     - "SOL/USDT"  # Mayor volatilidad = más oportunidades
-    # XRP eliminado - concentrar capital en menos pares
 
   timeframe: "15m" # Más señales que 1h
   scan_interval: 180 # 3 minutos para timeframe 15m
@@ -59,30 +58,48 @@ trading:
     open_interest: true
     correlations: true
 
-# ===== GESTIÓN DE RIESGO - OPTIMIZADA PARA $100 =====
+# ===== GESTIÓN DE RIESGO - v1.8 INSTITUCIONAL ($300) =====
 risk_management:
-  # Con $100, arriesgar 1% = $1 por operación (ultra conservador)
-  max_risk_per_trade: 1.0
+  # v1.8: Con $300, arriesgar 1.5% = $4.50 por operación
+  max_risk_per_trade: 1.5
 
-  # Drawdown máximo diario: 5% = $5
+  # Drawdown máximo diario: 5% = $15
   max_daily_drawdown: 5.0
 
-  min_risk_reward_ratio: 1.5  # R/R de 1.5:1 más alcanzable
+  # v1.8 CRÍTICO: R/R mínimo de 2.0 para expectativa positiva
+  # Con 40% win rate y R/R 2:1 → Expectativa = 0.4*2 - 0.6*1 = +0.2 por trade
+  min_risk_reward_ratio: 2.0
 
   use_trailing_stop: true
-  trailing_stop_percentage: 2.0  # Consistente con trailing_stop config
+  trailing_stop_percentage: 2.0
 
-  # CAPITAL LIVE
-  initial_capital: 100
+  # CAPITAL PAPER - $300
+  initial_capital: 300
 
   leverage: 1 # Sin apalancamiento
 
-  # Kelly Criterion - CONSERVADOR para $100
+  # v1.8 Kelly Criterion INSTITUCIONAL ($300)
   kelly_criterion:
     enabled: true
-    fraction: 0.15 # Fracción baja = más conservador
-    min_confidence: 0.65 # Solo opera con >65% confianza (máxima calidad)
-    max_risk_cap: 1.5 # Máximo 1.5% incluso en señales fuertes
+    fraction: 0.20 # 1/5 Kelly - moderado para $300
+    min_confidence: 0.60 # Opera con >60% confianza
+    max_risk_cap: 2.0 # Máximo 2% en señales fuertes
+
+  # v1.8 INSTITUCIONAL: ATR-based Stop Loss
+  # Los institucionales NUNCA usan % fijo - cada activo tiene volatilidad diferente
+  atr_stops:
+    enabled: true
+    sl_multiplier: 2.0      # SL a 2x ATR (distancia respeta volatilidad)
+    tp_multiplier: 4.0      # TP a 4x ATR (R/R 2:1)
+    min_distance_percent: 0.5   # Mínimo 0.5% aunque ATR sea menor
+    max_distance_percent: 5.5   # Máximo 5.5% para $300
+
+  # v1.8: Session Filter (horarios óptimos de liquidez)
+  session_filter:
+    enabled: false  # Deshabilitado en paper para más pruebas
+    optimal_hours_utc:
+      - [7, 16]   # Europa: 7:00-16:00 UTC
+      - [13, 22]  # USA: 13:00-22:00 UTC
 
   # ===== CONTROL DE COMISIONES Y TAMAÑOS MÍNIMOS =====
   fees:
@@ -92,16 +109,16 @@ risk_management:
     # Round-trip total = 0.15% (ahorro de 25% vs 0.20%)
 
   position_sizing:
-    # Tamaño mínimo de posición (debe cubrir fees + generar ganancia)
-    min_position_usd: 15.0     # Mínimo $15 por posición
-    # Con $15: fees = $0.03, ganancia mínima viable
+    # Tamaño mínimo de posición para $300
+    min_position_usd: 25.0     # Mínimo $25 por posición
+    # Con $25: fees = $0.05, ganancia mínima viable
 
     # Ganancia mínima neta después de fees para ejecutar trade
     min_profit_after_fees_usd: 0.50  # Al menos $0.50 de ganancia neta
 
     # Factor de seguridad: solo operar si ganancia esperada > fees * factor
     profit_to_fees_ratio: 5.0  # Ganancia esperada debe ser 5x las comisiones
-    # Ejemplo: fees $0.06 → necesita ganancia esperada > $0.30
+    # Ejemplo: fees $0.10 → necesita ganancia esperada > $0.50
 
   # Mínimos de Binance por par (notional mínimo)
   exchange_minimums:
@@ -151,19 +168,24 @@ position_management:
       - "EXTEND_TP"   # Extender TP si momentum fuerte
     # NO incluye PARTIAL_CLOSE ni FULL_CLOSE (solo ajustes)
 
-  # Límites del portfolio - CONSERVADOR para $100
+  # Límites del portfolio - CONSERVADOR para $300
   portfolio:
     max_concurrent_positions: 1    # 1 posición a la vez = mayor tamaño = menos % en fees
-    max_exposure_percent: 40       # Máximo 40% del capital ($40) por posición
-    max_per_symbol_percent: 40     # Máximo 40% en un solo símbolo
-    # Con 1 posición de $40: fees = $0.08, ganancia 3% = $1.20, neto = $1.12
+    max_exposure_percent: 50       # Máximo 50% del capital ($150) por posición
+    max_per_symbol_percent: 50     # Máximo 50% en un solo símbolo
+    # Con 1 posición de $150: fees = $0.30, ganancia 4% = $6.00, neto = $5.70
 
   # Persistencia (SQLite)
   database:
     path: "data/positions.db"
 
-# ===== ANÁLISIS TÉCNICO =====
+# ===== ANÁLISIS TÉCNICO - v1.8 INSTITUCIONAL =====
 technical_analysis:
+  # v1.8: Mínimo de velas para análisis
+  # PAPER: 100 velas (más flexibilidad para pruebas rápidas)
+  # LIVE: 200 velas (análisis más confiable)
+  min_candles: 100  # Reducido para paper/testing
+
   indicators:
     rsi:
       enabled: true
@@ -247,7 +269,7 @@ logging:
 security:
   kill_switch:
     enabled: true
-    max_loss_percentage: 5.0 # $5 de pérdida máxima (5% de $100)
+    max_loss_percentage: 5.0 # $15 de pérdida máxima (5% de $300)
     cooldown_period_hours: 24
   api_rate_limit:
     requests_per_minute: 60
@@ -283,10 +305,10 @@ adaptive_parameters:
   enabled: true
   lookback_trades: 20      # Trades para calcular métricas
   sensitivity: 0.25        # 0.1=conservador, 0.5=agresivo
-  # Rangos de ajuste
+  # Rangos de ajuste para $300
   ranges:
     min_confidence: { min: 0.50, max: 0.80 }
-    max_risk_per_trade: { min: 0.5, max: 2.0 }
+    max_risk_per_trade: { min: 0.5, max: 2.5 }  # Hasta 2.5% para $300
     trailing_activation: { min: 1.0, max: 4.0 }
 
 # ===== v1.7+: PERFORMANCE ATTRIBUTION =====

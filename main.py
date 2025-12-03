@@ -990,6 +990,23 @@ class TradingBot:
             except:
                 suggested_tp = None
 
+        # v1.8 INSTITUCIONAL: Si no hay TP sugerido, calcular basado en ATR
+        if suggested_tp is None and hasattr(self.risk_manager, 'calculate_atr_take_profit'):
+            suggested_tp = self.risk_manager.calculate_atr_take_profit(
+                current_price=current_price,
+                decision=decision,
+                market_data=technical_data
+            )
+            if suggested_tp:
+                logger.info(f"{tag} 🎯 ATR-based TP calculado: ${suggested_tp:,.2f}")
+
+        # v1.8 INSTITUCIONAL: Session Filter (verificar horario óptimo)
+        if hasattr(self.risk_manager, 'is_optimal_session'):
+            session_check = self.risk_manager.is_optimal_session()
+            if not session_check.get('optimal', True):
+                logger.info(f"{tag} ⏰ Session Filter: {session_check.get('reason', 'Fuera de horario')}")
+                # No retornar, solo advertir - el usuario puede deshabilitar esto en config
+
         risk_validation = self.risk_manager.validate_trade(
             symbol=symbol,
             decision=decision,

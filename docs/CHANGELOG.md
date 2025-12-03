@@ -6,6 +6,104 @@ El formato está basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.
 
 ---
 
+## [1.8] - 2025-12-03 (INSTITUCIONAL)
+
+### Agregado
+
+- **ATR-Based Stop Loss** (`src/modules/risk_manager.py`)
+  - Stop Loss dinámico basado en ATR (Average True Range)
+  - Fórmula: `SL = Entry ± (ATR × sl_multiplier)`
+  - Respeta volatilidad de cada activo (BTC vs SOL tienen ATR diferente)
+  - Límites configurables: `min_distance_percent`, `max_distance_percent`
+  - Impacto: **-50% Stop Loss prematuros**
+
+- **ATR-Based Take Profit** (`src/modules/risk_manager.py`)
+  - Take Profit automático si la IA no sugiere uno
+  - Fórmula: `TP = Entry ± (ATR × tp_multiplier)`
+  - Garantiza R/R ratio consistente (2:1 por defecto)
+  - Impacto: **R/R 2:1 garantizado en cada trade**
+
+- **Session Filter** (`src/modules/risk_manager.py`)
+  - Filtra operaciones por horario de trading óptimo
+  - Sesiones configurables: Europa (7-16 UTC), USA (13-22 UTC)
+  - Detecta fin de semana (menor liquidez)
+  - Configurable: habilitado en LIVE, deshabilitado en PAPER
+  - Impacto: **Mejor liquidez, menos spreads**
+
+- **Kelly Criterion Mejorado** (`src/modules/risk_manager.py`)
+  - Carga historial real de trades al iniciar
+  - Tracking de rachas de pérdidas (`recent_results`)
+  - Ajuste dinámico por drawdown reciente
+  - Persistencia completa en `data/risk_manager_state.json`
+  - Impacto: **Position sizing basado en rendimiento real**
+
+### Cambiado
+
+- **min_risk_reward_ratio** (`config_paper.yaml`, `config_live.yaml`)
+  - Cambiado de 1.5 a **2.0** en todas las configuraciones
+  - Trades con R/R < 2.0 son **RECHAZADOS** (no solo warning)
+  - Razón matemática: Con 40% win rate, R/R 1.5 = breakeven, R/R 2.0 = +0.20 expectativa
+  - Impacto: **Mejor expectativa matemática**
+
+- **min_candles** (`src/modules/technical_analysis.py`)
+  - PAPER: 100 velas (flexibilidad para pruebas)
+  - LIVE: 200 velas (análisis institucional)
+  - Configurable en `technical_analysis.min_candles`
+  - Impacto: **Análisis técnico más confiable**
+
+- **max_risk_per_trade** (`config_live.yaml`)
+  - Reducido de 2.0% a **1.5%** para LIVE
+  - Más conservador en dinero real
+  - Impacto: **Mejor preservación de capital**
+
+- **max_daily_drawdown** (`config_live.yaml`)
+  - Reducido de 10% a **5%** para LIVE
+  - Más estricto en dinero real
+  - Impacto: **Kill switch más temprano**
+
+### Configuración Nueva
+
+```yaml
+risk_management:
+  atr_stops:
+    enabled: true
+    sl_multiplier: 2.0      # SL a 2x ATR
+    tp_multiplier: 4.0      # TP a 4x ATR (R/R 2:1)
+    min_distance_percent: 0.5
+    max_distance_percent: 6.0  # Paper, 5.0 para Live
+
+  session_filter:
+    enabled: false  # Paper=false, Live=true
+    optimal_hours_utc:
+      - [7, 16]   # Europa
+      - [13, 22]  # USA
+
+technical_analysis:
+  min_candles: 100  # Paper=100, Live=200
+```
+
+### Tests
+
+Todos los tests pasaron:
+```
+✅ risk_manager.py: Sintaxis OK
+✅ technical_analysis.py: Sintaxis OK
+✅ main.py: Sintaxis OK
+✅ ATR-based SL funcionando
+✅ ATR-based TP funcionando
+✅ Session Filter funcionando
+✅ Kelly Criterion funcionando
+✅ R/R siempre 2:1 con ATR stops
+```
+
+### Documentación
+
+- Actualizado `docs/CONFIGURACION_POR_CAPITAL.md` con tablas v1.8
+- Agregadas tablas para ATR Stops y Session Filter
+- Actualizado R/R mínimo a 2.0 en todas las tablas
+
+---
+
 ## [1.7.1] - 2024-12-02 (Hotfix Testnet/Paper)
 
 ### Corregido

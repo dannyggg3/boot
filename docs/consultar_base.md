@@ -98,10 +98,10 @@
   docker logs -f sath_bot_live
 
 
-  rm -f logs/*.log && docker compose -f docker-compose.live.yml down && docker compose -f docker-compose.live.yml up -d --build
+  rm -f logs/*.log && docker compose -p live -f docker-compose.live.yml down && docker compose -p live -f docker-compose.live.yml up -d --build
 
 # version paper
-  rm -f logs/*.log && docker compose -f docker-compose.paper.yml down && docker compose -f docker-compose.paper.yml up -d --build
+  rm -f logs/*.log && docker compose -p paper -f docker-compose.paper.yml down && docker compose -p paper -f docker-compose.paper.yml up -d --build
 
   docker logs -f sath_bot_paper
 # fin version paper

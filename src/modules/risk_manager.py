@@ -10,8 +10,14 @@ v1.7: Kelly Criterion mejorado para ser más conservador con historial limitado.
       - Tracking de rachas perdedoras
       - Factor de seguridad dinámico
 
+v1.8 INSTITUCIONAL:
+      - ATR-based Stop Loss (en lugar de % fijo)
+      - Kelly Criterion funcional con historial real
+      - Session filter integrado
+      - Volatility-adaptive sizing mejorado
+
 Autor: Trading Bot System
-Versión: 1.7
+Versión: 1.8
 """
 
 import logging
@@ -94,10 +100,27 @@ class RiskManager:
         self.kill_switch_enabled = self.kill_switch_config.get('enabled', True)
         self.max_loss_percentage = self.kill_switch_config.get('max_loss_percentage', 5.0)
 
+        # v1.8 INSTITUCIONAL: Configuración ATR-based Stop Loss
+        atr_config = self.config.get('atr_stops', {})
+        self.use_atr_stops = atr_config.get('enabled', True)  # Activado por defecto
+        self.atr_sl_multiplier = atr_config.get('sl_multiplier', 2.0)  # SL a 2x ATR
+        self.atr_tp_multiplier = atr_config.get('tp_multiplier', 3.0)  # TP a 3x ATR (R/R 1.5:1)
+        self.atr_min_distance_percent = atr_config.get('min_distance_percent', 0.5)  # Mínimo 0.5%
+        self.atr_max_distance_percent = atr_config.get('max_distance_percent', 8.0)  # Máximo 8%
+
+        # v1.8: Session filter para horarios óptimos
+        session_config = self.config.get('session_filter', {})
+        self.use_session_filter = session_config.get('enabled', False)
+        self.optimal_hours_utc = session_config.get('optimal_hours_utc', [[7, 16], [13, 22]])  # Europa y USA
+
         # Cargar estado si existe
         self._load_state()
 
-        logger.info(f"Risk Manager inicializado - Capital: ${self.current_capital}")
+        logger.info(f"Risk Manager v1.8 INSTITUCIONAL inicializado")
+        logger.info(f"  Capital: ${self.current_capital}")
+        logger.info(f"  ATR Stops: {'ON' if self.use_atr_stops else 'OFF'} (SL: {self.atr_sl_multiplier}x ATR, TP: {self.atr_tp_multiplier}x ATR)")
+        logger.info(f"  Kelly Criterion: {'ON' if self.use_kelly_criterion else 'OFF'} (fraction: {self.kelly_fraction})")
+        logger.info(f"  Session Filter: {'ON' if self.use_session_filter else 'OFF'}")
 
     def validate_trade(
         self,
@@ -319,7 +342,12 @@ class RiskManager:
         market_data: Optional[Dict[str, Any]]
     ) -> float:
         """
-        Calcula un stop loss automático basado en ATR o porcentaje fijo.
+        v1.8 INSTITUCIONAL: Calcula Stop Loss basado en ATR (Average True Range).
+
+        Los institucionales NUNCA usan % fijo porque cada activo tiene volatilidad diferente.
+        BTC con ATR 1% vs SOL con ATR 4% requieren SL muy diferentes.
+
+        Fórmula: SL = Entry ± (ATR * multiplier)
 
         Args:
             current_price: Precio actual
@@ -329,22 +357,138 @@ class RiskManager:
         Returns:
             Precio de stop loss
         """
-        # Intentar usar ATR si está disponible
-        if market_data and 'atr' in market_data:
+        # v1.8: Usar ATR si está disponible y habilitado
+        if self.use_atr_stops and market_data and 'atr' in market_data:
             atr = market_data['atr']
-            # Stop loss a 2x ATR
+            atr_percent = market_data.get('atr_percent', market_data.get('atr_percentage', 0))
+
+            # Calcular distancia del SL usando ATR
+            sl_distance = atr * self.atr_sl_multiplier
+            sl_distance_percent = (sl_distance / current_price) * 100
+
+            # v1.8: Aplicar límites mínimos y máximos
+            if sl_distance_percent < self.atr_min_distance_percent:
+                # ATR muy bajo (mercado muy tranquilo) - usar mínimo
+                sl_distance = current_price * (self.atr_min_distance_percent / 100)
+                logger.debug(f"SL ajustado al mínimo {self.atr_min_distance_percent}% (ATR muy bajo)")
+            elif sl_distance_percent > self.atr_max_distance_percent:
+                # ATR muy alto (mercado muy volátil) - usar máximo
+                sl_distance = current_price * (self.atr_max_distance_percent / 100)
+                logger.debug(f"SL ajustado al máximo {self.atr_max_distance_percent}% (ATR muy alto)")
+
             if decision == 'COMPRA':
-                stop_loss = current_price - (2 * atr)
-            else:
-                stop_loss = current_price + (2 * atr)
+                stop_loss = current_price - sl_distance
+            else:  # VENTA
+                stop_loss = current_price + sl_distance
+
+            final_sl_percent = abs(stop_loss - current_price) / current_price * 100
+            logger.info(f"📊 ATR-based SL: ATR={atr:.2f} ({atr_percent:.2f}%), "
+                       f"Multiplier={self.atr_sl_multiplier}x, SL Distance={final_sl_percent:.2f}%")
         else:
-            # Usar porcentaje fijo (3%)
+            # Fallback: usar % fijo basado en max_risk_per_trade
+            # Pero más conservador que antes
+            fallback_percent = min(self.max_risk_per_trade * 1.5, 4.0)  # Máx 4%
+
             if decision == 'COMPRA':
-                stop_loss = current_price * 0.97
+                stop_loss = current_price * (1 - fallback_percent / 100)
             else:
-                stop_loss = current_price * 1.03
+                stop_loss = current_price * (1 + fallback_percent / 100)
+
+            logger.warning(f"⚠️ Sin ATR disponible - usando SL fijo de {fallback_percent:.1f}%")
 
         return stop_loss
+
+    def calculate_atr_take_profit(
+        self,
+        current_price: float,
+        decision: str,
+        market_data: Optional[Dict[str, Any]],
+        risk_reward_ratio: Optional[float] = None
+    ) -> Optional[float]:
+        """
+        v1.8 INSTITUCIONAL: Calcula Take Profit basado en ATR.
+
+        TP = Entry ± (ATR * multiplier * R/R ratio)
+
+        Args:
+            current_price: Precio actual
+            decision: COMPRA o VENTA
+            market_data: Datos del mercado con ATR
+            risk_reward_ratio: Ratio R/R deseado (si None, usa min_risk_reward_ratio)
+
+        Returns:
+            Precio de take profit o None si no se puede calcular
+        """
+        if not market_data or 'atr' not in market_data:
+            return None
+
+        atr = market_data['atr']
+        rr_ratio = risk_reward_ratio or self.min_risk_reward_ratio
+
+        # TP distance = ATR * SL_multiplier * R/R_ratio
+        # Esto asegura que siempre tengamos el R/R deseado
+        tp_distance = atr * self.atr_sl_multiplier * rr_ratio
+
+        # Aplicar límites
+        tp_distance_percent = (tp_distance / current_price) * 100
+        min_tp = self.atr_min_distance_percent * rr_ratio
+        max_tp = self.atr_max_distance_percent * rr_ratio
+
+        if tp_distance_percent < min_tp:
+            tp_distance = current_price * (min_tp / 100)
+        elif tp_distance_percent > max_tp:
+            tp_distance = current_price * (max_tp / 100)
+
+        if decision == 'COMPRA':
+            take_profit = current_price + tp_distance
+        else:  # VENTA
+            take_profit = current_price - tp_distance
+
+        logger.info(f"🎯 ATR-based TP: Distance={tp_distance_percent:.2f}%, R/R={rr_ratio}:1")
+        return take_profit
+
+    def is_optimal_session(self) -> Dict[str, Any]:
+        """
+        v1.8 INSTITUCIONAL: Verifica si estamos en una sesión de trading óptima.
+
+        Las mejores horas para crypto son cuando los mercados de USA y Europa están abiertos.
+        Fuera de estas horas hay menos liquidez y más spreads.
+
+        Returns:
+            Dict con resultado y razón
+        """
+        if not self.use_session_filter:
+            return {'optimal': True, 'reason': 'Session filter deshabilitado'}
+
+        from datetime import datetime, timezone
+
+        current_hour = datetime.now(timezone.utc).hour
+        current_day = datetime.now(timezone.utc).weekday()  # 0=Monday, 6=Sunday
+
+        # Fin de semana = menor liquidez
+        if current_day >= 5:  # Sábado o domingo
+            return {
+                'optimal': False,
+                'reason': f'Fin de semana (menor liquidez)',
+                'hour_utc': current_hour,
+                'day': current_day
+            }
+
+        # Verificar si estamos en horario óptimo
+        for start_hour, end_hour in self.optimal_hours_utc:
+            if start_hour <= current_hour < end_hour:
+                return {
+                    'optimal': True,
+                    'reason': f'Sesión activa ({start_hour}:00-{end_hour}:00 UTC)',
+                    'hour_utc': current_hour
+                }
+
+        return {
+            'optimal': False,
+            'reason': f'Fuera de horario óptimo ({current_hour}:00 UTC)',
+            'hour_utc': current_hour,
+            'optimal_hours': self.optimal_hours_utc
+        }
 
     def _adjust_stop_loss(
         self,
@@ -506,14 +650,21 @@ class RiskManager:
             return initial_stop_loss
 
     def _save_state(self):
-        """Guarda el estado del risk manager."""
+        """
+        v1.8 INSTITUCIONAL: Guarda el estado completo del risk manager.
+
+        CRÍTICO: Incluye historial de trades y resultados recientes para:
+        - Kelly Criterion con probabilidades reales
+        - Tracking de rachas para ajustes adaptativos
+        """
         state = {
             'current_capital': self.current_capital,
             'daily_pnl': self.daily_pnl,
             'today': str(self.today),
             'kill_switch_active': self.kill_switch_active,
             'open_trades': self.open_trades,
-            'trade_history': self.trade_history  # v1.4: Persistir historial para Kelly
+            'trade_history': self.trade_history,  # v1.4: Persistir historial para Kelly
+            'recent_results': getattr(self, 'recent_results', [])[-20:]  # v1.8: Últimos 20 resultados
         }
 
         state_file = 'data/risk_manager_state.json'
@@ -522,16 +673,23 @@ class RiskManager:
         try:
             with open(state_file, 'w') as f:
                 json.dump(state, f, indent=2)
-            logger.debug("Estado del risk manager guardado")
+            logger.debug("Estado del risk manager guardado (incluyendo Kelly historial)")
         except Exception as e:
             logger.error(f"Error guardando estado: {e}")
 
     def _load_state(self):
-        """Carga el estado del risk manager si existe."""
+        """
+        v1.8 INSTITUCIONAL: Carga el estado del risk manager incluyendo historial completo.
+
+        CRÍTICO para Kelly Criterion: El historial de trades debe persistir entre reinicios
+        para que Kelly pueda calcular probabilidades reales basadas en rendimiento histórico.
+        """
         state_file = 'data/risk_manager_state.json'
 
         if not os.path.exists(state_file):
             logger.info("No se encontró estado previo - Usando valores por defecto")
+            # Inicializar recent_results para tracking de rachas
+            self.recent_results = []
             return
 
         try:
@@ -542,7 +700,8 @@ class RiskManager:
             self.daily_pnl = state.get('daily_pnl', 0.0)
             self.kill_switch_active = state.get('kill_switch_active', False)
             self.open_trades = state.get('open_trades', [])
-            # v1.4: Cargar historial para Kelly Criterion
+
+            # v1.8 CRÍTICO: Cargar historial COMPLETO para Kelly Criterion
             self.trade_history = state.get('trade_history', {
                 'wins': 0,
                 'losses': 0,
@@ -550,16 +709,31 @@ class RiskManager:
                 'total_loss_amount': 0.0
             })
 
+            # v1.8: Cargar resultados recientes para tracking de rachas
+            self.recent_results = state.get('recent_results', [])
+
             # Verificar si es un nuevo día
             saved_date = datetime.strptime(state.get('today', str(self.today)), '%Y-%m-%d').date()
             if saved_date != self.today:
                 self.daily_pnl = 0.0
                 self.kill_switch_active = False
 
-            logger.info(f"Estado cargado - Capital: ${self.current_capital:.2f}")
+            # v1.8: Log detallado del historial cargado
+            total_trades = self.trade_history['wins'] + self.trade_history['losses']
+            win_rate = self._get_win_rate()
+            logger.info(f"📊 Estado cargado - Capital: ${self.current_capital:.2f}")
+            logger.info(f"📊 Kelly Historial: {total_trades} trades ({self.trade_history['wins']}W/{self.trade_history['losses']}L = {win_rate*100:.1f}%)")
+
+            if total_trades > 0:
+                avg_win = self.trade_history['total_win_amount'] / max(1, self.trade_history['wins'])
+                avg_loss = self.trade_history['total_loss_amount'] / max(1, self.trade_history['losses'])
+                if avg_loss > 0:
+                    actual_rr = avg_win / avg_loss
+                    logger.info(f"📊 Kelly Stats: Avg Win ${avg_win:.2f}, Avg Loss ${avg_loss:.2f}, R/R Real {actual_rr:.2f}")
 
         except Exception as e:
             logger.error(f"Error cargando estado: {e}")
+            self.recent_results = []
 
     def get_status(self) -> Dict[str, Any]:
         """

@@ -4,8 +4,13 @@ Technical Analysis Module - Módulo de Análisis Técnico
 Este módulo calcula indicadores técnicos a partir de datos OHLCV
 para apoyar las decisiones de trading.
 
+v1.8 INSTITUCIONAL:
+    - Mínimo 200 velas para análisis confiable (antes 50)
+    - ATR normalizado en % para comparación entre activos
+    - Volatility level mejorado
+
 Autor: Trading Bot System
-Versión: 1.0
+Versión: 1.8
 """
 
 import logging
@@ -42,13 +47,22 @@ class TechnicalAnalyzer:
         self.config = config
         self.indicators_config = config.get('technical_analysis', {}).get('indicators', {})
 
-        # Modo de operación determina requerimientos mínimos
+        # Modo de operación
         self.mode = config.get('trading', {}).get('mode', 'paper')
 
-        # Mínimo de velas: 50 para paper/testnet, 200 para live
-        self.min_candles = 50 if self.mode == 'paper' else 200
+        # v1.8 INSTITUCIONAL: Siempre usar 200 velas mínimo para análisis confiable
+        # Los institucionales NUNCA usan menos de 200 velas para indicadores
+        # - EMA 200 necesita 200+ velas
+        # - ATR confiable necesita 100+ velas
+        # - Detección de tendencia necesita suficiente historial
+        ta_config = config.get('technical_analysis', {})
+        self.min_candles = ta_config.get('min_candles', 200)  # Configurable pero default 200
 
-        logger.info(f"Technical Analyzer inicializado (mode={self.mode}, min_candles={self.min_candles})")
+        # Mínimo absoluto para que los indicadores funcionen
+        self.absolute_min_candles = 50
+
+        logger.info(f"Technical Analyzer v1.8 INSTITUCIONAL inicializado")
+        logger.info(f"  Mode: {self.mode}, Min Candles: {self.min_candles}")
 
     def analyze(self, ohlcv_data: List[List]) -> Dict[str, Any]:
         """
@@ -62,9 +76,14 @@ class TechnicalAnalyzer:
         """
         candle_count = len(ohlcv_data) if ohlcv_data else 0
 
-        if candle_count < self.min_candles:
-            logger.warning(f"Datos insuficientes: {candle_count} velas (mínimo: {self.min_candles})")
+        # v1.8: Mínimo absoluto - sin esto no podemos calcular indicadores básicos
+        if candle_count < self.absolute_min_candles:
+            logger.warning(f"❌ Datos insuficientes: {candle_count} velas (mínimo absoluto: {self.absolute_min_candles})")
             return {}
+
+        # v1.8: Advertir si no tenemos las velas óptimas
+        if candle_count < self.min_candles:
+            logger.warning(f"⚠️ Datos subóptimos: {candle_count}/{self.min_candles} velas - Análisis puede ser menos confiable")
 
         # Ajustar períodos de EMA según datos disponibles
         self._adjust_ema_periods(candle_count)
