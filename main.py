@@ -1493,12 +1493,13 @@ def main():
     print(f"""
     ╔═══════════════════════════════════════════════════════════════╗
     ║                                                               ║
-    ║     Sistema Autónomo de Trading Híbrido (SATH) v1.8         ║
-    ║           NIVEL INSTITUCIONAL SUPERIOR                       ║
+    ║     Sistema Autónomo de Trading Híbrido (SATH) v1.8.1       ║
+    ║           ★★★★★ INSTITUCIONAL PRO ★★★★★                      ║
     ║                                                               ║
     ║     ✓ ATR-Based Stop Loss/TP       ✓ Correlation Filter     ║
     ║     ✓ Multi-Timeframe (4H→1H→15m)  ✓ Session Filter         ║
-    ║     ✓ Kelly Criterion Dinámico     ✓ R/R 2:1 Obligatorio    ║
+    ║     ✓ Kelly Criterion (1/4)        ✓ R/R 2:1+ Obligatorio   ║
+    ║     ✓ Confianza mínima 70%         ✓ MTF Alignment 75%+     ║
     ║                                                               ║
     ║     MODO: {mode:^50}║
     ║     Config: {config_path:<47}║

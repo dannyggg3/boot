@@ -6,6 +6,74 @@ El formato está basado en [Keep a Changelog](https://keepachangelog.com/es/1.0.
 
 ---
 
+## [1.8.1] - 2025-12-03 (INSTITUCIONAL PRO ★★★★★)
+
+### Nivel Institucional Máximo Alcanzado
+
+SATH v1.8.1 representa el nivel más alto de optimización institucional, con configuraciones finamente ajustadas para maximizar la rentabilidad mientras se minimiza el riesgo.
+
+**Filosofía v1.8.1:** Menos trades, mayor calidad, R/R superior.
+
+### Optimizado
+
+- **Confianza mínima** aumentada de 60% a **70%**
+  - Solo trades de alta convicción
+  - Menos trades, mayor calidad
+  - Impacto: **Mejor win rate esperado**
+
+- **Kelly Criterion** ajustado de 1/5 a **1/4**
+  - Más agresivo cuando hay alta confianza
+  - max_risk_cap aumentado a 2.5%
+  - Impacto: **Mejor aprovechamiento de señales fuertes**
+
+- **MTF Alignment** aumentado de 70% a **75%**
+  - Peso de TF mayor (4H) aumentado a 55%
+  - Solo opera con fuerte alineación multi-timeframe
+  - Impacto: **Menos señales falsas**
+
+- **Volatilidad mínima** aumentada de 0.25% a **0.35%**
+  - Volumen mínimo aumentado de 0.3 a 0.5
+  - Solo opera cuando hay movimiento real
+  - Impacto: **Mejor R/R en cada trade**
+
+- **Validación de liquidez** más estricta
+  - max_slippage reducido a 0.3%
+  - max_spread_reject reducido a 0.35%
+  - min_order_book_depth agregado ($500)
+  - Impacto: **Mejor ejecución de órdenes**
+
+- **Trailing Stop** mejorado
+  - Activación aumentada a 2.5% (más conservador)
+  - Trail distance reducido a 1.2% (captura más)
+  - min_profit_to_lock aumentado a 0.8%
+  - cooldown_seconds aumentado a 5
+  - Impacto: **Mejor protección de ganancias**
+
+- **Position sizing** más exigente
+  - min_position_usd aumentado a $40
+  - min_profit_after_fees_usd aumentado a $1.00
+  - profit_to_fees_ratio aumentado a 8x
+  - Impacto: **Solo trades rentables**
+
+- **Parámetros adaptativos** más conservadores
+  - lookback_trades aumentado a 30
+  - sensitivity reducida a 0.15
+  - Rango de confianza mínima: 65%-85%
+  - Impacto: **Cambios más graduales**
+
+- **Min candles** aumentado de 100 a **150**
+  - Mejor balance velocidad/calidad
+  - Impacto: **Análisis más robusto**
+
+### Agregado
+
+- **Reintentos de API** para errores de conexión
+  - max_retries: 3
+  - retry_delay_seconds: 2
+  - Impacto: **Mayor resiliencia**
+
+---
+
 ## [1.8] - 2025-12-03 (INSTITUCIONAL)
 
 ### Agregado
@@ -1287,7 +1355,20 @@ from(bucket:"trading_decisions")
 - [x] Thread-safe singletons
 - [x] 24 tests unitarios
 
-### v1.8 (Planificado)
+### v1.8 / v1.8.1 (COMPLETADO ★★★★★)
+
+- [x] ATR-Based Stop Loss y Take Profit dinámicos
+- [x] Kelly Criterion con historial persistente
+- [x] Session Filter para liquidez óptima
+- [x] R/R mínimo 2.0 obligatorio (RECHAZA si <2.0)
+- [x] Confianza mínima institucional (70% PAPER, 75% LIVE)
+- [x] MTF Alignment aumentado (75% PAPER, 80% LIVE)
+- [x] Profit/Fees ratio institucional (8x PAPER, 10x LIVE)
+- [x] Trailing Stop optimizado con cooldown y safety margin
+- [x] Reintentos de API configurables
+- [x] Documentación completa v1.8.1
+
+### v1.9 (Planificado)
 
 - [ ] Más agentes especializados (Breakout Agent, Scalping Agent)
 - [ ] Machine Learning para optimización de parámetros

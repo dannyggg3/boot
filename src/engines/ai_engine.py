@@ -53,11 +53,14 @@ class AIEngine:
         self.model_deep = self.config.get('ai_model_deep', self.model)  # DeepSeek-R1/reasoner
         self.use_hybrid = self.config.get('ai_use_hybrid_analysis', False)
 
-        # Sistema de Agentes Especializados (v1.2)
+        # Sistema de Agentes Especializados (v1.2) + v1.8.1 retries
         self.agents_config = self.config.get('ai_agents', {})
         self.use_specialized_agents = self.agents_config.get('enabled', True)
         self.min_volatility_percent = self.agents_config.get('min_volatility_percent', 0.5)
         self.min_volume_ratio = self.agents_config.get('min_volume_ratio', 0.8)
+        # v1.8.1: Reintentos configurables para errores de conexión
+        self.max_retries = self.agents_config.get('max_retries', 3)
+        self.retry_delay = self.agents_config.get('retry_delay_seconds', 2)
 
         # v1.5: Cache inteligente de decisiones (reduce llamadas API)
         self._decision_cache = {}  # {cache_key: {decision, timestamp}}
@@ -274,13 +277,11 @@ class AIEngine:
         """
         import time
 
-        # Configuración de reintentos
-        max_retries = 3
-
         try:
             prompt = self._build_analysis_prompt(market_data)
 
-            for attempt in range(max_retries):
+            # v1.8.1: Usar reintentos configurables
+            for attempt in range(self.max_retries):
                 try:
                     # Llamada a la API
                     response_text = self._get_ai_response(prompt)
@@ -293,9 +294,9 @@ class AIEngine:
 
                     # Si el razonamiento indica un error de parseo, forzamos un reintento
                     if 'Error' in razonamiento or 'error' in razonamiento.lower() or 'inválido' in razonamiento.lower():
-                        if attempt < max_retries - 1:
-                            logger.warning(f"Respuesta inválida de IA (intento {attempt + 1}/{max_retries}). Reintentando...")
-                            time.sleep(1)  # Esperar antes de reintentar
+                        if attempt < self.max_retries - 1:
+                            logger.warning(f"Respuesta inválida de IA (intento {attempt + 1}/{self.max_retries}). Reintentando...")
+                            time.sleep(self.retry_delay)
                             continue
 
                     # Si llegamos aquí, tenemos una decisión válida
@@ -303,9 +304,9 @@ class AIEngine:
                     return decision
 
                 except Exception as e:
-                    logger.error(f"Error en análisis de mercado (intento {attempt + 1}/{max_retries}): {e}")
-                    if attempt < max_retries - 1:
-                        time.sleep(1)  # Esperar antes de reintentar
+                    logger.error(f"Error en análisis de mercado (intento {attempt + 1}/{self.max_retries}): {e}")
+                    if attempt < self.max_retries - 1:
+                        time.sleep(self.retry_delay)
                         logger.info("Reintentando...")
                         continue
 

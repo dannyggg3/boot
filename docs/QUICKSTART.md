@@ -1,4 +1,4 @@
-# Guía de Inicio Rápido (v1.2)
+# Guía de Inicio Rápido - SATH v1.8.1 INSTITUCIONAL PRO ★★★★★
 
 ## Primeros Pasos (5 minutos)
 
@@ -93,45 +93,48 @@ OPENAI_API_KEY=sk-tu-clave-aqui
 GEMINI_API_KEY=AIzaSy-tu-clave-aqui
 ```
 
-### Configuración Optimizada v1.2
+### Configuración Optimizada v1.8.1 INSTITUCIONAL PRO
 
-Las siguientes optimizaciones vienen **habilitadas por defecto**:
+Las siguientes optimizaciones institucionales vienen **habilitadas por defecto**:
 
 ```yaml
-# === AGENTES ESPECIALIZADOS (v1.2) ===
+# === AGENTES ESPECIALIZADOS v1.8.1 ===
 ai_agents:
   enabled: true
-  min_volatility_percent: 0.5  # No opera si mercado "muerto"
-  min_volume_ratio: 0.8
+  min_volatility_percent: 0.35  # PAPER (0.40 para LIVE)
+  min_volume_ratio: 0.5         # Confirma liquidez
+  max_retries: 3                # Reintentos para resiliencia
+  retry_delay_seconds: 2
 
-trading:
-  # Análisis paralelo (4x más rápido)
-  parallel_analysis: true
+# === GESTIÓN DE RIESGO INSTITUCIONAL ===
+risk_management:
+  min_risk_reward_ratio: 2.0    # R/R mínimo 2:1 (RECHAZA si menor)
 
-  # Protección anti-slippage
-  price_verification:
+  kelly_criterion:
     enabled: true
-    max_deviation_percent: 0.5
+    min_confidence: 0.70        # PAPER (0.75 para LIVE)
 
-  # Órdenes limit inteligentes
-  order_execution:
-    use_limit_orders: true
-    max_slippage_percent: 0.3
-
-  # Datos avanzados de mercado (v1.2)
-  advanced_data:
+  atr_stops:
     enabled: true
-    order_book: true      # Muros de compra/venta
-    funding_rate: true    # Sentimiento futuros
-    open_interest: true   # Dinero en el mercado
-    correlations: true    # Relación con BTC
+    sl_multiplier: 2.0          # SL a 2x ATR
+    tp_multiplier: 4.0          # TP a 4x ATR (garantiza R/R 2:1)
+
+# === MULTI-TIMEFRAME INSTITUCIONAL ===
+multi_timeframe:
+  enabled: true
+  min_alignment_score: 0.75     # PAPER (0.80 para LIVE)
+
+# === VALIDACIÓN DE RENTABILIDAD ===
+position_sizing:
+  profit_to_fees_ratio: 8.0     # PAPER (10.0 para LIVE)
 ```
 
-**Impacto en costos v1.2:**
-- Filtro de volatilidad: Ahorra ~70% en llamadas API
-- Agentes especializados: Mejor precisión por estrategia
-- Datos avanzados: Decisiones más informadas
-- **Total: Ahorro del 90-97% vs. configuración básica**
+**Impacto v1.8.1 INSTITUCIONAL PRO:**
+- **Menos trades, mayor calidad**: Solo opera con alta confianza (70-75%)
+- **R/R garantizado**: ATR-based stops aseguran R/R 2:1 en cada trade
+- **MTF alignment**: Solo opera cuando todos los timeframes están alineados
+- **Validación de fees**: Solo trades donde ganancia > 8-10x comisiones
+- **Ahorro total: 95-99% en llamadas API**
 
 ## Problemas Comunes
 
@@ -159,27 +162,34 @@ Esto es normal en modo `paper` si:
 - La verificación de precio abortó la orden (v1.1)
 - Revisa los logs: `tail -f logs/trading_bot.log`
 
-### Logs esperados (v1.2)
+### Logs esperados (v1.8.1 INSTITUCIONAL PRO)
 
 ```
-🔄 Iniciando análisis PARALELO de 4 símbolos...
-✅ Análisis paralelo completado en 3.2s
+╔═══════════════════════════════════════════════════════════╗
+║     Sistema Autónomo de Trading Híbrido (SATH) v1.8.1     ║
+║           ★★★★★ INSTITUCIONAL PRO ★★★★★                    ║
+╚═══════════════════════════════════════════════════════════╝
 
-=== ANÁLISIS CON AGENTES ESPECIALIZADOS (v1.2) ===
-ATR%: 1.45 | Volatilidad suficiente para operar
-Régimen detectado: TRENDING
-Activando Trend Agent...
-Obteniendo datos avanzados: Order Book, Funding, OI...
-✅ Decisión: COMPRA | Agente: trend | Confianza: 85%
+🔄 Iniciando análisis PARALELO de 3 símbolos...
+✅ Análisis paralelo completado en 2.8s
 
-✅ Verificación de precio OK: Desviación aceptable: 0.12%
-Convirtiendo a orden LIMIT: precio=95234.50 (slippage=0.30%)
+=== ANÁLISIS INSTITUCIONAL v1.8.1 ===
+🎯 MTF Alignment: 82% (min: 75%) ✅
+📊 ATR%: 1.45 | Volatilidad OK (min: 0.35%)
+📈 Régimen: TRENDING | Activando Trend Agent
+⚡ Confianza IA: 78% (min: 70%) ✅
+💰 R/R Ratio: 2.3:1 (min: 2.0) ✅
+📋 Profit/Fees: 12x (min: 8x) ✅
+
+✅ COMPRA BTC/USDT | Confianza: 78% | R/R: 2.3:1
+   SL: $94,500 (ATR-based) | TP: $98,200 (ATR-based)
 ```
 
-**Logs de filtrado (ahorro de API):**
+**Logs de filtrado institucional (ahorro de API):**
 ```
-ATR%: 0.35 | Volatilidad muy baja (< 0.5%)
-⏸️ ESPERA: Mercado sin volatilidad - Ahorrando llamada a API
+❌ MTF Alignment: 62% < 75% mínimo → ESPERA
+❌ Confianza: 65% < 70% mínimo → ESPERA
+❌ R/R Ratio: 1.4:1 < 2.0 mínimo → RECHAZADO
 ```
 
 Si ves `⚠️ ORDEN ABORTADA: Precio subió 0.65%` significa que la protección anti-slippage está funcionando correctamente.

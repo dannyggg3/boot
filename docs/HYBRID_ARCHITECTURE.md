@@ -1,4 +1,4 @@
-# Arquitectura Híbrida de IA - Estrategia Ganadora (v1.5)
+# Arquitectura Híbrida de IA - SATH v1.8.1 INSTITUCIONAL PRO ★★★★★
 
 ## 🎯 ¿Por Qué Arquitectura Híbrida?
 
@@ -588,14 +588,19 @@ trading:
 
 ---
 
-**Versión**: 1.5
-**Última actualización**: Diciembre 2024
+**Versión**: 1.8.1 INSTITUCIONAL PRO ★★★★★
+**Última actualización**: Diciembre 2025
 
 ### Changelog
 
-- **v1.5**: Pre-filtro local, cache inteligente, position size con balance real (fix "insufficient balance"), reducción 50-75% llamadas API
-- **v1.4**: Reglas de volumen flexibles (ratio > 0.3), breakouts permitidos, divergencia RSI opcional, confianza mínima 50%
+- **v1.8.1**: ATR-Based Stops, Session Filter, R/R 2.0 mínimo, MTF 75-80%, Kelly persistente, profit/fees 8-10x
+- **v1.8**: ATR-Based SL/TP, Kelly con historial, Session Filter, R/R obligatorio
+- **v1.7+**: MTF Analysis, Correlation Filter, Adaptive Parameters, Performance Attribution
+- **v1.7**: Trailing Stop fix, Paper Simulator, Kelly mejorado, métricas institucionales
+- **v1.6**: Circuit Breaker, Health Monitor, AI Ensemble, Async Architecture
+- **v1.5**: Pre-filtro local, cache inteligente, position size con balance real
+- **v1.4**: Reglas de volumen flexibles, breakouts permitidos, divergencia RSI opcional
 - **v1.3**: Docker Compose, InfluxDB, Kelly Criterion, WebSocket Engine
-- **v1.2**: Sistema de agentes especializados, filtro de volatilidad pre-IA, datos avanzados de mercado
+- **v1.2**: Sistema de agentes especializados, filtro de volatilidad pre-IA
 - **v1.1**: Análisis paralelo, protección anti-slippage, órdenes limit inteligentes
 - **v1.0**: Arquitectura híbrida inicial con filtro rápido + decisor profundo

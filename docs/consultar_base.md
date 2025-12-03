@@ -104,6 +104,25 @@
   rm -f logs/*.log && docker compose -p paper -f docker-compose.paper.yml down && docker compose -p paper -f docker-compose.paper.yml up -d --build
 
   docker logs -f sath_bot_paper
+
+    # 1. Detener el bot
+  docker compose -p paper -f docker-compose.paper.yml down
+
+  # 2. Resetear el estado del risk_manager (ESTO BORRARÁ EL HISTORIAL)
+  rm -f data/risk_manager_state.json
+
+  # 3. OPCIONAL: Si quieres borrar también la posición abierta
+  rm -f data/positions.db
+
+  # 4. Subir los cambios del código (main.py actualizado)
+  git add -A && git commit -m "v1.8: Update banner and $300 config" && git push
+
+  # 5. Reiniciar
+  docker compose -p paper -f docker-compose.paper.yml up -d --build
+
+  # 6. Ver logs
+  docker logs -f sath_bot_paper
+
 # fin version paper
 
   # despues

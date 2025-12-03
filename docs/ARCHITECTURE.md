@@ -1,6 +1,29 @@
-# Arquitectura del Sistema SATH v1.7+
+# Arquitectura del Sistema SATH v1.8.1 INSTITUCIONAL PRO ★★★★★
 
-Este documento describe la arquitectura completa del Sistema Autónomo de Trading Híbrido - Nivel Institucional Superior.
+Este documento describe la arquitectura completa del Sistema Autónomo de Trading Híbrido - Nivel Institucional Máximo.
+
+## Cambios v1.8.1 (INSTITUCIONAL PRO ★★★★★)
+
+### Optimizaciones v1.8.1
+
+| Componente | v1.7+ | v1.8.1 | Impacto |
+|------------|-------|--------|---------|
+| **Confianza mínima** | 60% | 70-75% | Menos trades, mayor calidad |
+| **R/R mínimo** | 1.5 | 2.0 | Mejor expectativa matemática |
+| **MTF Alignment** | 70% | 75-80% | Menos señales falsas |
+| **Profit/Fees ratio** | 5x | 8-10x | Solo trades rentables |
+| **Kelly fraction** | 1/5 | 1/4-1/5 | Mejor aprovechamiento |
+| **ATR Stops** | Básico | Avanzado | R/R dinámico garantizado |
+
+### Nuevas Características v1.8.1
+
+- **ATR-Based Stop Loss**: SL dinámico basado en volatilidad real (2x ATR)
+- **ATR-Based Take Profit**: TP automático garantizando R/R 2:1 (4x ATR)
+- **Session Filter**: Solo opera en horarios de máxima liquidez
+- **API Retries**: Reintentos configurables para errores de conexión
+- **Trailing Stop Mejorado**: Cooldown + safety margin configurables
+
+---
 
 ## Cambios v1.7+ (Nivel Institucional Superior)
 
@@ -752,4 +775,4 @@ bot/
 
 ---
 
-**Última actualización**: Diciembre 2024 - v1.7+ Nivel Institucional Superior
+**Última actualización**: Diciembre 2025 - v1.8.1 INSTITUCIONAL PRO ★★★★★

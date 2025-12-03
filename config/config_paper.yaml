@@ -1,6 +1,8 @@
 # ============================================
-# CONFIGURACIÓN PAPER (TESTNET) - SATH v1.8 INSTITUCIONAL
+# CONFIGURACIÓN PAPER (TESTNET) - SATH v1.8.1 INSTITUCIONAL PRO
 # Capital: $300 USD
+# Nivel: Institucional Máximo (5 estrellas)
+# Filosofía: Menos trades, mayor calidad, R/R superior
 # Usa Binance Testnet para pruebas sin dinero real
 # ============================================
 
@@ -16,9 +18,12 @@ ai_model_deep: "deepseek-reasoner"
 # ===== AGENTES ESPECIALIZADOS =====
 ai_agents:
   enabled: true
-  # Volatilidad mínima para operar - Ajustado para $300
-  min_volatility_percent: 0.25  # Más oportunidades que con $100
-  min_volume_ratio: 0.3  # Volumen moderado para confirmar señales
+  # v1.8 INSTITUCIONAL: Solo operar con volatilidad y volumen suficientes
+  min_volatility_percent: 0.35  # Mayor volatilidad = mejores oportunidades
+  min_volume_ratio: 0.5  # Volumen más alto para confirmar liquidez
+  # Reintentos para errores de conexión API
+  max_retries: 3
+  retry_delay_seconds: 2
 
 # ===== SELECCIÓN DE MERCADO =====
 market_type: "crypto"
@@ -79,11 +84,12 @@ risk_management:
   leverage: 1 # Sin apalancamiento
 
   # v1.8 Kelly Criterion INSTITUCIONAL ($300)
+  # INSTITUCIONAL: Solo trades de alta convicción
   kelly_criterion:
     enabled: true
-    fraction: 0.20 # 1/5 Kelly - moderado para $300
-    min_confidence: 0.60 # Opera con >60% confianza
-    max_risk_cap: 2.0 # Máximo 2% en señales fuertes
+    fraction: 0.25 # 1/4 Kelly - más agresivo con alta confianza
+    min_confidence: 0.70 # Solo opera con >70% confianza (institucional)
+    max_risk_cap: 2.5 # Máximo 2.5% en señales muy fuertes
 
   # v1.8 INSTITUCIONAL: ATR-based Stop Loss
   # Los institucionales NUNCA usan % fijo - cada activo tiene volatilidad diferente
@@ -109,16 +115,16 @@ risk_management:
     # Round-trip total = 0.15% (ahorro de 25% vs 0.20%)
 
   position_sizing:
-    # Tamaño mínimo de posición para $300
-    min_position_usd: 25.0     # Mínimo $25 por posición
-    # Con $25: fees = $0.05, ganancia mínima viable
+    # v1.8.1 INSTITUCIONAL: Tamaños que justifiquen el trade
+    min_position_usd: 40.0     # Mínimo $40 por posición (mayor tamaño = mejor ratio)
+    # Con $40: fees = $0.06, ganancia mínima viable = $1.60+
 
     # Ganancia mínima neta después de fees para ejecutar trade
-    min_profit_after_fees_usd: 0.50  # Al menos $0.50 de ganancia neta
+    min_profit_after_fees_usd: 1.00  # Al menos $1.00 de ganancia neta (más exigente)
 
     # Factor de seguridad: solo operar si ganancia esperada > fees * factor
-    profit_to_fees_ratio: 5.0  # Ganancia esperada debe ser 5x las comisiones
-    # Ejemplo: fees $0.10 → necesita ganancia esperada > $0.50
+    profit_to_fees_ratio: 8.0  # Ganancia esperada debe ser 8x las comisiones
+    # Ejemplo: fees $0.12 → necesita ganancia esperada > $0.96
 
   # Mínimos de Binance por par (notional mínimo)
   exchange_minimums:
@@ -146,16 +152,16 @@ position_management:
     enabled: true
     check_interval_ms: 500 # Verificar cada 500ms
 
-  # Trailing Stop inteligente - v1.7 INSTITUCIONAL
-  # IMPORTANTE: trail_distance debe ser >= activation para evitar triggers inmediatos
+  # Trailing Stop inteligente - v1.8 INSTITUCIONAL
+  # CRÍTICO: Protege ganancias sin salir prematuramente
   trailing_stop:
     enabled: true
-    activation_profit_percent: 2.0  # Activar solo con 2% profit confirmado
-    trail_distance_percent: 1.5     # Trailing 1.5% (debe ser < activation)
-    # v1.7: Nuevos parámetros de seguridad
-    min_profit_to_lock: 0.5         # Mínimo 0.5% profit asegurado al activar
-    cooldown_seconds: 3             # Segundos entre actualizaciones de SL
-    min_safety_margin_percent: 0.3  # Margen mínimo entre precio y SL
+    activation_profit_percent: 2.5  # Activar solo con 2.5% profit (más conservador)
+    trail_distance_percent: 1.2     # Trailing 1.2% - más ajustado para capturar más
+    # v1.8: Parámetros de seguridad institucional
+    min_profit_to_lock: 0.8         # Asegurar mínimo 0.8% profit al activar
+    cooldown_seconds: 5             # Más tiempo entre actualizaciones (evita whipsaws)
+    min_safety_margin_percent: 0.4  # Mayor margen de seguridad
 
   # Supervisión IA de posiciones
   supervision:
@@ -181,10 +187,9 @@ position_management:
 
 # ===== ANÁLISIS TÉCNICO - v1.8 INSTITUCIONAL =====
 technical_analysis:
-  # v1.8: Mínimo de velas para análisis
-  # PAPER: 100 velas (más flexibilidad para pruebas rápidas)
-  # LIVE: 200 velas (análisis más confiable)
-  min_candles: 100  # Reducido para paper/testing
+  # v1.8 INSTITUCIONAL: Mínimo de velas para análisis confiable
+  # Más velas = patrones más robustos = menos señales falsas
+  min_candles: 150  # Balance entre velocidad y calidad
 
   indicators:
     rsi:
@@ -247,12 +252,13 @@ paper_simulation:
   # Tasa de fallos simulados (red, timeout)
   failure_rate: 0.02  # 2% de fallos
 
-# ===== v1.7: VALIDACIÓN DE LIQUIDEZ =====
+# ===== v1.8 INSTITUCIONAL: VALIDACIÓN DE LIQUIDEZ =====
 liquidity_validation:
   enabled: true
-  max_slippage_percent: 0.5     # Slippage máximo aceptable
-  min_spread_warning: 0.3       # Advertir si spread > 0.3%
-  max_spread_reject: 0.5        # Rechazar si spread > 0.5%
+  max_slippage_percent: 0.3     # Más estricto - máximo 0.3%
+  min_spread_warning: 0.15      # Advertir si spread > 0.15%
+  max_spread_reject: 0.35       # Rechazar si spread > 0.35%
+  min_order_book_depth_usd: 500 # Mínimo $500 en cada lado del order book
 
 # ===== LOGGING =====
 logging:
@@ -275,18 +281,19 @@ security:
     requests_per_minute: 60
     wait_on_limit: true
 
-# ===== v1.7+: MULTI-TIMEFRAME ANALYSIS =====
-# Solo opera cuando múltiples timeframes están alineados
+# ===== v1.8 INSTITUCIONAL: MULTI-TIMEFRAME ANALYSIS =====
+# CRÍTICO: Solo opera cuando múltiples timeframes están alineados
 multi_timeframe:
   enabled: true
-  higher_timeframe: "4h"   # Tendencia macro
-  medium_timeframe: "1h"   # Confirmación
-  lower_timeframe: "15m"   # Timing de entrada
-  min_alignment_score: 0.70  # 70% mínimo de alineación para operar
+  higher_timeframe: "4h"   # Tendencia macro - DOMINANTE
+  medium_timeframe: "1h"   # Confirmación de momentum
+  lower_timeframe: "15m"   # Timing preciso de entrada
+  min_alignment_score: 0.75  # 75% mínimo (más estricto = menos trades, mejor calidad)
+  # Pesos institucionales: TF mayor domina la decisión
   weights:
-    higher: 0.50  # 50% peso del TF mayor
+    higher: 0.55  # 55% peso del TF mayor (tendencia principal)
     medium: 0.30  # 30% peso del TF medio
-    lower: 0.20   # 20% peso del TF menor
+    lower: 0.15   # 15% peso del TF menor (solo timing)
 
 # ===== v1.7+: FILTRO DE CORRELACIÓN =====
 # Evita sobreexposición a activos correlacionados
@@ -299,17 +306,17 @@ correlation_filter:
     "BTC/USDT,SOL/USDT": 0.78
     "ETH/USDT,SOL/USDT": 0.82
 
-# ===== v1.7+: PARÁMETROS ADAPTATIVOS =====
+# ===== v1.8 INSTITUCIONAL: PARÁMETROS ADAPTATIVOS =====
 # Ajusta parámetros automáticamente basado en rendimiento
 adaptive_parameters:
   enabled: true
-  lookback_trades: 20      # Trades para calcular métricas
-  sensitivity: 0.25        # 0.1=conservador, 0.5=agresivo
-  # Rangos de ajuste para $300
+  lookback_trades: 30      # Más trades para estadística robusta
+  sensitivity: 0.15        # Conservador - cambios graduales
+  # Rangos de ajuste INSTITUCIONAL para $300
   ranges:
-    min_confidence: { min: 0.50, max: 0.80 }
-    max_risk_per_trade: { min: 0.5, max: 2.5 }  # Hasta 2.5% para $300
-    trailing_activation: { min: 1.0, max: 4.0 }
+    min_confidence: { min: 0.65, max: 0.85 }  # Siempre alta confianza
+    max_risk_per_trade: { min: 1.0, max: 2.5 }  # Mínimo 1% para que valga la pena
+    trailing_activation: { min: 1.5, max: 3.5 }  # Trailing más conservador
 
 # ===== v1.7+: PERFORMANCE ATTRIBUTION =====
 # Analiza qué genera más alpha (agente, régimen, hora, etc.)

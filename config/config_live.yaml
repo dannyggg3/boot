@@ -1,6 +1,8 @@
 # ============================================
-# CONFIGURACIÓN LIVE - SATH v1.7
+# CONFIGURACIÓN LIVE - SATH v1.8.1 INSTITUCIONAL PRO
 # Capital inicial: $100 USD
+# Nivel: Institucional Máximo (5 estrellas)
+# Filosofía: Menos trades, mayor calidad, R/R superior
 # ============================================
 
 # ===== SELECCIÓN DE PROVEEDOR DE IA =====
@@ -15,24 +17,26 @@ ai_model_deep: "deepseek-reasoner"
 # ===== AGENTES ESPECIALIZADOS =====
 ai_agents:
   enabled: true
-  # Volatilidad mínima para operar (AJUSTADO: 0.1% para mercados tranquilos)
-  min_volatility_percent: 0.25
-  min_volume_ratio: 0.3  # Bajado de 0.8 - volumen bajo no invalida señales fuertes
+  # v1.8.1 INSTITUCIONAL PRO: Solo operar con volatilidad y volumen suficientes
+  min_volatility_percent: 0.40  # Más estricto en LIVE (mayor que paper)
+  min_volume_ratio: 0.6  # Volumen alto para confirmar liquidez en LIVE
+  # Reintentos para errores de conexión API
+  max_retries: 3
+  retry_delay_seconds: 2
 
 # ===== SELECCIÓN DE MERCADO =====
 market_type: "crypto"
 
 # ===== CONFIGURACIÓN DE TRADING =====
 trading:
-  # Con $100: Enfoque en pares líquidos con mejor R/R
+  # Con $100: Enfoque en pares más líquidos
   symbols:
     - "BTC/USDT"  # Alta liquidez, spreads bajos, estable
     - "ETH/USDT"  # Segunda más líquida, buenas tendencias
     - "SOL/USDT"  # Mayor volatilidad = más oportunidades
-    # XRP eliminado - concentrar capital en menos pares
 
-  timeframe: "15m" # Más señales que 1h
-  scan_interval: 180 # 3 minutos para timeframe 15m
+  timeframe: "15m"
+  scan_interval: 180 # 3 minutos
 
   # MODO LIVE - TRADING REAL
   mode: "live"
@@ -40,14 +44,14 @@ trading:
   parallel_analysis: true
   max_parallel_workers: 2
 
-  # Protección contra slippage
+  # Protección contra slippage - MÁS ESTRICTO EN LIVE
   price_verification:
     enabled: true
-    max_deviation_percent: 0.3 # Más estricto en live
+    max_deviation_percent: 0.2 # Más estricto que paper
 
   order_execution:
     use_limit_orders: true
-    max_slippage_percent: 0.2 # Más conservador
+    max_slippage_percent: 0.15 # Más conservador en LIVE
     limit_order_timeout: 30
     on_timeout: "cancel"
 
@@ -58,15 +62,15 @@ trading:
     open_interest: true
     correlations: true
 
-# ===== GESTIÓN DE RIESGO - v1.8 INSTITUCIONAL =====
+# ===== GESTIÓN DE RIESGO - v1.8.1 INSTITUCIONAL PRO ($100) =====
 risk_management:
-  # v1.8: Con $100, arriesgar 1.5% = $1.50 por operación (balance riesgo/crecimiento)
-  max_risk_per_trade: 1.5
+  # v1.8.1: Con $100, arriesgar 1.0% = $1.00 por operación (más conservador en LIVE)
+  max_risk_per_trade: 1.0
 
-  # Drawdown máximo diario: 5% = $5 (más estricto en LIVE)
-  max_daily_drawdown: 5.0
+  # Drawdown máximo diario: 4% = $4 (más estricto en LIVE)
+  max_daily_drawdown: 4.0
 
-  # v1.8 CRÍTICO: R/R mínimo de 2.0 para expectativa positiva
+  # v1.8.1 CRÍTICO: R/R mínimo de 2.0 para expectativa positiva
   min_risk_reward_ratio: 2.0
 
   use_trailing_stop: true
@@ -75,27 +79,29 @@ risk_management:
   # CAPITAL LIVE
   initial_capital: 100
 
-  leverage: 1 # Sin apalancamiento
+  leverage: 1 # Sin apalancamiento - NUNCA usar apalancamiento en capital pequeño
 
-  # v1.8 Kelly Criterion INSTITUCIONAL
+  # v1.8.1 Kelly Criterion INSTITUCIONAL PRO
+  # LIVE más conservador que paper
   kelly_criterion:
     enabled: true
-    fraction: 0.20 # 1/5 Kelly (equilibrado para LIVE)
-    min_confidence: 0.65 # Solo >65% confianza en LIVE
-    max_risk_cap: 2.0 # Máximo 2% en señales muy fuertes
+    fraction: 0.20 # 1/5 Kelly - conservador para LIVE
+    min_confidence: 0.75 # Solo opera con >75% confianza en LIVE (más alto que paper)
+    max_risk_cap: 1.5 # Máximo 1.5% en señales muy fuertes (más bajo que paper)
 
-  # v1.8 INSTITUCIONAL: ATR-based Stop Loss
+  # v1.8.1 INSTITUCIONAL PRO: ATR-based Stop Loss
   # CRÍTICO: Los institucionales NUNCA usan % fijo
   atr_stops:
     enabled: true
     sl_multiplier: 2.0      # SL a 2x ATR
     tp_multiplier: 4.0      # TP a 4x ATR (R/R 2:1)
     min_distance_percent: 0.5   # Mínimo 0.5%
-    max_distance_percent: 5.0   # Máximo 5% (más conservador en LIVE)
+    max_distance_percent: 4.5   # Máximo 4.5% (más conservador en LIVE)
 
-  # v1.8: Session Filter (horarios óptimos de liquidez)
+  # v1.8.1: Session Filter (horarios óptimos de liquidez)
+  # CRÍTICO en LIVE - solo opera cuando hay liquidez real
   session_filter:
-    enabled: true  # ACTIVO en LIVE para mejor liquidez
+    enabled: true
     optimal_hours_utc:
       - [7, 16]   # Europa: 7:00-16:00 UTC
       - [13, 22]  # USA: 13:00-22:00 UTC
@@ -103,81 +109,66 @@ risk_management:
   # ===== CONTROL DE COMISIONES Y TAMAÑOS MÍNIMOS =====
   fees:
     # Comisión de Binance CON DESCUENTO BNB (25% menos)
-    maker_fee_percent: 0.075   # 0.075% con BNB (normal: 0.10%)
-    taker_fee_percent: 0.075   # 0.075% con BNB (normal: 0.10%)
-    # Round-trip total = 0.15% (ahorro de 25% vs 0.20%)
+    maker_fee_percent: 0.075
+    taker_fee_percent: 0.075
 
   position_sizing:
-    # Tamaño mínimo de posición (debe cubrir fees + generar ganancia)
-    min_position_usd: 15.0     # Mínimo $15 por posición
-    # Con $15: fees = $0.03, ganancia mínima viable
+    # v1.8.1 INSTITUCIONAL PRO: Tamaños que justifiquen el trade
+    min_position_usd: 25.0     # Mínimo $25 por posición en LIVE
+    min_profit_after_fees_usd: 0.75  # Al menos $0.75 de ganancia neta
+    profit_to_fees_ratio: 10.0  # Ganancia esperada debe ser 10x las comisiones (más exigente en LIVE)
 
-    # Ganancia mínima neta después de fees para ejecutar trade
-    min_profit_after_fees_usd: 0.50  # Al menos $0.50 de ganancia neta
-
-    # Factor de seguridad: solo operar si ganancia esperada > fees * factor
-    profit_to_fees_ratio: 5.0  # Ganancia esperada debe ser 5x las comisiones
-    # Ejemplo: fees $0.06 → necesita ganancia esperada > $0.30
-
-  # Mínimos de Binance por par (notional mínimo)
+  # Mínimos de Binance por par
   exchange_minimums:
-    BTC_USDT: 5.0   # $5 mínimo
-    ETH_USDT: 5.0   # $5 mínimo
-    SOL_USDT: 5.0   # $5 mínimo
-    default: 10.0   # $10 para otros pares
+    BTC_USDT: 5.0
+    ETH_USDT: 5.0
+    SOL_USDT: 5.0
+    default: 10.0
 
-# ===== GESTIÓN DE POSICIONES v1.5 =====
+# ===== GESTIÓN DE POSICIONES v1.8.1 INSTITUCIONAL PRO =====
 position_management:
   enabled: true
 
-  # Método de protección SL/TP
-  # "oco" = Exchange maneja automáticamente (recomendado)
-  # "local" = Bot monitorea y ejecuta
   protection_mode: "oco"
 
-  # Configuración de órdenes OCO
   oco_settings:
     enabled: true
-    sl_limit_buffer_percent: 0.2 # Buffer entre stop trigger y limit price
+    sl_limit_buffer_percent: 0.15 # Buffer más pequeño en LIVE
 
-  # Monitoreo local (fallback si OCO no disponible)
   local_monitoring:
     enabled: true
-    check_interval_ms: 500 # Verificar cada 500ms
+    check_interval_ms: 300 # Más rápido en LIVE (300ms)
 
-  # Trailing Stop inteligente (ajustado para cubrir fees) - v1.7
+  # Trailing Stop inteligente - v1.8.1 INSTITUCIONAL PRO
   trailing_stop:
     enabled: true
-    activation_profit_percent: 2.0 # Activar después de 2% profit (cubre fees + ganancia)
-    trail_distance_percent: 1.5    # Mantener 1.5% detrás del precio (captura más ganancia)
-    cooldown_seconds: 3            # v1.7: Evita race conditions entre actualizaciones de SL
-    min_safety_margin_percent: 0.3 # v1.7: Margen mínimo entre precio y SL
+    activation_profit_percent: 3.0  # Activar solo con 3% profit en LIVE (más conservador)
+    trail_distance_percent: 1.0     # Trailing 1.0% - más ajustado para LIVE
+    min_profit_to_lock: 1.0         # Asegurar mínimo 1.0% profit al activar
+    cooldown_seconds: 5             # Más tiempo entre actualizaciones
+    min_safety_margin_percent: 0.5  # Mayor margen de seguridad en LIVE
 
   # Supervisión IA de posiciones
   supervision:
     enabled: true
-    check_interval_seconds: 60 # Cada minuto
-    # Acciones permitidas (modo moderado/conservador)
+    check_interval_seconds: 45 # Más frecuente en LIVE
     actions_allowed:
-      - "HOLD"        # Mantener sin cambios
-      - "TIGHTEN_SL"  # Acercar SL para asegurar ganancias
-      - "EXTEND_TP"   # Extender TP si momentum fuerte
-    # NO incluye PARTIAL_CLOSE ni FULL_CLOSE (solo ajustes)
+      - "HOLD"
+      - "TIGHTEN_SL"
+      - "EXTEND_TP"
 
-  # Límites del portfolio - OPTIMIZADO para $100 (minimizar impacto de fees)
+  # Límites del portfolio - ULTRA CONSERVADOR para $100 LIVE
   portfolio:
-    max_concurrent_positions: 1    # 1 posición a la vez = mayor tamaño = menos % en fees
-    max_exposure_percent: 50       # Máximo 50% del capital ($50) por posición
-    max_per_symbol_percent: 50     # Máximo 50% en un solo símbolo
-    # Con 1 posición de $50: fees = $0.10 (0.20%), ganancia 4% = $2.00, neto = $1.90
+    max_concurrent_positions: 1    # Solo 1 posición en LIVE con $100
+    max_exposure_percent: 40       # Máximo 40% del capital ($40)
+    max_per_symbol_percent: 40
 
-  # Persistencia (SQLite)
   database:
     path: "data/positions.db"
 
-# ===== ANÁLISIS TÉCNICO - v1.8 INSTITUCIONAL =====
+# ===== ANÁLISIS TÉCNICO - v1.8.1 INSTITUCIONAL PRO =====
 technical_analysis:
-  # v1.8: Mínimo de velas para análisis confiable
+  # v1.8.1: Mínimo 200 velas para LIVE (análisis robusto)
   min_candles: 200
 
   indicators:
@@ -212,7 +203,7 @@ exchanges:
 # ===== NOTIFICACIONES =====
 notifications:
   telegram:
-    enabled: true # Requiere TELEGRAM_BOT_TOKEN y TELEGRAM_CHAT_ID en .env
+    enabled: true
   email:
     enabled: false
 
@@ -228,78 +219,67 @@ websockets:
   trades: true
   orderbook_depth: 10
 
+# ===== v1.8.1: SIMULACIÓN REALISTA - NO APLICA EN LIVE =====
+# paper_simulation: N/A en LIVE
+
+# ===== v1.8.1 INSTITUCIONAL PRO: VALIDACIÓN DE LIQUIDEZ =====
+# CRÍTICO en LIVE: Más estricto que paper
+liquidity_validation:
+  enabled: true
+  max_slippage_percent: 0.2        # Muy estricto en LIVE
+  min_spread_warning: 0.10         # Advertir si spread > 0.10%
+  max_spread_reject: 0.25          # Rechazar si spread > 0.25%
+  min_order_book_depth_usd: 1000   # Mínimo $1000 en cada lado
+
 # ===== LOGGING =====
 logging:
   level: "INFO"
   file: "logs/trading_bot.log"
-
-  # Rotación diaria de logs (a medianoche)
-  # Los archivos se nombran: trading_bot.log.2024-12-01, trading_bot.log.2024-12-02, etc.
-  backup_count: 30 # Días de logs a mantener
-
+  backup_count: 30
   heartbeat_interval: 60
-
-# ===== VALIDACIÓN DE LIQUIDEZ v1.7 =====
-# CRÍTICO en LIVE: Verifica que haya suficiente liquidez antes de ejecutar órdenes
-liquidity_validation:
-  enabled: true
-  max_slippage_percent: 0.3        # Más estricto en LIVE (0.3% vs 0.5% en paper)
-  min_spread_warning: 0.2          # Advertir si spread > 0.2%
-  max_spread_reject: 0.4           # Rechazar si spread > 0.4%
-  min_order_book_depth_usd: 1000   # Mínimo $1000 en cada lado del order book
 
 # ===== SEGURIDAD =====
 security:
   kill_switch:
     enabled: true
-    max_loss_percentage: 10.0 # $10 de pérdida máxima
+    max_loss_percentage: 4.0 # $4 de pérdida máxima (4% de $100) - MÁS ESTRICTO
     cooldown_period_hours: 24
   api_rate_limit:
     requests_per_minute: 60
     wait_on_limit: true
 
-# ===== v1.7+: MULTI-TIMEFRAME ANALYSIS =====
-# CRÍTICO en LIVE: Solo opera cuando múltiples timeframes están alineados
-# Esto reduce falsos positivos y mejora win rate significativamente
+# ===== v1.8.1 INSTITUCIONAL PRO: MULTI-TIMEFRAME ANALYSIS =====
 multi_timeframe:
   enabled: true
-  higher_timeframe: "4h"   # Tendencia macro - dirección principal
-  medium_timeframe: "1h"   # Confirmación de tendencia
-  lower_timeframe: "15m"   # Timing de entrada
-  min_alignment_score: 0.70  # 70% mínimo de alineación para operar
+  higher_timeframe: "4h"
+  medium_timeframe: "1h"
+  lower_timeframe: "15m"
+  min_alignment_score: 0.80  # 80% mínimo en LIVE (más estricto)
   weights:
-    higher: 0.50  # 50% peso del TF mayor (más importante)
-    medium: 0.30  # 30% peso del TF medio
-    lower: 0.20   # 20% peso del TF menor
+    higher: 0.55
+    medium: 0.30
+    lower: 0.15
 
-# ===== v1.7+: FILTRO DE CORRELACIÓN =====
-# CRÍTICO en LIVE: Evita sobreexposición a activos correlacionados
-# Si tienes BTC LONG y quieres ETH LONG, es casi como duplicar la posición
+# ===== v1.8.1: FILTRO DE CORRELACIÓN =====
 correlation_filter:
   enabled: true
-  max_correlation: 0.70  # No abrir si correlación > 70% con posición existente
-  # Correlaciones históricas conocidas (se actualizan dinámicamente)
+  max_correlation: 0.65  # Más estricto en LIVE
   correlations:
     "BTC/USDT,ETH/USDT": 0.85
     "BTC/USDT,SOL/USDT": 0.78
     "ETH/USDT,SOL/USDT": 0.82
 
-# ===== v1.7+: PARÁMETROS ADAPTATIVOS =====
-# El bot ajusta automáticamente sus parámetros basado en rendimiento
-# Más conservador después de pérdidas, más agresivo después de ganancias consistentes
+# ===== v1.8.1 INSTITUCIONAL PRO: PARÁMETROS ADAPTATIVOS =====
 adaptive_parameters:
   enabled: true
-  lookback_trades: 20      # Número de trades para calcular métricas
-  sensitivity: 0.20        # 0.1=muy conservador, 0.5=agresivo (LIVE más conservador)
-  # Rangos de ajuste permitidos
+  lookback_trades: 30      # Más trades para estadística robusta
+  sensitivity: 0.10        # Muy conservador en LIVE - cambios muy graduales
   ranges:
-    min_confidence: { min: 0.55, max: 0.80 }  # Confianza mínima
-    max_risk_per_trade: { min: 0.5, max: 1.5 }  # Riesgo máximo (más bajo en LIVE)
-    trailing_activation: { min: 1.5, max: 4.0 }  # Activación de trailing
+    min_confidence: { min: 0.70, max: 0.90 }  # Siempre alta confianza en LIVE
+    max_risk_per_trade: { min: 0.5, max: 1.5 }  # Bajo riesgo en LIVE
+    trailing_activation: { min: 2.0, max: 4.0 }
 
-# ===== v1.7+: PERFORMANCE ATTRIBUTION =====
-# Analiza qué genera más alpha: qué agente, qué régimen, qué hora del día
-# Permite optimización continua y data-driven decisions
+# ===== v1.8.1: PERFORMANCE ATTRIBUTION =====
 performance_attribution:
   enabled: true
-  log_interval_hours: 24   # Generar reporte cada 24h
+  log_interval_hours: 24

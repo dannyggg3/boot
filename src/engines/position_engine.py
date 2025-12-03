@@ -69,11 +69,15 @@ class PositionEngine:
         self.enabled = pm_config.get('enabled', True)
         self.protection_mode = pm_config.get('protection_mode', 'oco')
 
-        # Trailing stop config
+        # Trailing stop config - v1.8.1 completo
         ts_config = pm_config.get('trailing_stop', {})
         self.trailing_enabled = ts_config.get('enabled', True)
         self.trailing_activation = ts_config.get('activation_profit_percent', 1.0)
         self.trailing_distance = ts_config.get('trail_distance_percent', 2.0)
+        # v1.8.1: Nuevos parámetros de seguridad
+        self.trailing_min_profit_lock = ts_config.get('min_profit_to_lock', 0.5)
+        self.trailing_cooldown = ts_config.get('cooldown_seconds', 3.0)
+        self.trailing_safety_margin = ts_config.get('min_safety_margin_percent', 0.3) / 100
 
         # Portfolio limits
         portfolio_config = pm_config.get('portfolio', {})
@@ -502,13 +506,13 @@ class PositionEngine:
             logger.warning(f"⚠️ Trailing skip {symbol}: new SL ${new_sl:.2f} <= price ${current_price:.2f}")
             return
 
-        # v1.7: Verificar margen de seguridad mínimo (0.3% del precio actual)
-        min_safety_margin = current_price * 0.003
+        # v1.8.1: Verificar margen de seguridad mínimo (configurable)
+        min_safety_margin = current_price * self.trailing_safety_margin
         if side == 'long' and (new_sl + min_safety_margin) >= current_price:
-            logger.warning(f"⚠️ Trailing skip {symbol}: SL too close (margin < 0.3%)")
+            logger.warning(f"⚠️ Trailing skip {symbol}: SL too close (margin < {self.trailing_safety_margin*100:.1f}%)")
             return
         if side == 'short' and (new_sl - min_safety_margin) <= current_price:
-            logger.warning(f"⚠️ Trailing skip {symbol}: SL too close (margin < 0.3%)")
+            logger.warning(f"⚠️ Trailing skip {symbol}: SL too close (margin < {self.trailing_safety_margin*100:.1f}%)")
             return
 
         # Activar
@@ -536,10 +540,9 @@ class PositionEngine:
         symbol = position['symbol']
         distance = position.get('trailing_stop_distance', self.trailing_distance)
 
-        # v1.7: Cooldown de 3 segundos después de cada actualización de SL
+        # v1.8.1: Cooldown configurable después de cada actualización de SL
         last_update = position.get('last_sl_update_time', 0)
-        cooldown_seconds = 3.0
-        if time.time() - last_update < cooldown_seconds:
+        if time.time() - last_update < self.trailing_cooldown:
             return  # Aún en cooldown
 
         if side == 'long':
@@ -551,8 +554,8 @@ class PositionEngine:
                 logger.debug(f"Trailing update skip {symbol}: price ${current_price:.2f} <= new SL ${new_sl:.2f}")
                 return
 
-            # v1.7: Margen de seguridad mínimo
-            min_safety_margin = current_price * 0.003
+            # v1.8.1: Margen de seguridad mínimo configurable
+            min_safety_margin = current_price * self.trailing_safety_margin
             if (new_sl + min_safety_margin) >= current_price:
                 return
 
@@ -569,8 +572,8 @@ class PositionEngine:
                 logger.debug(f"Trailing update skip {symbol}: price ${current_price:.2f} >= new SL ${new_sl:.2f}")
                 return
 
-            # v1.7: Margen de seguridad mínimo
-            min_safety_margin = current_price * 0.003
+            # v1.8.1: Margen de seguridad mínimo configurable
+            min_safety_margin = current_price * self.trailing_safety_margin
             if (new_sl - min_safety_margin) <= current_price:
                 return
 

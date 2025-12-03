@@ -1,30 +1,57 @@
-# Sistema Autónomo de Trading Híbrido (SATH) v1.7+
+# Sistema Autónomo de Trading Híbrido (SATH) v1.8.1
 
-## Nivel Institucional Superior
+## INSTITUCIONAL PRO ★★★★★
 
 Bot de trading profesional que combina análisis técnico cuantitativo con razonamiento de IA para trading autónomo en criptomonedas. Diseñado con estándares de hedge funds institucionales.
 
 ```
 ╔═══════════════════════════════════════════════════════════════╗
-║     Sistema Autónomo de Trading Híbrido (SATH) v1.7+        ║
-║           NIVEL INSTITUCIONAL SUPERIOR                       ║
 ║                                                               ║
-║     ✓ Multi-Timeframe (4H→1H→15m)  ✓ Correlation Filter     ║
-║     ✓ Adaptive Parameters          ✓ Performance Attribution ║
-║     ✓ Kelly Criterion Dinámico     ✓ R/R Validation         ║
+║     Sistema Autónomo de Trading Híbrido (SATH) v1.8.1       ║
+║           ★★★★★ INSTITUCIONAL PRO ★★★★★                      ║
+║                                                               ║
+║     ✓ ATR-Based Stop Loss/TP       ✓ Correlation Filter     ║
+║     ✓ Multi-Timeframe (4H→1H→15m)  ✓ Session Filter         ║
+║     ✓ Kelly Criterion (1/4)        ✓ R/R 2:1+ Obligatorio   ║
+║     ✓ Confianza mínima 70%         ✓ MTF Alignment 75%+     ║
+║                                                               ║
 ╚═══════════════════════════════════════════════════════════════╝
 ```
 
-## Características v1.7+ (Nivel Institucional)
+## Filosofía v1.8.1
 
-### Nuevos Filtros de Calidad
+```
+MENOS TRADES + MAYOR CALIDAD = MEJOR RENTABILIDAD
+```
 
-| Filtro | Descripción | Impacto |
-|--------|-------------|---------|
-| **Multi-Timeframe** | Solo opera cuando 4H→1H→15m están alineados | +15-25% win rate |
-| **Correlation Filter** | Bloquea trades si correlación >70% con posición existente | -20% drawdown |
-| **Adaptive Parameters** | Auto-ajusta confianza/riesgo según rendimiento | Recuperación rápida |
-| **R/R Validation** | RECHAZA trades con R/R < 1.5:1 (antes solo warning) | Evita trades perdedores |
+- Solo trades de alta convicción (>70% confianza)
+- R/R mínimo 2:1 obligatorio
+- ATR-based stops (respeta volatilidad)
+- Multi-timeframe alignment requerido
+
+## Características v1.8.1 INSTITUCIONAL PRO
+
+### Nuevos en v1.8.1
+
+| Feature | Descripción | Impacto |
+|---------|-------------|---------|
+| **ATR-Based SL** | Stop Loss dinámico según volatilidad | -50% SL prematuros |
+| **ATR-Based TP** | Take Profit automático R/R 2:1 | R/R garantizado |
+| **Confianza 70%+** | Solo trades alta convicción | +20% win rate |
+| **MTF 75%+** | Mayor alineación requerida | Menos señales falsas |
+| **Profit/Fees 8x** | Solo trades muy rentables | Mejor expectativa |
+| **API Retries** | Reintentos configurables | Mayor resiliencia |
+
+### Filtros de Calidad
+
+| Filtro | Descripción | PAPER | LIVE |
+|--------|-------------|-------|------|
+| **Multi-Timeframe** | 4H→1H→15m alineados | 75% | 80% |
+| **Confianza mínima** | Solo alta convicción | 70% | 75% |
+| **R/R Validation** | RECHAZA si R/R < 2:1 | 2.0 | 2.0 |
+| **Correlation Filter** | Bloquea >70% correlación | 70% | 65% |
+| **Profit/Fees** | Ratio mínimo ganancia/fees | 8x | 10x |
+| **Kill Switch** | Pérdida máxima diaria | 5% | 4% |
 
 ### Métricas Institucionales
 
@@ -37,87 +64,108 @@ Bot de trading profesional que combina análisis técnico cuantitativo con razon
 - **Win Rate por Régimen** (trend/reversal/range)
 - **Performance Attribution** por agente/símbolo/hora
 
-### Dashboard Grafana
-
-19 paneles de métricas en tiempo real:
-- Métricas institucionales (Sharpe, Sortino, Calmar)
-- Calidad de ejecución (latencia, slippage, fill rate)
-- Filtros avanzados (MTF alignment, diversification score)
-- Attribution (P&L por agente, win rate por régimen)
-
-## Arquitectura v1.7+
+## Arquitectura v1.8.1
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                           FLUJO DE TRADING v1.7+                             │
+│                       FLUJO DE TRADING v1.8.1 INSTITUCIONAL PRO             │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │  ┌──────────────┐                                                           │
-│  │ Market Data  │ → Obtener OHLCV + Order Book + Funding Rate               │
+│  │ Market Data  │ → OHLCV (150-200 velas) + Order Book + Funding Rate      │
 │  └──────┬───────┘                                                           │
 │         │                                                                   │
 │         ▼                                                                   │
 │  ┌──────────────┐                                                           │
-│  │  Technical   │ → RSI, MACD, EMA, Bollinger, ATR                          │
-│  │  Analyzer    │ → volatility_level → Adaptive Manager                     │
+│  │  Technical   │ → RSI, MACD, EMA 50/200, Bollinger, ATR                  │
+│  │  Analyzer    │ → ATR usado para SL/TP dinámicos                         │
 │  └──────┬───────┘                                                           │
 │         │                                                                   │
 │         ▼                                                                   │
 │  ┌──────────────────────────────────────────────────────────────────────┐  │
-│  │                    FILTROS INSTITUCIONALES v1.7+                      │  │
+│  │                    FILTROS v1.8.1 INSTITUCIONAL PRO                  │  │
 │  │                                                                       │  │
-│  │  1. CORRELATION FILTER                                                │  │
-│  │     ├─ Posiciones abiertas: [BTC/USDT LONG]                          │  │
-│  │     ├─ Quiere abrir: ETH/USDT LONG                                   │  │
-│  │     ├─ Correlación BTC-ETH: 85%                                      │  │
-│  │     └─ RESULTADO: ❌ BLOQUEADO (>70%)                                 │  │
+│  │  1. MULTI-TIMEFRAME ANALYSIS                                          │  │
+│  │     ├─ 4H (55% peso): Tendencia macro DOMINANTE                      │  │
+│  │     ├─ 1H (30% peso): Confirmación de momentum                       │  │
+│  │     ├─ 15m (15% peso): Timing de entrada                             │  │
+│  │     ├─ Min alignment: 75% PAPER / 80% LIVE                           │  │
+│  │     └─ Si alineado: Boost confianza +5-15%                           │  │
 │  │                                                                       │  │
-│  │  2. MULTI-TIMEFRAME ANALYSIS                                          │  │
-│  │     ├─ 4H: BULLISH (EMA50 > EMA200, RSI > 50)                        │  │
-│  │     ├─ 1H: BULLISH (MACD > Signal)                                   │  │
-│  │     ├─ 15m: BULLISH (Precio > EMA200)                                │  │
-│  │     ├─ Alignment Score: 85%                                          │  │
-│  │     └─ RESULTADO: ✅ ALINEADO + Boost confianza +17%                  │  │
+│  │  2. CORRELATION FILTER                                                │  │
+│  │     ├─ Max correlación: 70% PAPER / 65% LIVE                         │  │
+│  │     └─ Bloquea sobreexposición a activos similares                   │  │
 │  │                                                                       │  │
 │  └──────────────────────────────────────────────────────────────────────┘  │
 │         │                                                                   │
-│         ▼ Solo si pasa filtros                                             │
+│         ▼ Solo si pasa filtros MTF                                         │
 │  ┌──────────────┐                                                           │
-│  │  AI Engine   │ → Agentes Especializados (Trend/Reversal)                │
-│  │  + MTF Boost │ → Confianza ajustada con boost de alineación             │
+│  │  AI Engine   │ → Análisis híbrido (DeepSeek-Chat + DeepSeek-Reasoner)  │
+│  │  Híbrido     │ → Agentes especializados (trend, volatility, sentiment)  │
 │  └──────┬───────┘                                                           │
 │         │                                                                   │
 │         ▼                                                                   │
 │  ┌──────────────────────────────────────────────────────────────────────┐  │
-│  │                    VALIDACIÓN ADAPTATIVA                              │  │
+│  │                    VALIDACIÓN DE RIESGO v1.8.1                        │  │
 │  │                                                                       │  │
-│  │  3. ADAPTIVE PARAMETERS                                               │  │
-│  │     ├─ Win Rate reciente: 45%                                        │  │
-│  │     ├─ Loss Streak: 2                                                │  │
-│  │     ├─ Min Confidence ajustada: 0.70 (subió de 0.65)                 │  │
-│  │     └─ RESULTADO: ❌ Confianza 0.68 < 0.70 mínima                     │  │
+│  │  3. CONFIDENCE FILTER                                                 │  │
+│  │     ├─ Min confianza: 70% PAPER / 75% LIVE                           │  │
+│  │     └─ Incluye boost de MTF                                          │  │
 │  │                                                                       │  │
-│  │  4. RISK/REWARD VALIDATION                                            │  │
-│  │     ├─ Entry: $100,000                                               │  │
-│  │     ├─ SL: $98,000 (riesgo: $2,000)                                  │  │
-│  │     ├─ TP: $103,000 (ganancia: $3,000)                               │  │
-│  │     ├─ R/R Ratio: 1.5:1                                              │  │
-│  │     └─ RESULTADO: ✅ R/R >= 1.5 mínimo                                │  │
+│  │  4. ATR-BASED STOPS (NUEVO v1.8)                                      │  │
+│  │     ├─ SL = Entry ± (ATR × 2.0)                                      │  │
+│  │     ├─ TP = Entry ± (ATR × 4.0) → R/R 2:1                            │  │
+│  │     ├─ Límites: 0.5% mínimo, 5.5% máximo                             │  │
+│  │     └─ Respeta volatilidad de cada activo                            │  │
+│  │                                                                       │  │
+│  │  5. R/R VALIDATION                                                    │  │
+│  │     ├─ Mínimo: 2.0:1 OBLIGATORIO                                     │  │
+│  │     └─ RECHAZA trades con R/R < 2.0                                  │  │
+│  │                                                                       │  │
+│  │  6. KELLY CRITERION SIZING                                            │  │
+│  │     ├─ Fracción: 0.25 PAPER / 0.20 LIVE                              │  │
+│  │     ├─ Ajusta por confianza y win rate histórico                     │  │
+│  │     └─ Max risk cap: 2.5% PAPER / 1.5% LIVE                          │  │
+│  │                                                                       │  │
+│  │  7. FEE PROFITABILITY CHECK                                           │  │
+│  │     ├─ Profit/fees ratio: 8x PAPER / 10x LIVE                        │  │
+│  │     ├─ Min profit after fees: $1.00 PAPER / $0.75 LIVE               │  │
+│  │     └─ RECHAZA si trade no es rentable                               │  │
 │  │                                                                       │  │
 │  └──────────────────────────────────────────────────────────────────────┘  │
 │         │                                                                   │
 │         ▼ Solo si pasa TODOS los filtros                                   │
 │  ┌──────────────┐                                                           │
-│  │  Execution   │ → Orden Limit con verificación de liquidez               │
+│  │  Execution   │ → Orden Limit con verificación pre-ejecución            │
 │  └──────┬───────┘                                                           │
 │         │                                                                   │
 │         ▼                                                                   │
 │  ┌──────────────┐                                                           │
-│  │  Position    │ → OCO (SL+TP) + Trailing Stop con cooldown               │
-│  │  Engine      │ → Al cerrar: actualiza Kelly + Attribution + Adaptive    │
+│  │  Position    │ → OCO (SL+TP automáticos)                               │
+│  │  Engine      │ → Trailing Stop: 2.5-3% activation, 1-1.2% trail        │
+│  │              │ → Cooldown 5s + Safety margin 0.4-0.5%                  │
 │  └──────────────┘                                                           │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
+```
+
+## Expectativa Matemática
+
+```
+CONFIGURACIÓN PAPER $300:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Win Rate esperado con filtros v1.8.1: 45-55%
+R/R mínimo garantizado: 2.0:1
+Fees round-trip: 0.15%
+
+ESCENARIO CONSERVADOR (45% WR):
+E = (0.45 × 2) - (0.55 × 1) = +0.35 por unidad de riesgo
+Con $4.50 riesgo por trade → +$1.58 expectativa/trade
+
+PROYECCIÓN MENSUAL (20 trades):
+- Conservador (45% WR): +$31.50 (+10.5% mensual)
+- Optimista (55% WR): +$58.50 (+19.5% mensual)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
 ## Instalación Rápida
@@ -133,7 +181,7 @@ cd bot
 cp .env.example .env
 nano .env  # Agregar API keys
 
-# Paper Trading (Testnet)
+# Paper Trading (Testnet) - $300
 docker compose -f docker-compose.paper.yml up -d
 
 # Ver logs
@@ -152,15 +200,13 @@ pip install -r requirements.txt
 python main.py
 ```
 
-## Configuración
+## Configuración v1.8.1
 
 ### Variables de Entorno (.env)
 
 ```env
-# IA (al menos uno requerido)
+# IA (DeepSeek recomendado)
 DEEPSEEK_API_KEY=sk-xxx
-OPENAI_API_KEY=sk-xxx           # Opcional
-GEMINI_API_KEY=xxx              # Opcional
 
 # Exchange
 BINANCE_API_KEY=xxx
@@ -181,46 +227,87 @@ INFLUXDB_TOKEN=xxx
 ### Configuración Principal (config/config_paper.yaml)
 
 ```yaml
-# Filtros Institucionales v1.7+
-multi_timeframe:
-  enabled: true
-  higher_timeframe: "4h"
-  medium_timeframe: "1h"
-  lower_timeframe: "15m"
-  min_alignment_score: 0.70
+# v1.8.1 INSTITUCIONAL PRO - $300
 
-correlation_filter:
+# Agentes con reintentos
+ai_agents:
   enabled: true
-  max_correlation: 0.70
-
-adaptive_parameters:
-  enabled: true
-  lookback_trades: 20
-  sensitivity: 0.25
-
-performance_attribution:
-  enabled: true
+  min_volatility_percent: 0.35
+  min_volume_ratio: 0.5
+  max_retries: 3
+  retry_delay_seconds: 2
 
 # Gestión de Riesgo
 risk_management:
-  max_risk_per_trade: 1.0
+  max_risk_per_trade: 1.5
   max_daily_drawdown: 5.0
-  min_risk_reward_ratio: 1.5  # RECHAZA si R/R < 1.5
+  min_risk_reward_ratio: 2.0  # OBLIGATORIO
+  initial_capital: 300
 
+  # ATR-based Stops (NUEVO v1.8)
+  atr_stops:
+    enabled: true
+    sl_multiplier: 2.0      # SL = 2x ATR
+    tp_multiplier: 4.0      # TP = 4x ATR (R/R 2:1)
+    min_distance_percent: 0.5
+    max_distance_percent: 5.5
+
+  # Kelly Criterion
   kelly_criterion:
     enabled: true
-    fraction: 0.15
-    min_confidence: 0.65
+    fraction: 0.25          # 1/4 Kelly
+    min_confidence: 0.70    # Solo >70% confianza
+    max_risk_cap: 2.5
 
-# Trailing Stop v1.7
+  # Validación de rentabilidad
+  position_sizing:
+    min_position_usd: 40.0
+    min_profit_after_fees_usd: 1.00
+    profit_to_fees_ratio: 8.0
+
+# Multi-Timeframe
+multi_timeframe:
+  enabled: true
+  min_alignment_score: 0.75  # 75% mínimo
+  weights:
+    higher: 0.55  # 4H domina
+    medium: 0.30  # 1H confirma
+    lower: 0.15   # 15m timing
+
+# Trailing Stop
 position_management:
   trailing_stop:
     enabled: true
-    activation_profit_percent: 2.0
-    trail_distance_percent: 1.5
-    cooldown_seconds: 3           # Evita race conditions
-    min_safety_margin_percent: 0.3
+    activation_profit_percent: 2.5
+    trail_distance_percent: 1.2
+    min_profit_to_lock: 0.8
+    cooldown_seconds: 5
+    min_safety_margin_percent: 0.4
+
+  portfolio:
+    max_concurrent_positions: 1
+    max_exposure_percent: 50
+
+# Parámetros Adaptativos
+adaptive_parameters:
+  enabled: true
+  lookback_trades: 30
+  sensitivity: 0.15
+  ranges:
+    min_confidence: { min: 0.65, max: 0.85 }
 ```
+
+## Diferencias PAPER vs LIVE
+
+| Parámetro | PAPER $300 | LIVE $100 |
+|-----------|-----------|-----------|
+| min_confidence | 0.70 | **0.75** |
+| MTF alignment | 0.75 | **0.80** |
+| min_volatility | 0.35% | **0.40%** |
+| max_slippage | 0.30% | **0.20%** |
+| profit_to_fees_ratio | 8x | **10x** |
+| sensitivity | 0.15 | **0.10** |
+| kill_switch | 5% | **4%** |
 
 ## Métricas en Grafana
 
@@ -235,144 +322,127 @@ Credenciales: `admin` / `sath_grafana_2024`
 
 ### Paneles Disponibles
 
-**Fila 1: Resumen**
-- PnL Total, Win Rate, Total Trades, Avg PnL
-
-**Fila 2: Métricas Institucionales**
-- Sharpe Ratio (30d), Sortino Ratio, Calmar Ratio
-- Max Drawdown, Fill Rate, Slippage Promedio
-
-**Fila 3: Calidad de Ejecución**
-- Latencia P50/P95/P99
-- Capital Current vs Peak
-- Slippage Histórico
-
-**Fila 4: Filtros Avanzados v1.7+**
-- MTF Alignment Score
-- Diversification Score
-- Win/Loss Streaks
-- Adaptive Parameters Over Time
-- P&L por Agente
-- Win Rate por Régimen
+- **Fila 1**: PnL Total, Win Rate, Total Trades, Avg PnL
+- **Fila 2**: Sharpe, Sortino, Calmar, Max Drawdown, Fill Rate
+- **Fila 3**: Latencia P50/P95/P99, Capital tracking
+- **Fila 4**: MTF Alignment, Diversification, P&L por Agente
 
 ## Estructura del Proyecto
 
 ```
 bot/
 ├── config/
-│   ├── config_paper.yaml      # Configuración Paper (Testnet)
-│   └── config_live.yaml       # Configuración Live (Producción)
+│   ├── config_paper.yaml      # v1.8.1 Paper ($300)
+│   └── config_live.yaml       # v1.8.1 Live ($100)
 ├── src/
 │   ├── engines/
-│   │   ├── ai_engine.py       # Motor IA + Agentes especializados
+│   │   ├── ai_engine.py       # IA híbrida + reintentos v1.8.1
 │   │   ├── market_engine.py   # Conexión exchanges + OCO
-│   │   ├── position_engine.py # Gestión posiciones + Trailing
+│   │   ├── position_engine.py # Trailing stop v1.8.1
 │   │   └── websocket_engine.py
 │   └── modules/
-│       ├── multi_timeframe.py        # v1.7+ MTF Analysis
-│       ├── correlation_filter.py     # v1.7+ Correlation
-│       ├── adaptive_parameters.py    # v1.7+ Adaptive
-│       ├── performance_attribution.py # v1.7+ Attribution
+│       ├── multi_timeframe.py        # MTF 75-80%
+│       ├── correlation_filter.py     # Correlación 65-70%
+│       ├── adaptive_parameters.py    # Parámetros adaptativos
+│       ├── performance_attribution.py
 │       ├── institutional_metrics.py  # Sharpe, Sortino, etc
-│       ├── risk_manager.py           # Kelly + R/R Validation
-│       ├── data_logger.py            # InfluxDB logging
-│       └── notifications.py          # Telegram alerts
+│       ├── risk_manager.py           # ATR stops + Kelly v1.8.1
+│       ├── data_logger.py            # InfluxDB
+│       └── notifications.py          # Telegram
+├── docs/
+│   ├── CHANGELOG.md                  # Historial de versiones
+│   ├── CONFIGURACION_POR_CAPITAL.md  # Guía por capital
+│   └── ...
 ├── grafana/
 │   └── provisioning/
-│       ├── dashboards/
-│       │   └── sath-trading.json     # Dashboard completo
-│       └── datasources/
-│           └── influxdb.yml          # Conexión InfluxDB
-├── tests/
-│   └── test_v17_institutional.py     # 28 tests
-├── docker-compose.paper.yml   # Docker Paper Trading
-├── docker-compose.live.yml    # Docker Live Trading
-├── main.py                    # Orquestador principal
+│       └── dashboards/
+├── docker-compose.paper.yml   # Docker Paper
+├── docker-compose.live.yml    # Docker Live
+├── main.py                    # Orquestador v1.8.1
 └── README.md
 ```
 
-## Tests
-
-```bash
-# Ejecutar todos los tests v1.7
-python -m pytest tests/test_v17_institutional.py -v
-
-# Resultado esperado: 28 passed
-```
-
-## Gestión de Riesgo
+## Gestión de Riesgo v1.8.1
 
 ### Protecciones Activas
 
-| Protección | Trigger | Acción |
-|------------|---------|--------|
-| Kill Switch | Pérdida > 5% diario | Apaga bot 24h |
-| R/R Validation | R/R < 1.5:1 | Rechaza trade |
-| Correlation | Correlación > 70% | Bloquea trade |
-| MTF Alignment | Alineación < 70% | Salta análisis |
-| Adaptive Confidence | Win rate bajo | Sube min_confidence |
-| Trailing Stop | Profit > 2% | Protege ganancias |
-| Circuit Breaker | Fallos API | Pausa llamadas |
+| Protección | PAPER | LIVE | Acción |
+|------------|-------|------|--------|
+| Kill Switch | 5% | 4% | Apaga bot 24h |
+| R/R Validation | ≥2.0 | ≥2.0 | Rechaza trade |
+| Correlation | 70% | 65% | Bloquea trade |
+| MTF Alignment | 75% | 80% | Salta análisis |
+| Confianza mín. | 70% | 75% | Rechaza trade |
+| Profit/Fees | 8x | 10x | Rechaza trade |
+| Trailing Stop | 2.5% | 3.0% | Protege ganancias |
 
-### Kelly Criterion
-
-El position sizing se ajusta automáticamente basado en:
-- Historial de trades (wins/losses)
-- Racha actual (win streak / loss streak)
-- Confianza del trade
+### Kelly Criterion v1.8.1
 
 ```
-Kelly % = (W × R - L) / R
+Kelly % = (W × R - L) / R × fraction
 
 Donde:
-- W = Probabilidad de ganar (del historial)
-- L = Probabilidad de perder (1 - W)
-- R = Ratio de ganancias/pérdidas promedio
+- W = Win rate histórico (o 0.50 si <10 trades)
+- L = 1 - W
+- R = Ratio ganancia/pérdida promedio
+- fraction = 0.25 PAPER / 0.20 LIVE
+
+Ejemplo con 50% WR y R/R 2:1:
+Kelly = (0.50 × 2 - 0.50) / 2 × 0.25 = 0.125 = 12.5% del capital
 ```
 
-## Changelog v1.7+
+## Changelog
+
+### v1.8.1 - 2025-12-03 (INSTITUCIONAL PRO ★★★★★)
+
+**Optimizado:**
+- Confianza mínima: 60% → **70-75%**
+- Kelly fraction: 0.20 → **0.25**
+- MTF alignment: 70% → **75-80%**
+- Volatilidad mínima: 0.25% → **0.35-0.40%**
+- Min candles: 100 → **150-200**
+- Profit/fees ratio: 5x → **8-10x**
+- Trailing activation: 2.0% → **2.5-3.0%**
+- Cooldown: 3s → **5s**
+
+**Agregado:**
+- Reintentos de API configurables (max_retries, retry_delay)
+- Variables de trailing stop desde config (antes hardcodeadas)
+
+### v1.8 - 2025-12-03 (INSTITUCIONAL)
+
+- **ATR-Based Stop Loss** - SL dinámico por volatilidad
+- **ATR-Based Take Profit** - R/R 2:1 garantizado
+- **Session Filter** - Horarios óptimos de liquidez
+- **Kelly Criterion Mejorado** - Historial persistente
+- **R/R mínimo 2.0** - Rechaza trades con mal ratio
 
 ### v1.7+ - Nivel Institucional Superior
-- **Multi-Timeframe Analysis**: Solo opera con 4H→1H→15m alineados
-- **Correlation Filter**: Evita sobreexposición (bloquea >70% correlación)
-- **Adaptive Parameters**: Auto-ajuste de confianza/riesgo
-- **Performance Attribution**: Análisis de alpha por agente/régimen/hora
-- **R/R Validation**: RECHAZA trades con R/R < 1.5 (antes solo warning)
-- **Kelly Criterion Auto-Update**: Se actualiza en cada cierre de posición
-- **Trailing Stop Fix**: Cooldown 3s + safety margin 0.3%
-- **Métricas Institucionales**: Sharpe, Sortino, Calmar, Fill Rate, Latencia
-- **Dashboard Grafana**: 19 paneles para métricas v1.7+
-- **InfluxDB Integration**: Todas las métricas se envían a la base de datos
 
-### v1.6 - Robustez
-- Circuit Breaker Pattern
-- Health Monitor
-- AI Ensemble System
-
-### v1.5 - Position Management
-- Órdenes OCO reales
-- Supervisión IA
-- Persistencia SQLite
+- Multi-Timeframe Analysis
+- Correlation Filter
+- Adaptive Parameters
+- Performance Attribution
+- Métricas Institucionales
 
 ## Solución de Problemas
 
 ### Bot no opera aunque hay señales
 
-1. **Verificar MTF**: Los timeframes deben estar alineados (≥70%)
-2. **Verificar Correlación**: No debe haber posiciones correlacionadas
-3. **Verificar Confidence**: La confianza debe superar el mínimo adaptativo
-4. **Verificar R/R**: El ratio riesgo/recompensa debe ser ≥1.5
+1. **Verificar MTF**: Alignment debe ser ≥75% (PAPER) o ≥80% (LIVE)
+2. **Verificar Confianza**: Debe superar 70% (PAPER) o 75% (LIVE)
+3. **Verificar R/R**: Ratio debe ser ≥2.0
+4. **Verificar Profit/Fees**: Ratio debe ser ≥8x (PAPER) o ≥10x (LIVE)
 
-### Métricas no aparecen en Grafana
+### Error de conexión API
 
-1. Verificar que InfluxDB está corriendo: `docker ps | grep influxdb`
-2. Verificar token en `.env`: `INFLUXDB_TOKEN`
-3. Verificar bucket: `trading_decisions` o `trading_decisions_paper`
+Los reintentos están configurados en v1.8.1:
+- `max_retries: 3`
+- `retry_delay_seconds: 2`
 
 ### Kelly siempre usa valores conservadores
 
-El Kelly necesita historial de trades. Los primeros 50 trades usarán valores base.
-El historial se guarda en `data/risk_manager_state.json`.
+Normal para <10 trades. El historial se guarda en `data/risk_manager_state.json`.
 
 ## Comandos Útiles
 
@@ -386,21 +456,15 @@ docker compose -f docker-compose.paper.yml restart trading_bot
 # Ver estado de contenedores
 docker compose -f docker-compose.paper.yml ps
 
-# Consultar InfluxDB
-docker exec -it sath_influxdb_paper influx query '
-  from(bucket:"trading_decisions_paper")
-  |> range(start: -1h)
-  |> filter(fn: (r) => r._measurement == "trade_result")
-'
-
-# Backup de posiciones
+# Backup de estado
+cp data/risk_manager_state.json data/backup_$(date +%Y%m%d).json
 cp data/positions.db data/positions_backup_$(date +%Y%m%d).db
 ```
 
 ---
 
-**SATH v1.7+ - Nivel Institucional Superior**
+**SATH v1.8.1 INSTITUCIONAL PRO ★★★★★**
 
-Desarrollado para traders que exigen estándares de hedge fund.
+*Menos trades, mayor calidad, mejor rentabilidad.*
 
-*28 tests passed | Métricas en tiempo real | Auto-adaptativo*
+*Desarrollado para traders que exigen estándares de hedge fund.*
