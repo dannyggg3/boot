@@ -9,8 +9,14 @@ v1.8 INSTITUCIONAL:
     - ATR normalizado en % para comparación entre activos
     - Volatility level mejorado
 
+v1.9 INSTITUCIONAL PRO:
+    - ADX (Average Directional Index) para fuerza de tendencia
+    - Mejora filtro pre-IA con detección de mercados laterales
+    - ADX < 20 = mercado lateral (no operar)
+    - ADX > 25 = tendencia confirmada
+
 Autor: Trading Bot System
-Versión: 1.8
+Versión: 1.9
 """
 
 import logging
@@ -109,6 +115,10 @@ class TechnicalAnalyzer:
 
             if self.indicators_config.get('atr', {}).get('enabled', True):
                 indicators.update(self._calculate_atr(df))
+
+            # v1.9: Calcular ADX para fuerza de tendencia
+            if self.indicators_config.get('adx', {}).get('enabled', True):
+                indicators.update(self._calculate_adx(df))
 
             # Análisis de tendencia
             indicators['trend_analysis'] = self._analyze_trend(df, indicators)
@@ -425,6 +435,159 @@ class TechnicalAnalyzer:
             'atr_percentage': round(atr_percentage, 2),  # Compatibilidad
             'volatility_level': volatility_level
         }
+
+    def _calculate_adx(self, df: pd.DataFrame) -> Dict[str, Any]:
+        """
+        v1.9 INSTITUCIONAL: Calcula el ADX (Average Directional Index).
+
+        El ADX mide la FUERZA de la tendencia, no su dirección:
+        - ADX < 20: Mercado lateral/sin tendencia (NO OPERAR)
+        - ADX 20-25: Tendencia débil emergente
+        - ADX 25-50: Tendencia fuerte (OPERAR)
+        - ADX 50-75: Tendencia muy fuerte
+        - ADX > 75: Tendencia extrema (posible agotamiento)
+
+        +DI > -DI = Tendencia alcista
+        -DI > +DI = Tendencia bajista
+
+        Args:
+            df: DataFrame con datos OHLCV
+
+        Returns:
+            Diccionario con ADX, +DI, -DI y señales
+        """
+        config = self.indicators_config.get('adx', {})
+        period = config.get('period', 14)
+
+        try:
+            if TA_LIBRARY == "pandas_ta":
+                adx_result = ta.adx(df['high'], df['low'], df['close'], length=period)
+                # pandas_ta devuelve columnas: ADX_14, DMP_14 (+DI), DMN_14 (-DI)
+                adx_col = f'ADX_{period}'
+                dmp_col = f'DMP_{period}'
+                dmn_col = f'DMN_{period}'
+
+                current_adx = float(adx_result[adx_col].iloc[-1]) if adx_col in adx_result.columns else 0
+                plus_di = float(adx_result[dmp_col].iloc[-1]) if dmp_col in adx_result.columns else 0
+                minus_di = float(adx_result[dmn_col].iloc[-1]) if dmn_col in adx_result.columns else 0
+
+            elif TA_LIBRARY == "ta":
+                from ta.trend import ADXIndicator
+                adx_ind = ADXIndicator(df['high'], df['low'], df['close'], window=period)
+                current_adx = float(adx_ind.adx().iloc[-1])
+                plus_di = float(adx_ind.adx_pos().iloc[-1])
+                minus_di = float(adx_ind.adx_neg().iloc[-1])
+
+            else:
+                # Cálculo manual de ADX
+                current_adx, plus_di, minus_di = self._manual_adx_calculation(df, period)
+
+            # Determinar fuerza de tendencia
+            if current_adx < 20:
+                trend_strength = "sin_tendencia"
+                trend_strength_desc = "Mercado lateral - NO OPERAR"
+            elif current_adx < 25:
+                trend_strength = "tendencia_debil"
+                trend_strength_desc = "Tendencia débil emergente"
+            elif current_adx < 50:
+                trend_strength = "tendencia_fuerte"
+                trend_strength_desc = "Tendencia fuerte - OPERAR"
+            elif current_adx < 75:
+                trend_strength = "tendencia_muy_fuerte"
+                trend_strength_desc = "Tendencia muy fuerte"
+            else:
+                trend_strength = "tendencia_extrema"
+                trend_strength_desc = "Tendencia extrema - posible agotamiento"
+
+            # Determinar dirección de tendencia
+            if plus_di > minus_di:
+                trend_direction = "bullish"
+            elif minus_di > plus_di:
+                trend_direction = "bearish"
+            else:
+                trend_direction = "neutral"
+
+            # DI crossover (señal de cambio de tendencia)
+            di_crossover = "none"
+            if len(df) >= 2:
+                # Obtener valores anteriores para detectar cruce
+                if TA_LIBRARY == "pandas_ta" and adx_result is not None:
+                    prev_plus_di = float(adx_result[dmp_col].iloc[-2]) if dmp_col in adx_result.columns else 0
+                    prev_minus_di = float(adx_result[dmn_col].iloc[-2]) if dmn_col in adx_result.columns else 0
+
+                    # Cruce alcista: +DI cruza por encima de -DI
+                    if prev_plus_di <= prev_minus_di and plus_di > minus_di:
+                        di_crossover = "bullish_crossover"
+                    # Cruce bajista: -DI cruza por encima de +DI
+                    elif prev_minus_di <= prev_plus_di and minus_di > plus_di:
+                        di_crossover = "bearish_crossover"
+
+            return {
+                'adx': round(current_adx, 2),
+                'adx_plus_di': round(plus_di, 2),
+                'adx_minus_di': round(minus_di, 2),
+                'adx_trend_strength': trend_strength,
+                'adx_trend_strength_desc': trend_strength_desc,
+                'adx_trend_direction': trend_direction,
+                'adx_di_crossover': di_crossover,
+                'adx_tradeable': current_adx >= 20  # Flag simple para filtrar
+            }
+
+        except Exception as e:
+            logger.error(f"Error calculando ADX: {e}")
+            return {
+                'adx': 0,
+                'adx_plus_di': 0,
+                'adx_minus_di': 0,
+                'adx_trend_strength': "unknown",
+                'adx_trend_strength_desc': "Error calculando ADX",
+                'adx_trend_direction': "neutral",
+                'adx_di_crossover': "none",
+                'adx_tradeable': True  # En caso de error, no bloquear
+            }
+
+    def _manual_adx_calculation(self, df: pd.DataFrame, period: int = 14) -> tuple:
+        """
+        Cálculo manual de ADX cuando no hay librería disponible.
+
+        Returns:
+            Tuple (adx, plus_di, minus_di)
+        """
+        try:
+            high = df['high']
+            low = df['low']
+            close = df['close']
+
+            # True Range
+            tr1 = high - low
+            tr2 = abs(high - close.shift())
+            tr3 = abs(low - close.shift())
+            tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+
+            # Directional Movement
+            plus_dm = high.diff()
+            minus_dm = -low.diff()
+
+            plus_dm = plus_dm.where((plus_dm > minus_dm) & (plus_dm > 0), 0)
+            minus_dm = minus_dm.where((minus_dm > plus_dm) & (minus_dm > 0), 0)
+
+            # Smoothed averages
+            atr = tr.rolling(window=period).mean()
+            plus_di = 100 * (plus_dm.rolling(window=period).mean() / atr)
+            minus_di = 100 * (minus_dm.rolling(window=period).mean() / atr)
+
+            # DX and ADX
+            dx = 100 * abs(plus_di - minus_di) / (plus_di + minus_di)
+            adx = dx.rolling(window=period).mean()
+
+            return (
+                float(adx.iloc[-1]) if not pd.isna(adx.iloc[-1]) else 0,
+                float(plus_di.iloc[-1]) if not pd.isna(plus_di.iloc[-1]) else 0,
+                float(minus_di.iloc[-1]) if not pd.isna(minus_di.iloc[-1]) else 0
+            )
+        except Exception as e:
+            logger.error(f"Error en cálculo manual de ADX: {e}")
+            return (0, 0, 0)
 
     def _analyze_trend(self, df: pd.DataFrame, indicators: Dict[str, Any]) -> str:
         """

@@ -130,8 +130,14 @@ class AIEngine:
 
     def _local_pre_filter(self, market_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
-        Pre-filtro LOCAL antes de llamar a cualquier API.
+        v1.9 INSTITUCIONAL: Pre-filtro LOCAL antes de llamar a cualquier API.
         Filtra mercados "aburridos" sin gastar créditos de IA.
+
+        Filtros aplicados (en orden):
+        1. ADX < 20 = Mercado lateral (CRÍTICO - ahorra más tokens)
+        2. RSI neutral + volumen bajo
+        3. MACD plano
+        4. Volatilidad muy baja
 
         Returns:
             None si debe continuar al análisis de IA
@@ -145,7 +151,33 @@ class AIEngine:
         macd_signal = market_data.get('macd_signal', 0)
         current_price = market_data.get('current_price', 1)
 
-        # 1. RSI en zona muerta (45-55) + volumen bajo = mercado lateral aburrido
+        # v1.9: Obtener datos de ADX
+        adx = market_data.get('adx', 0)
+        adx_tradeable = market_data.get('adx_tradeable', True)
+        adx_trend_strength = market_data.get('adx_trend_strength', 'unknown')
+
+        # ========================================
+        # FILTRO 1 (v1.9 CRÍTICO): ADX < 20 = Mercado lateral
+        # ========================================
+        # ADX es el MEJOR indicador para detectar mercados sin tendencia
+        # ADX < 20 significa que NO hay tendencia clara - NO OPERAR
+        # Esto ahorra la mayoría de tokens en mercados laterales
+        if adx > 0 and adx < 20:
+            logger.info(f"🚫 PRE-FILTRO ADX [{symbol}]: ADX={adx:.1f} < 20 (mercado lateral)")
+            return {
+                "decision": "ESPERA",
+                "confidence": 0.0,
+                "razonamiento": f"Pre-filtro ADX: Mercado lateral sin tendencia (ADX {adx:.1f} < 20). "
+                               f"Esperando tendencia confirmada (ADX > 25).",
+                "analysis_type": "local_pre_filter",
+                "filtered_reason": "adx_no_trend",
+                "adx_value": adx,
+                "adx_trend_strength": adx_trend_strength
+            }
+
+        # ========================================
+        # FILTRO 2: RSI neutral + volumen bajo
+        # ========================================
         if 45 < rsi < 55 and volume_ratio < 1.5:
             logger.info(f"🚫 PRE-FILTRO LOCAL [{symbol}]: RSI neutral ({rsi:.1f}) + volumen bajo ({volume_ratio:.2f}x)")
             return {
@@ -156,7 +188,9 @@ class AIEngine:
                 "filtered_reason": "rsi_neutral_low_volume"
             }
 
-        # 2. MACD plano (sin momentum) - umbral relativo al precio
+        # ========================================
+        # FILTRO 3: MACD plano (sin momentum)
+        # ========================================
         macd_threshold = current_price * 0.0001  # 0.01% del precio
         if abs(macd) < macd_threshold and abs(macd - macd_signal) < macd_threshold:
             logger.info(f"🚫 PRE-FILTRO LOCAL [{symbol}]: MACD plano (sin momentum)")
@@ -168,7 +202,9 @@ class AIEngine:
                 "filtered_reason": "macd_flat"
             }
 
-        # 3. Volatilidad extremadamente baja (ya cubierto por min_volatility pero doble check)
+        # ========================================
+        # FILTRO 4: Volatilidad extremadamente baja
+        # ========================================
         if atr_percent < self.min_volatility_percent * 0.5:
             logger.info(f"🚫 PRE-FILTRO LOCAL [{symbol}]: Volatilidad muy baja ({atr_percent:.3f}%)")
             return {
@@ -178,6 +214,10 @@ class AIEngine:
                 "analysis_type": "local_pre_filter",
                 "filtered_reason": "very_low_volatility"
             }
+
+        # v1.9: Log cuando ADX confirma tendencia operativa
+        if adx >= 25:
+            logger.info(f"✅ PRE-FILTRO ADX [{symbol}]: ADX={adx:.1f} >= 25 (tendencia confirmada)")
 
         # Pasó el pre-filtro, continuar al análisis de IA
         return None

@@ -9,8 +9,12 @@ Proporciona métricas avanzadas para trading profesional:
 - Win Rate por régimen
 - Tracking de latencia y slippage
 
+v1.9 INSTITUCIONAL:
+- Tracking de trades abortados por desviación de precio post-IA
+- Métricas de efectividad de validación post-IA
+
 Autor: Trading Bot System
-Versión: 1.7
+Versión: 1.9
 """
 
 import logging
@@ -61,6 +65,15 @@ class InstitutionalMetrics:
 
         # v1.7: Umbrales de alerta
         self.slippage_alert_threshold = self.config.get('slippage_alert_threshold', 0.3)  # 0.3%
+
+        # v1.9: Tracking de trades abortados por validación post-IA
+        self.aborted_trades: List[Dict] = []
+        self.aborted_by_reason = {
+            'price_deviation_post_ai': 0,
+            'liquidity_insufficient': 0,
+            'kill_switch': 0,
+            'other': 0
+        }
 
         # Peak para drawdown
         self.peak_capital = 0
@@ -194,6 +207,102 @@ class InstitutionalMetrics:
                 'timeout': self.limit_orders_timeout,
                 'cancel_rate_percent': round(self.limit_orders_cancelled / total * 100, 1),
                 'timeout_rate_percent': round(self.limit_orders_timeout / total * 100, 1)
+            }
+
+    def record_aborted_trade(
+        self,
+        symbol: str,
+        reason: str,
+        analysis_price: float = 0,
+        current_price: float = 0,
+        deviation_pct: float = 0,
+        additional_info: Dict[str, Any] = None
+    ):
+        """
+        v1.9 INSTITUCIONAL: Registra un trade abortado por validación post-IA.
+
+        Esto permite analizar:
+        - Cuántas oportunidades se pierden por volatilidad
+        - Si el umbral de desviación es apropiado
+        - Si la latencia de IA es un problema
+
+        Args:
+            symbol: Par de trading
+            reason: Razón del aborto ('price_deviation_post_ai', 'liquidity_insufficient', etc)
+            analysis_price: Precio cuando la IA analizó
+            current_price: Precio cuando se iba a ejecutar
+            deviation_pct: Porcentaje de desviación
+            additional_info: Información adicional
+        """
+        with self._lock:
+            aborted = {
+                'timestamp': datetime.now().isoformat(),
+                'symbol': symbol,
+                'reason': reason,
+                'analysis_price': analysis_price,
+                'current_price': current_price,
+                'deviation_pct': deviation_pct,
+                'additional_info': additional_info or {}
+            }
+            self.aborted_trades.append(aborted)
+
+            # Mantener solo últimos 500 para no crecer indefinidamente
+            if len(self.aborted_trades) > 500:
+                self.aborted_trades = self.aborted_trades[-500:]
+
+            # Actualizar contador por razón
+            if reason in self.aborted_by_reason:
+                self.aborted_by_reason[reason] += 1
+            else:
+                self.aborted_by_reason['other'] += 1
+
+            logger.info(
+                f"📊 Trade abortado registrado: {symbol} - {reason} "
+                f"(desviación: {deviation_pct:.3f}%)"
+            )
+
+            # Persistir cada 5 abortos
+            if len(self.aborted_trades) % 5 == 0:
+                self._save_data()
+
+    def get_aborted_trades_stats(self) -> Dict[str, Any]:
+        """
+        v1.9: Obtiene estadísticas de trades abortados.
+
+        Returns:
+            Dict con métricas de trades abortados
+        """
+        with self._lock:
+            total_aborted = sum(self.aborted_by_reason.values())
+            total_executed = len(self.trades)
+            total_attempted = total_aborted + total_executed
+
+            # Calcular desviación promedio de los abortos por precio
+            price_deviation_aborts = [
+                t for t in self.aborted_trades
+                if t.get('reason') == 'price_deviation_post_ai'
+            ]
+            avg_deviation = 0
+            max_deviation = 0
+            if price_deviation_aborts:
+                deviations = [t.get('deviation_pct', 0) for t in price_deviation_aborts]
+                avg_deviation = sum(deviations) / len(deviations)
+                max_deviation = max(deviations)
+
+            return {
+                'total_aborted': total_aborted,
+                'total_executed': total_executed,
+                'total_attempted': total_attempted,
+                'abort_rate_percent': round(
+                    total_aborted / total_attempted * 100, 2
+                ) if total_attempted > 0 else 0,
+                'by_reason': self.aborted_by_reason.copy(),
+                'price_deviation_stats': {
+                    'count': len(price_deviation_aborts),
+                    'avg_deviation_pct': round(avg_deviation, 3),
+                    'max_deviation_pct': round(max_deviation, 3)
+                },
+                'recent_aborts': self.aborted_trades[-10:]  # Últimos 10
             }
 
     def record_daily_return(self, return_percent: float, capital: float):
