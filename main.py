@@ -1493,12 +1493,12 @@ def main():
     print(f"""
     ╔═══════════════════════════════════════════════════════════════╗
     ║                                                               ║
-    ║     Sistema Autónomo de Trading Híbrido (SATH) v1.7+        ║
+    ║     Sistema Autónomo de Trading Híbrido (SATH) v1.8         ║
     ║           NIVEL INSTITUCIONAL SUPERIOR                       ║
     ║                                                               ║
-    ║     ✓ Multi-Timeframe (4H→1H→15m)  ✓ Correlation Filter     ║
-    ║     ✓ Adaptive Parameters          ✓ Performance Attribution ║
-    ║     ✓ Kelly Criterion Dinámico     ✓ R/R Validation         ║
+    ║     ✓ ATR-Based Stop Loss/TP       ✓ Correlation Filter     ║
+    ║     ✓ Multi-Timeframe (4H→1H→15m)  ✓ Session Filter         ║
+    ║     ✓ Kelly Criterion Dinámico     ✓ R/R 2:1 Obligatorio    ║
     ║                                                               ║
     ║     MODO: {mode:^50}║
     ║     Config: {config_path:<47}║
