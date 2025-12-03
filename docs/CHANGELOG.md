@@ -176,13 +176,30 @@ Ver `docs/ARCHITECTURE.md` para historial completo.
 
 ## Roadmap Futuro
 
-### v2.0.0 (Planeado)
-- [ ] Migración completa a asyncio
-- [ ] WebSocket para precios en tiempo real
-- [ ] Multi-exchange simultáneo
-- [ ] Dashboard web con Grafana
+### v2.0.0 (Planeado) - Migración Asyncio
 
-### Mejoras Pendientes
+**IMPORTANTE:** La migración a asyncio es un cambio arquitectural grande que requiere:
+- Refactorizar el loop principal de `time.sleep()` a `asyncio.sleep()`
+- Unificar `ThreadPoolExecutor` con `asyncio.gather()`
+- Aislar event loops en componentes que usan `ccxt[async]`
+- Testing extensivo para evitar race conditions
+
+**Estado actual:** El sistema funciona correctamente para trading de frecuencia baja/media (scan cada 180s). La mezcla sync/async no es crítica para este caso de uso.
+
+**Cuándo migrar:** Solo cuando se requiera:
+- Trading de alta frecuencia (<30s entre scans)
+- WebSocket en tiempo real para múltiples símbolos
+- Multi-exchange simultáneo
+
+#### Tareas v2.0.0
+- [ ] Migración completa a asyncio nativo
+- [ ] WebSocket para precios en tiempo real
+- [ ] Multi-exchange simultáneo (Binance + Bybit + OKX)
+- [ ] Dashboard web con Grafana embebido
+
+### Mejoras Pendientes (Sin versión asignada)
 - [ ] Backtesting de decisiones IA (costoso por API)
 - [ ] ML local para reducir dependencia de APIs externas
 - [ ] Más estrategias de backtesting
+- [ ] VaR (Value at Risk) formal
+- [ ] Stress testing automatizado

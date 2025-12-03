@@ -646,6 +646,8 @@ class TradingBot:
                             continue
 
                 # Esperar hasta el siguiente ciclo
+                # TODO v2.0: Migrar a asyncio.sleep() cuando se requiera HFT (<30s scans)
+                # Ver CHANGELOG.md -> Roadmap v2.0.0 para detalles de la migración
                 logger.debug(f"Esperando {self.scan_interval}s hasta el próximo escaneo...")
                 time.sleep(self.scan_interval)
 
@@ -663,11 +665,17 @@ class TradingBot:
         """
         Analiza todos los símbolos en paralelo usando ThreadPoolExecutor.
         Reduce significativamente el tiempo de análisis cuando hay múltiples símbolos.
+
+        TODO v2.0: Migrar a asyncio.gather() cuando se implemente asyncio nativo.
+        El ThreadPoolExecutor funciona bien para trading de frecuencia baja/media,
+        pero asyncio sería más eficiente para HFT con WebSockets.
+        Ver CHANGELOG.md -> Roadmap v2.0.0 para detalles.
         """
         logger.info(f"🔄 Iniciando análisis PARALELO de {len(self.symbols)} símbolos...")
         start_time = time.time()
 
         results = {}
+        # TODO v2.0: Reemplazar con asyncio.gather() para mejor eficiencia
         with ThreadPoolExecutor(max_workers=min(self.max_workers, len(self.symbols))) as executor:
             # Enviar todos los análisis en paralelo
             future_to_symbol = {
