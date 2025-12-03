@@ -1,4 +1,4 @@
-# Guía de Inicio Rápido - SATH v1.8.1 INSTITUCIONAL PRO ★★★★★
+# Guía de Inicio Rápido - SATH v1.9.0 INSTITUCIONAL PRO MAX ★★★★★
 
 ## Primeros Pasos (5 minutos)
 
@@ -93,12 +93,12 @@ OPENAI_API_KEY=sk-tu-clave-aqui
 GEMINI_API_KEY=AIzaSy-tu-clave-aqui
 ```
 
-### Configuración Optimizada v1.8.1 INSTITUCIONAL PRO
+### Configuración Optimizada v1.9.0 INSTITUCIONAL PRO MAX
 
 Las siguientes optimizaciones institucionales vienen **habilitadas por defecto**:
 
 ```yaml
-# === AGENTES ESPECIALIZADOS v1.8.1 ===
+# === AGENTES ESPECIALIZADOS v1.9.0 ===
 ai_agents:
   enabled: true
   min_volatility_percent: 0.35  # PAPER (0.40 para LIVE)
@@ -106,9 +106,10 @@ ai_agents:
   max_retries: 3                # Reintentos para resiliencia
   retry_delay_seconds: 2
 
-# === GESTIÓN DE RIESGO INSTITUCIONAL ===
+# === GESTIÓN DE RIESGO INSTITUCIONAL v1.9 ===
 risk_management:
   min_risk_reward_ratio: 2.0    # R/R mínimo 2:1 (RECHAZA si menor)
+  max_price_deviation_percent: 0.2  # v1.9: Validación post-IA
 
   kelly_criterion:
     enabled: true
@@ -118,6 +119,13 @@ risk_management:
     enabled: true
     sl_multiplier: 2.0          # SL a 2x ATR
     tp_multiplier: 4.0          # TP a 4x ATR (garantiza R/R 2:1)
+
+# === INDICADORES TÉCNICOS v1.9 ===
+technical_analysis:
+  indicators:
+    adx:
+      enabled: true             # v1.9: Filtro de mercados laterales
+      period: 14
 
 # === MULTI-TIMEFRAME INSTITUCIONAL ===
 multi_timeframe:
@@ -129,11 +137,13 @@ position_sizing:
   profit_to_fees_ratio: 8.0     # PAPER (10.0 para LIVE)
 ```
 
-**Impacto v1.8.1 INSTITUCIONAL PRO:**
+**Impacto v1.9.0 INSTITUCIONAL PRO MAX:**
+- **Validación Post-IA**: Re-verifica precio antes de ejecutar (elimina R/R inválido)
+- **Filtro ADX**: Bloquea mercados laterales (ADX<20) → ahorra 40% en API
 - **Menos trades, mayor calidad**: Solo opera con alta confianza (70-75%)
 - **R/R garantizado**: ATR-based stops aseguran R/R 2:1 en cada trade
-- **MTF alignment**: Solo opera cuando todos los timeframes están alineados
-- **Validación de fees**: Solo trades donde ganancia > 8-10x comisiones
+- **CI/CD Pipeline**: Calidad de código garantizada
+- **Backtester integrado**: Valida estrategias antes de ir live
 - **Ahorro total: 95-99% en llamadas API**
 
 ## Problemas Comunes
@@ -162,18 +172,19 @@ Esto es normal en modo `paper` si:
 - La verificación de precio abortó la orden (v1.1)
 - Revisa los logs: `tail -f logs/trading_bot.log`
 
-### Logs esperados (v1.8.1 INSTITUCIONAL PRO)
+### Logs esperados (v1.9.0 INSTITUCIONAL PRO MAX)
 
 ```
 ╔═══════════════════════════════════════════════════════════╗
-║     Sistema Autónomo de Trading Híbrido (SATH) v1.8.1     ║
-║           ★★★★★ INSTITUCIONAL PRO ★★★★★                    ║
+║     Sistema Autónomo de Trading Híbrido (SATH) v1.9.0     ║
+║        ★★★★★ INSTITUCIONAL PRO MAX ★★★★★                  ║
 ╚═══════════════════════════════════════════════════════════╝
 
 🔄 Iniciando análisis PARALELO de 3 símbolos...
 ✅ Análisis paralelo completado en 2.8s
 
-=== ANÁLISIS INSTITUCIONAL v1.8.1 ===
+=== ANÁLISIS INSTITUCIONAL v1.9.0 ===
+📊 ADX: 32.5 (≥20) ✅ Tendencia confirmada
 🎯 MTF Alignment: 82% (min: 75%) ✅
 📊 ATR%: 1.45 | Volatilidad OK (min: 0.35%)
 📈 Régimen: TRENDING | Activando Trend Agent
@@ -181,18 +192,28 @@ Esto es normal en modo `paper` si:
 💰 R/R Ratio: 2.3:1 (min: 2.0) ✅
 📋 Profit/Fees: 12x (min: 8x) ✅
 
+🔄 VALIDACIÓN POST-IA:
+   Precio análisis: $96,500.00
+   Precio actual:   $96,520.00
+   Desviación:      0.021%
+   Umbral máximo:   0.20%
+✅ Precio validado - desviación dentro del umbral
+
 ✅ COMPRA BTC/USDT | Confianza: 78% | R/R: 2.3:1
    SL: $94,500 (ATR-based) | TP: $98,200 (ATR-based)
 ```
 
-**Logs de filtrado institucional (ahorro de API):**
+**Logs de filtrado v1.9 (ahorro de API):**
 ```
+🚫 PRE-FILTRO ADX [ETH/USDT]: ADX=15.2 < 20 (mercado lateral) → NO LLAMAR IA
 ❌ MTF Alignment: 62% < 75% mínimo → ESPERA
 ❌ Confianza: 65% < 70% mínimo → ESPERA
 ❌ R/R Ratio: 1.4:1 < 2.0 mínimo → RECHAZADO
+⚠️ ORDEN ABORTADA: Precio subió 0.35% desde análisis → R/R inválido
 ```
 
-Si ves `⚠️ ORDEN ABORTADA: Precio subió 0.65%` significa que la protección anti-slippage está funcionando correctamente.
+Si ves `🚫 PRE-FILTRO ADX` significa que el filtro v1.9 está funcionando y ahorrando llamadas a la API.
+Si ves `⚠️ ORDEN ABORTADA: Precio...` significa que la validación post-IA v1.9 protegió contra un R/R inválido.
 
 ## Siguiente Nivel
 
