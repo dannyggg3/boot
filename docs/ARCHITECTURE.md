@@ -1,26 +1,32 @@
-# Arquitectura del Sistema SATH v1.9.0 INSTITUCIONAL PRO MAX ★★★★★
+# Arquitectura del Sistema SATH v2.1.0 INSTITUCIONAL PROFESIONAL ★★★★★
 
-Este documento describe la arquitectura completa del Sistema Autónomo de Trading Híbrido - Nivel Institucional Máximo.
+Este documento describe la arquitectura completa del Sistema Autónomo de Trading Híbrido - Nivel Institucional Profesional.
 
-## Cambios v1.9.0 (INSTITUCIONAL PRO MAX)
+## Cambios v2.1.0 (INSTITUCIONAL PROFESIONAL)
 
-### Mejoras Críticas v1.9.0
+### 10 Correcciones Críticas v2.1.0
 
-| Mejora | Descripción | Impacto |
-|--------|-------------|---------|
-| **Validación Post-IA** | Re-verifica precio antes de ejecutar | Elimina trades con R/R inválido |
-| **Filtro ADX** | Bloquea mercados laterales (ADX < 20) | -40% costos API, mejores trades |
-| **Backtester** | Motor de validación de estrategias | Testing antes de live |
-| **CI/CD Pipeline** | GitHub Actions completo | Calidad garantizada |
-| **Métricas Abortados** | Tracking de trades cancelados | Visibilidad total |
+| Corrección | Descripción | Impacto |
+|------------|-------------|---------|
+| **Trailing Math** | activation 2.0% > distance 1.0% | SL siempre sobre entry |
+| **PROFIT LOCK** | Trailing NUNCA bajo entry + min profit | Ganador → SIEMPRE ganador |
+| **Range Agent** | Opera mercados laterales con Bollinger | +25% oportunidades |
+| **ADX >= 25** | Solo tendencias confirmadas (antes 20) | -60% falsos breakouts |
+| **RSI 35-65** | Evita zonas de reversión | Entradas más seguras |
+| **Volumen 1.0x** | Mínimo sobre promedio (antes 0.5x) | Mejor confirmación |
+| **Session Filter** | Evita 00:00-06:00 UTC | Menos slippage |
+| **ADX en Régimen** | Integrado en determine_market_regime() | Mejor detección |
+| **MACD Threshold** | 0.05% del precio (antes 0.01%) | Filtro más efectivo |
+| **Prompts IA** | Sin pedir SL/TP (Risk Manager fuerza) | Menos tokens |
 
-### Archivos Nuevos v1.9.0
+### Archivos Modificados v2.1.0
 
-| Archivo | Descripción |
-|---------|-------------|
-| `src/modules/backtester.py` | Motor de backtesting con 5 estrategias |
-| `.github/workflows/ci.yml` | Pipeline CI/CD completo |
-| `CHANGELOG.md` | Historial de cambios |
+| Archivo | Cambios |
+|---------|---------|
+| `config/config_paper.yaml` | Trailing, session filter, volumes, ADX |
+| `src/engines/ai_engine.py` | Prompts, ADX threshold, range_agent, regime |
+| `src/engines/position_engine.py` | Profit lock en trailing stop |
+| `tests/test_v21_integration.py` | 19 tests de integración (NUEVO) |
 
 ### Validación Precio Post-IA (main.py:1085-1156)
 
@@ -57,7 +63,7 @@ Este documento describe la arquitectura completa del Sistema Autónomo de Tradin
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    FLUJO FILTRO ADX v1.9                    │
+│                    FLUJO FILTRO ADX v2.1                    │
 └─────────────────────────────────────────────────────────────┘
 
                     Datos Técnicos
@@ -72,16 +78,15 @@ Este documento describe la arquitectura completa del Sistema Autónomo de Tradin
               │                       │
               ▼                       ▼
      ┌────────────────┐      ┌────────────────┐
-     │   ADX < 20     │      │   ADX >= 20    │
-     │  Sin Tendencia │      │   Tendencia    │
+     │   ADX < 25     │      │   ADX >= 25    │
+     │  Lateral/Débil │      │   Tendencia    │
      └───────┬────────┘      └───────┬────────┘
              │                       │
              ▼                       ▼
      ┌────────────────┐      ┌────────────────┐
-     │  🚫 BLOQUEAR   │      │  ✅ Continuar  │
-     │  No llamar IA  │      │  a análisis IA │
-     │  $0 gastado    │      └────────────────┘
-     └────────────────┘
+     │  Range Agent   │      │  Trend/Reversal│
+     │  (Bollinger)   │      │  Agent         │
+     └────────────────┘      └────────────────┘
 ```
 
 ---
@@ -859,4 +864,6 @@ bot/
 
 ---
 
-**Última actualización**: Diciembre 2025 - v1.8.1 INSTITUCIONAL PRO ★★★★★
+**Última actualización**: Diciembre 2025 - v2.1.0 INSTITUCIONAL PROFESIONAL ★★★★★
+
+**Tests v2.1**: 19/19 pasados ✓

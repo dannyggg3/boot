@@ -1,4 +1,4 @@
-# Guía de Despliegue en Ubuntu Server
+# Guía de Despliegue en Ubuntu Server - SATH v2.1.0
 
 ## Requisitos del Servidor
 
@@ -150,16 +150,22 @@ docker compose logs trading_bot --tail 100
 docker compose logs -f trading_bot
 ```
 
-**Logs esperados (v1.3):**
+**Logs esperados (v2.1.0):**
 
 ```
-Bot iniciado. Presiona Ctrl+C para detener.
+╔═══════════════════════════════════════════════════════════╗
+║     Sistema Autónomo de Trading Híbrido (SATH) v2.1.0     ║
+║      ★★★★★ INSTITUCIONAL PROFESIONAL ★★★★★               ║
+╚═══════════════════════════════════════════════════════════╝
+
 🔄 Iniciando análisis PARALELO de 4 símbolos...
-=== ANÁLISIS v2 CON AGENTES ESPECIALIZADOS: BTC/USDT ===
-📊 Régimen de mercado detectado: TRENDING
-🚀 AGENTE DE TENDENCIA activado...
-Decisión IA: ESPERA (Confianza: 0.30)
-Kelly Sizing: confianza=0.30, risk=1.0%
+=== ANÁLISIS INSTITUCIONAL v2.1.0 ===
+📊 ADX: 28.5 (≥25) ✅ Tendencia confirmada
+📈 Régimen: TRENDING | Activando Trend Agent
+📉 RSI: 52 (35-65) ✅ Zona operativa
+📊 Volumen: 1.2x (≥1.0x) ✅
+⚡ Confianza IA: 72% (min: 70%) ✅
+Trailing: activation=2%, distance=1%, profit_lock=0.8%
 ```
 
 ## Paso 7: Monitoreo Continuo
@@ -324,5 +330,5 @@ docker compose exec influxdb influx restore /tmp/restore
 
 ---
 
-**Versión**: 1.3
-**Última actualización**: 2024
+**Versión**: 2.1.0 INSTITUCIONAL PROFESIONAL
+**Última actualización**: Diciembre 2025

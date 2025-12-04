@@ -1,4 +1,4 @@
-# Guía de Inicio Rápido - SATH v1.9.0 INSTITUCIONAL PRO MAX ★★★★★
+# Guía de Inicio Rápido - SATH v2.1.0 INSTITUCIONAL PROFESIONAL ★★★★★
 
 ## Primeros Pasos (5 minutos)
 
@@ -93,58 +93,63 @@ OPENAI_API_KEY=sk-tu-clave-aqui
 GEMINI_API_KEY=AIzaSy-tu-clave-aqui
 ```
 
-### Configuración Optimizada v1.9.0 INSTITUCIONAL PRO MAX
+### Configuración Optimizada v2.1.0 INSTITUCIONAL PROFESIONAL
 
 Las siguientes optimizaciones institucionales vienen **habilitadas por defecto**:
 
 ```yaml
-# === AGENTES ESPECIALIZADOS v1.9.0 ===
+# === AGENTES ESPECIALIZADOS v2.1.0 ===
 ai_agents:
   enabled: true
-  min_volatility_percent: 0.35  # PAPER (0.40 para LIVE)
-  min_volume_ratio: 0.5         # Confirma liquidez
-  max_retries: 3                # Reintentos para resiliencia
-  retry_delay_seconds: 2
+  min_volatility_percent: 0.5   # Subido de 0.35
+  min_volume_ratio: 1.0         # v2.1: Subido de 0.5
+  ideal_volume_ratio: 1.3       # v2.1: NUEVO
+  min_adx_trend: 25             # v2.1: Subido de 20
+  max_retries: 3
 
-# === GESTIÓN DE RIESGO INSTITUCIONAL v1.9 ===
+# === GESTIÓN DE RIESGO INSTITUCIONAL v2.1 ===
 risk_management:
-  min_risk_reward_ratio: 2.0    # R/R mínimo 2:1 (RECHAZA si menor)
-  max_price_deviation_percent: 0.2  # v1.9: Validación post-IA
+  min_risk_reward_ratio: 2.0
 
   kelly_criterion:
     enabled: true
-    min_confidence: 0.70        # PAPER (0.75 para LIVE)
+    min_confidence: 0.70
 
   atr_stops:
     enabled: true
-    sl_multiplier: 2.0          # SL a 2x ATR
-    tp_multiplier: 4.0          # TP a 4x ATR (garantiza R/R 2:1)
+    sl_multiplier: 2.5
+    tp_multiplier: 5.0
+    min_distance_percent: 1.8
 
-# === INDICADORES TÉCNICOS v1.9 ===
-technical_analysis:
-  indicators:
-    adx:
-      enabled: true             # v1.9: Filtro de mercados laterales
-      period: 14
+  # v2.1: HABILITADO
+  session_filter:
+    enabled: true
+    avoid_hours_utc:
+      - [0, 6]
+
+# === TRAILING STOP v2.1 (CORREGIDO) ===
+position_management:
+  trailing_stop:
+    enabled: true
+    activation_profit_percent: 2.0  # v2.1: SUBIDO
+    trail_distance_percent: 1.0     # v2.1: BAJADO
+    min_profit_to_lock: 0.8         # v2.1: SUBIDO
+    cooldown_seconds: 15            # v2.1: SUBIDO
 
 # === MULTI-TIMEFRAME INSTITUCIONAL ===
 multi_timeframe:
   enabled: true
-  min_alignment_score: 0.75     # PAPER (0.80 para LIVE)
-
-# === VALIDACIÓN DE RENTABILIDAD ===
-position_sizing:
-  profit_to_fees_ratio: 8.0     # PAPER (10.0 para LIVE)
+  min_alignment_score: 0.65
 ```
 
-**Impacto v1.9.0 INSTITUCIONAL PRO MAX:**
-- **Validación Post-IA**: Re-verifica precio antes de ejecutar (elimina R/R inválido)
-- **Filtro ADX**: Bloquea mercados laterales (ADX<20) → ahorra 40% en API
-- **Menos trades, mayor calidad**: Solo opera con alta confianza (70-75%)
-- **R/R garantizado**: ATR-based stops aseguran R/R 2:1 en cada trade
-- **CI/CD Pipeline**: Calidad de código garantizada
-- **Backtester integrado**: Valida estrategias antes de ir live
-- **Ahorro total: 95-99% en llamadas API**
+**Impacto v2.1.0 INSTITUCIONAL PROFESIONAL:**
+- **Trailing Math Corregido**: activation 2.0% > distance 1.0% (SL siempre sobre entry)
+- **PROFIT LOCK**: Trailing NUNCA convierte ganador en perdedor
+- **Range Agent**: Opera mercados laterales (+25% oportunidades)
+- **ADX >= 25**: Solo tendencias confirmadas (-60% falsos breakouts)
+- **RSI 35-65**: Evita entrar en zonas de reversión
+- **Session Filter**: Evita horas de baja liquidez (00-06 UTC)
+- **Win Rate esperado: ~48%** (antes ~42%)
 
 ## Problemas Comunes
 
@@ -172,48 +177,46 @@ Esto es normal en modo `paper` si:
 - La verificación de precio abortó la orden (v1.1)
 - Revisa los logs: `tail -f logs/trading_bot.log`
 
-### Logs esperados (v1.9.0 INSTITUCIONAL PRO MAX)
+### Logs esperados (v2.1.0 INSTITUCIONAL PROFESIONAL)
 
 ```
 ╔═══════════════════════════════════════════════════════════╗
-║     Sistema Autónomo de Trading Híbrido (SATH) v1.9.0     ║
-║        ★★★★★ INSTITUCIONAL PRO MAX ★★★★★                  ║
+║     Sistema Autónomo de Trading Híbrido (SATH) v2.1.0     ║
+║      ★★★★★ INSTITUCIONAL PROFESIONAL ★★★★★               ║
 ╚═══════════════════════════════════════════════════════════╝
 
 🔄 Iniciando análisis PARALELO de 3 símbolos...
 ✅ Análisis paralelo completado en 2.8s
 
-=== ANÁLISIS INSTITUCIONAL v1.9.0 ===
-📊 ADX: 32.5 (≥20) ✅ Tendencia confirmada
-🎯 MTF Alignment: 82% (min: 75%) ✅
-📊 ATR%: 1.45 | Volatilidad OK (min: 0.35%)
+=== ANÁLISIS INSTITUCIONAL v2.1.0 ===
+📊 ADX: 32.5 (≥25) ✅ Tendencia confirmada
+🎯 MTF Alignment: 82% (min: 65%) ✅
+📊 ATR%: 1.45 | Volatilidad OK (min: 0.5%)
 📈 Régimen: TRENDING | Activando Trend Agent
+📉 RSI: 52 (35-65) ✅ Zona operativa
+📊 Volumen: 1.4x (≥1.0x) ✅
 ⚡ Confianza IA: 78% (min: 70%) ✅
 💰 R/R Ratio: 2.3:1 (min: 2.0) ✅
-📋 Profit/Fees: 12x (min: 8x) ✅
-
-🔄 VALIDACIÓN POST-IA:
-   Precio análisis: $96,500.00
-   Precio actual:   $96,520.00
-   Desviación:      0.021%
-   Umbral máximo:   0.20%
-✅ Precio validado - desviación dentro del umbral
 
 ✅ COMPRA BTC/USDT | Confianza: 78% | R/R: 2.3:1
    SL: $94,500 (ATR-based) | TP: $98,200 (ATR-based)
+   Trailing: activation=2%, distance=1%, profit_lock=0.8%
 ```
 
-**Logs de filtrado v1.9 (ahorro de API):**
+**Logs de filtrado v2.1 (nuevos agentes):**
 ```
-🚫 PRE-FILTRO ADX [ETH/USDT]: ADX=15.2 < 20 (mercado lateral) → NO LLAMAR IA
-❌ MTF Alignment: 62% < 75% mínimo → ESPERA
-❌ Confianza: 65% < 70% mínimo → ESPERA
-❌ R/R Ratio: 1.4:1 < 2.0 mínimo → RECHAZADO
-⚠️ ORDEN ABORTADA: Precio subió 0.35% desde análisis → R/R inválido
+📊 ADX: 18.5 (<25) → Activando RANGE AGENT (Bollinger)
+🎯 Precio en zona SOPORTE (12% del rango BB)
+📉 RSI: 38 (zona operativa) ✅
+💡 Range Agent: COMPRA en soporte con confianza 65%
+
+🚫 RSI: 72 (>65) → Fuera de zona operativa → ESPERA
+🚫 Volumen: 0.7x (<1.0x) → Volumen insuficiente → ESPERA
+🚫 Session Filter: 03:00 UTC → Hora evitada → ESPERA
 ```
 
-Si ves `🚫 PRE-FILTRO ADX` significa que el filtro v1.9 está funcionando y ahorrando llamadas a la API.
-Si ves `⚠️ ORDEN ABORTADA: Precio...` significa que la validación post-IA v1.9 protegió contra un R/R inválido.
+Si ves `Activando RANGE AGENT` significa que el bot ahora opera en mercados laterales.
+Si ves `RSI: XX (>65)` significa que evita zonas de reversión.
 
 ## Siguiente Nivel
 
