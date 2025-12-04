@@ -15,15 +15,19 @@ ai_use_hybrid_analysis: true
 ai_model_fast: "deepseek-chat"
 ai_model_deep: "deepseek-reasoner"
 
-# ===== AGENTES ESPECIALIZADOS =====
+# ===== AGENTES ESPECIALIZADOS v2.1 =====
 ai_agents:
   enabled: true
-  # v1.8 INSTITUCIONAL: Solo operar con volatilidad y volumen suficientes
-  min_volatility_percent: 0.35  # Mayor volatilidad = mejores oportunidades
-  min_volume_ratio: 0.5  # Volumen más alto para confirmar liquidez
+  # v2.1 INSTITUCIONAL: Thresholds profesionales
+  min_volatility_percent: 0.5   # Volatilidad mínima para movimientos significativos
+  min_volume_ratio: 1.0         # CRÍTICO: Mínimo 1.0x (promedio) para confirmar movimientos
+  # Los institucionales quieren ver volumen SOBRE promedio, no bajo
+  ideal_volume_ratio: 1.3       # Ideal: 1.3x para trades de alta probabilidad
   # Reintentos para errores de conexión API
   max_retries: 3
   retry_delay_seconds: 2
+  # v2.1: ADX threshold para detección de tendencia
+  min_adx_trend: 25             # ADX >= 25 = tendencia operable (20-25 = débil/peligroso)
 
 # ===== SELECCIÓN DE MERCADO =====
 market_type: "crypto"
@@ -101,12 +105,16 @@ risk_management:
     min_distance_percent: 1.8   # CRÍTICO: Mínimo 1.8% (antes 0.5% era stop-hunt)
     max_distance_percent: 6.0   # Máximo 6% para volatilidad extrema
 
-  # v1.8: Session Filter (horarios óptimos de liquidez)
+  # v2.1 INSTITUCIONAL: Session Filter (horarios óptimos de liquidez)
+  # Los institucionales NUNCA operan en horas muertas (spreads altos, baja liquidez)
   session_filter:
-    enabled: false  # Deshabilitado en paper para más pruebas
+    enabled: true   # HABILITADO - evitar horas de baja liquidez
     optimal_hours_utc:
-      - [7, 16]   # Europa: 7:00-16:00 UTC
-      - [13, 22]  # USA: 13:00-22:00 UTC
+      - [7, 16]   # Europa: 7:00-16:00 UTC (máxima liquidez)
+      - [13, 22]  # USA: 13:00-22:00 UTC (superposición EU/US = mejor liquidez)
+    # Horas a EVITAR absolutamente (00:00-06:00 UTC = Asia nocturna, baja liquidez)
+    avoid_hours_utc:
+      - [0, 6]    # Medianoche a 6am UTC = spreads altos, movimientos erráticos
 
   # ===== CONTROL DE COMISIONES Y TAMAÑOS MÍNIMOS =====
   fees:
@@ -153,17 +161,19 @@ position_management:
     enabled: true
     check_interval_ms: 500 # Verificar cada 500ms
 
-  # Trailing Stop inteligente - v2.0 INSTITUCIONAL SUPERIOR
-  # CRÍTICO: Protege ganancias sin salir prematuramente
-  # AJUSTADO: Más espacio para que el trade respire
+  # Trailing Stop inteligente - v2.1 INSTITUCIONAL PROFESIONAL
+  # CRÍTICO: activation_profit DEBE ser MAYOR que trail_distance
+  # De lo contrario, el SL queda debajo del entry price (PÉRDIDA GARANTIZADA)
+  # Matemática: Si activo con 2% profit y trail 1%, SL queda 1% sobre entry = GANANCIA ASEGURADA
   trailing_stop:
     enabled: true
-    activation_profit_percent: 1.5  # Activar con 1.5% profit (captura más ganancias)
-    trail_distance_percent: 1.5     # Trailing 1.5% - balance entre protección y espacio
-    # v2.0: Parámetros de seguridad institucional mejorados
-    min_profit_to_lock: 0.5         # Asegurar mínimo 0.5% profit al activar
-    cooldown_seconds: 10            # 10s entre actualizaciones (evita whipsaws)
-    min_safety_margin_percent: 0.6  # Margen de seguridad más amplio
+    activation_profit_percent: 2.0  # Activar con 2.0% profit (más buffer)
+    trail_distance_percent: 1.0     # Trail 1.0% del precio actual
+    # RESULTADO: Cuando activa (2% profit), SL queda ~1% sobre entry = profit asegurado
+    # v2.1: Parámetros de seguridad institucional
+    min_profit_to_lock: 0.8         # Asegurar mínimo 0.8% profit al activar trailing
+    cooldown_seconds: 15            # 15s entre actualizaciones (evita whipsaws en crypto)
+    min_safety_margin_percent: 0.5  # Margen de seguridad entre SL y precio actual
 
   # Supervisión IA de posiciones
   supervision:

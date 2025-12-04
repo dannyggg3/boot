@@ -478,12 +478,15 @@ class PositionEngine:
         """
         Activa trailing stop para una posición.
 
-        v1.7: Añadida validación pre-trigger para evitar race conditions.
-        El SL nunca se moverá a una posición que ya esté triggered.
+        v2.1 INSTITUCIONAL: Validaciones críticas:
+        1. Pre-trigger: SL no debe estar en zona de trigger inmediato
+        2. PROFIT LOCK: SL SIEMPRE debe asegurar profit (sobre entry para long, bajo entry para short)
+        3. Margen de seguridad mínimo entre SL y precio actual
         """
         position_id = position['id']
         side = position['side']
         symbol = position['symbol']
+        entry_price = position['entry_price']
 
         # Calcular nuevo SL basado en trailing distance
         if side == 'long':
@@ -506,6 +509,20 @@ class PositionEngine:
             logger.warning(f"⚠️ Trailing skip {symbol}: new SL ${new_sl:.2f} <= price ${current_price:.2f}")
             return
 
+        # v2.1 FIX CRÍTICO: PROFIT LOCK - SL debe asegurar ganancia
+        # El SL NUNCA debe estar por debajo del entry (long) o encima del entry (short)
+        min_profit_lock = self.trailing_min_profit_lock / 100  # Convertir a decimal
+        if side == 'long':
+            min_sl_for_profit = entry_price * (1 + min_profit_lock)  # Mínimo X% sobre entry
+            if new_sl < min_sl_for_profit:
+                new_sl = min_sl_for_profit
+                logger.info(f"🔒 Profit Lock {symbol}: SL ajustado a ${new_sl:.2f} (+{min_profit_lock*100:.1f}% sobre entry)")
+        else:  # short
+            max_sl_for_profit = entry_price * (1 - min_profit_lock)  # Mínimo X% bajo entry
+            if new_sl > max_sl_for_profit:
+                new_sl = max_sl_for_profit
+                logger.info(f"🔒 Profit Lock {symbol}: SL ajustado a ${new_sl:.2f} (-{min_profit_lock*100:.1f}% bajo entry)")
+
         # v1.8.1: Verificar margen de seguridad mínimo (configurable)
         min_safety_margin = current_price * self.trailing_safety_margin
         if side == 'long' and (new_sl + min_safety_margin) >= current_price:
@@ -524,20 +541,27 @@ class PositionEngine:
         # Actualizar SL
         self._update_stop_loss(position, new_sl, "trailing_activation")
 
+        # Calcular profit asegurado
+        if side == 'long':
+            locked_profit_pct = ((new_sl - entry_price) / entry_price) * 100
+        else:
+            locked_profit_pct = ((entry_price - new_sl) / entry_price) * 100
+
         logger.info(f"📈 Trailing Stop ACTIVADO: {symbol}")
-        logger.info(f"   Precio actual: ${current_price:.2f}")
-        logger.info(f"   Nuevo SL: ${new_sl:.2f} (distancia: {self.trailing_distance}%)")
+        logger.info(f"   Entry: ${entry_price:.2f} | Precio actual: ${current_price:.2f}")
+        logger.info(f"   Nuevo SL: ${new_sl:.2f} | Profit asegurado: {locked_profit_pct:+.2f}%")
         logger.info(f"   Margen de seguridad: ${abs(current_price - new_sl):.2f} ({abs(current_price - new_sl)/current_price*100:.2f}%)")
 
     def _update_trailing_stop_if_needed(self, position: Dict, current_price: float):
         """
         Actualiza trailing stop si el precio se movió favorablemente.
 
-        v1.7: Añadido cooldown y validaciones de seguridad.
+        v2.1 INSTITUCIONAL: Incluye PROFIT LOCK para garantizar ganancia mínima.
         """
         side = position['side']
         current_sl = position['stop_loss']
         symbol = position['symbol']
+        entry_price = position['entry_price']
         distance = position.get('trailing_stop_distance', self.trailing_distance)
 
         # v1.8.1: Cooldown configurable después de cada actualización de SL
@@ -545,9 +569,17 @@ class PositionEngine:
         if time.time() - last_update < self.trailing_cooldown:
             return  # Aún en cooldown
 
+        # v2.1: PROFIT LOCK - calcular SL mínimo para asegurar ganancia
+        min_profit_lock = self.trailing_min_profit_lock / 100
+
         if side == 'long':
             # Long: mover SL arriba si precio sube
             new_sl = current_price * (1 - distance / 100)
+
+            # v2.1: Aplicar profit lock
+            min_sl_for_profit = entry_price * (1 + min_profit_lock)
+            if new_sl < min_sl_for_profit:
+                new_sl = min_sl_for_profit
 
             # v1.7: Validación pre-trigger
             if current_price <= new_sl:
@@ -566,6 +598,11 @@ class PositionEngine:
         else:
             # Short: mover SL abajo si precio baja
             new_sl = current_price * (1 + distance / 100)
+
+            # v2.1: Aplicar profit lock para shorts
+            max_sl_for_profit = entry_price * (1 - min_profit_lock)
+            if new_sl > max_sl_for_profit:
+                new_sl = max_sl_for_profit
 
             # v1.7: Validación pre-trigger
             if current_price >= new_sl:

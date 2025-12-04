@@ -157,33 +157,35 @@ class AIEngine:
         adx_trend_strength = market_data.get('adx_trend_strength', 'unknown')
 
         # ========================================
-        # FILTRO 1 (v1.9 CRÍTICO): ADX < 20 = Mercado lateral
+        # FILTRO 1 (v2.1 CRÍTICO): ADX < 25 = Sin tendencia operable
         # ========================================
         # ADX es el MEJOR indicador para detectar mercados sin tendencia
-        # ADX < 20 significa que NO hay tendencia clara - NO OPERAR
-        # Esto ahorra la mayoría de tokens en mercados laterales
-        if adx > 0 and adx < 20:
-            logger.info(f"🚫 PRE-FILTRO ADX [{symbol}]: ADX={adx:.1f} < 20 (mercado lateral)")
+        # ADX < 20 = lateral, ADX 20-25 = transición (PELIGROSO), ADX > 25 = tendencia
+        # Los institucionales SOLO operan con ADX >= 25 (tendencia confirmada)
+        if adx > 0 and adx < 25:
+            trend_type = "lateral" if adx < 20 else "débil/transición"
+            logger.info(f"🚫 PRE-FILTRO ADX [{symbol}]: ADX={adx:.1f} < 25 (tendencia {trend_type})")
             return {
                 "decision": "ESPERA",
                 "confidence": 0.0,
-                "razonamiento": f"Pre-filtro ADX: Mercado lateral sin tendencia (ADX {adx:.1f} < 20). "
-                               f"Esperando tendencia confirmada (ADX > 25).",
+                "razonamiento": f"Pre-filtro ADX: Tendencia {trend_type} (ADX {adx:.1f} < 25). "
+                               f"Los institucionales esperan ADX >= 25 para confirmar tendencia.",
                 "analysis_type": "local_pre_filter",
-                "filtered_reason": "adx_no_trend",
+                "filtered_reason": "adx_weak_trend",
                 "adx_value": adx,
                 "adx_trend_strength": adx_trend_strength
             }
 
         # ========================================
-        # FILTRO 2: RSI neutral + volumen bajo
+        # FILTRO 2: RSI neutral + volumen bajo promedio
         # ========================================
-        if 45 < rsi < 55 and volume_ratio < 1.5:
+        # v2.1: Volumen mínimo 1.0x para confirmar movimientos
+        if 45 < rsi < 55 and volume_ratio < 1.0:
             logger.info(f"🚫 PRE-FILTRO LOCAL [{symbol}]: RSI neutral ({rsi:.1f}) + volumen bajo ({volume_ratio:.2f}x)")
             return {
                 "decision": "ESPERA",
                 "confidence": 0.0,
-                "razonamiento": f"Pre-filtro local: Mercado lateral (RSI {rsi:.1f} neutral + volumen {volume_ratio:.2f}x bajo)",
+                "razonamiento": f"Pre-filtro local: Sin momentum (RSI {rsi:.1f} neutral + volumen {volume_ratio:.2f}x bajo)",
                 "analysis_type": "local_pre_filter",
                 "filtered_reason": "rsi_neutral_low_volume"
             }
@@ -191,13 +193,14 @@ class AIEngine:
         # ========================================
         # FILTRO 3: MACD plano (sin momentum)
         # ========================================
-        macd_threshold = current_price * 0.0001  # 0.01% del precio
+        # v2.1: Threshold más realista - 0.05% del precio (antes 0.01% era inútil)
+        macd_threshold = current_price * 0.0005  # 0.05% del precio
         if abs(macd) < macd_threshold and abs(macd - macd_signal) < macd_threshold:
-            logger.info(f"🚫 PRE-FILTRO LOCAL [{symbol}]: MACD plano (sin momentum)")
+            logger.info(f"🚫 PRE-FILTRO LOCAL [{symbol}]: MACD plano (sin momentum significativo)")
             return {
                 "decision": "ESPERA",
                 "confidence": 0.0,
-                "razonamiento": f"Pre-filtro local: MACD plano ({macd:.6f}) - sin momentum",
+                "razonamiento": f"Pre-filtro local: MACD plano ({macd:.4f}) - sin momentum significativo",
                 "analysis_type": "local_pre_filter",
                 "filtered_reason": "macd_flat"
             }
@@ -378,51 +381,43 @@ class AIEngine:
         tp_distance = atr * 5.0 if atr else current_price * 0.04
 
         prompt = f"""
-Eres un trader institucional experto con 20 años de experiencia. Tu capital es LIMITADO ($300).
-SOLO debes operar cuando hay una señal CLARA y FUERTE. Es mejor NO operar que perder dinero.
+Eres un trader institucional con 20 años de experiencia. Capital LIMITADO ($300).
+FILOSOFÍA: Es mejor NO operar que perder dinero. Solo trades de ALTA PROBABILIDAD.
 
-=== DATOS DEL MERCADO ===
-Símbolo: {market_data.get('symbol', 'N/A')}
+=== DATOS DEL MERCADO: {market_data.get('symbol', 'N/A')} ===
 Precio Actual: ${current_price:,.2f}
-Tipo de Mercado: {market_data.get('market_type', 'N/A')}
 
-=== VOLATILIDAD (CRÍTICO) ===
+=== VOLATILIDAD (INFO) ===
 ATR (14): ${atr:.2f} ({atr_percent:.2f}% del precio)
-Nivel de Volatilidad: {market_data.get('volatility_level', 'N/A')}
-NOTA: SL debe estar a MÍNIMO 2.5x ATR = ${sl_distance:.2f} del precio
+NOTA: El sistema calculará SL/TP automáticamente con ATR. NO necesitas sugerirlos.
 
 === INDICADORES TÉCNICOS ===
 RSI (14): {market_data.get('rsi', 'N/A')}
-EMA 50: {market_data.get('ema_50', 'N/A')}
-EMA 200: {market_data.get('ema_200', 'N/A')}
+EMA 50: ${market_data.get('ema_50', 0):,.2f} | EMA 200: ${market_data.get('ema_200', 0):,.2f}
 MACD: {market_data.get('macd', 'N/A')} | Señal: {market_data.get('macd_signal', 'N/A')}
-Bandas de Bollinger: {market_data.get('bollinger_bands', 'N/A')}
 Volumen Ratio: {market_data.get('volume_ratio', 'N/A')}x (>1 = sobre promedio)
+ADX: {market_data.get('adx', 'N/A')} (>25 = tendencia fuerte)
 
 === TENDENCIA ===
 {market_data.get('trend_analysis', 'No disponible')}
 
-=== INSTRUCCIONES ===
-Responde SOLO en JSON:
-
+=== RESPUESTA REQUERIDA (JSON) ===
 {{
     "decision": "COMPRA" | "VENTA" | "ESPERA",
     "confidence": 0.0 - 1.0,
-    "razonamiento": "Explicación técnica breve",
-    "stop_loss_sugerido": precio_numérico,
-    "take_profit_sugerido": precio_numérico,
-    "tamaño_posicion_sugerido": 1-3,
+    "razonamiento": "Checklist: EMA200[✓/✗], RSI[✓/✗], MACD[✓/✗], Vol[✓/✗], ADX[✓/✗]",
     "alertas": ["riesgos identificados"]
 }}
 
-REGLAS CRÍTICAS:
-1. Si hay CUALQUIER duda o señales mixtas → "ESPERA"
-2. Solo "COMPRA" si: precio > EMA200, RSI < 70, MACD bullish, volumen > 0.8x
-3. Solo "VENTA" si: precio < EMA200, RSI > 30, MACD bearish, volumen > 0.8x
-4. El R/R debe ser mínimo 2:1 (TP debe ser 2x la distancia del SL)
-5. NUNCA operes contra la tendencia principal (EMA 200)
+=== REGLAS DE ENTRADA (CRÍTICAS) ===
+1. Si hay CUALQUIER duda → "ESPERA"
+2. COMPRA solo si: precio > EMA200, RSI 35-65, MACD > Signal, Vol > 1.0x, ADX > 25
+3. VENTA solo si: precio < EMA200, RSI 35-65, MACD < Signal, Vol > 1.0x, ADX > 25
+4. RSI < 35 o RSI > 65 = ESPERA (zonas extremas, riesgo de reversión)
+5. ADX < 25 = ESPERA (sin tendencia clara)
+6. NUNCA operes contra EMA 200
 
-RESPONDE AHORA:
+RESPONDE:
 """
         return prompt
 
@@ -798,7 +793,7 @@ SÉ EXTREMADAMENTE CONSERVADOR. Mejor perder una oportunidad que perder dinero.
 
     def determine_market_regime(self, market_data: Dict[str, Any]) -> str:
         """
-        Determina el régimen de mercado actual para seleccionar el agente apropiado.
+        v2.1 INSTITUCIONAL: Determina el régimen de mercado usando ADX + indicadores.
 
         Returns:
             'trending' | 'reversal' | 'ranging' | 'volatile' | 'low_volatility'
@@ -808,28 +803,52 @@ SÉ EXTREMADAMENTE CONSERVADOR. Mejor perder una oportunidad que perder dinero.
         ema_200 = market_data.get('ema_200', 0)
         current_price = market_data.get('current_price', 0)
         atr_percent = market_data.get('atr_percent', 0)
-        volatility = market_data.get('volatility_level', 'media')
+        adx = market_data.get('adx', 0)
 
-        # Detectar baja volatilidad (NO OPERAR)
-        # SOLO usamos el porcentaje configurado, ignoramos la etiqueta 'baja'
+        # v2.1: Obtener threshold de ADX desde config
+        min_adx = self.agents_config.get('min_adx_trend', 25)
+
+        # 1. Detectar baja volatilidad (NO OPERAR)
         if atr_percent < self.min_volatility_percent:
             return 'low_volatility'
 
-        # Detectar condiciones de reversión (RSI extremo)
-        if rsi <= 30 or rsi >= 70:
+        # 2. Detectar condiciones de reversión (RSI extremo)
+        # Solo si RSI está en extremos Y hay algo de tendencia (ADX > 20)
+        if (rsi <= 30 or rsi >= 70) and adx >= 20:
             return 'reversal'
 
-        # Detectar tendencia fuerte
-        if ema_50 and ema_200 and current_price:
+        # 3. v2.1: Usar ADX para determinar si hay tendencia operable
+        # ADX >= 25 = Tendencia fuerte, operable
+        # ADX < 25 = Sin tendencia clara (ranging o transición)
+        if adx > 0 and adx < min_adx:
+            # ADX bajo pero puede haber oportunidad de rango
+            # Solo si Bollinger está en extremos (precio cerca de bandas)
+            bb = market_data.get('bollinger_bands', {})
+            bb_lower = bb.get('lower', 0) if isinstance(bb, dict) else 0
+            bb_upper = bb.get('upper', 0) if isinstance(bb, dict) else 0
+
+            if bb_lower and bb_upper and current_price:
+                bb_range = bb_upper - bb_lower
+                # Si precio está en el 20% inferior o superior del rango BB
+                if current_price <= bb_lower + (bb_range * 0.2):
+                    return 'ranging'  # Potencial compra en soporte
+                elif current_price >= bb_upper - (bb_range * 0.2):
+                    return 'ranging'  # Potencial venta en resistencia
+
+            # Si no hay oportunidad de rango clara, es low_volatility
+            return 'low_volatility'
+
+        # 4. Detectar tendencia fuerte (ADX >= 25 + EMAs alineados)
+        if ema_50 and ema_200 and current_price and adx >= min_adx:
             price_above_ema200 = current_price > ema_200
             ema_50_above_200 = ema_50 > ema_200
 
             if price_above_ema200 and ema_50_above_200:
-                return 'trending'  # Tendencia alcista
+                return 'trending'  # Tendencia alcista confirmada
             elif not price_above_ema200 and not ema_50_above_200:
-                return 'trending'  # Tendencia bajista
+                return 'trending'  # Tendencia bajista confirmada
 
-        # Mercado lateral/ranging
+        # 5. EMAs cruzados o precio en medio = mercado lateral
         return 'ranging'
 
     def analyze_with_specialized_agent(
@@ -853,31 +872,23 @@ SÉ EXTREMADAMENTE CONSERVADOR. Mejor perder una oportunidad que perder dinero.
 
         # FILTRO CRÍTICO: No operar en baja volatilidad
         if regime == 'low_volatility':
-            logger.info("⏸️ BAJA VOLATILIDAD - No hay movimientos explosivos. Esperando...")
+            logger.info("⏸️ BAJA VOLATILIDAD - No hay movimientos significativos. Esperando...")
             return {
                 "decision": "ESPERA",
                 "confidence": 0.1,
-                "razonamiento": "Volatilidad demasiado baja. Sin movimientos explosivos.",
+                "razonamiento": "Volatilidad demasiado baja o sin oportunidad clara.",
                 "analysis_type": "volatility_filter",
                 "regime": regime
             }
 
-        # FILTRO: Mercado lateral sin dirección clara
-        if regime == 'ranging':
-            logger.info("↔️ MERCADO LATERAL - Sin tendencia clara. Esperando breakout...")
-            return {
-                "decision": "ESPERA",
-                "confidence": 0.2,
-                "razonamiento": "Mercado lateral sin dirección clara. Esperando ruptura.",
-                "analysis_type": "ranging_filter",
-                "regime": regime
-            }
-
-        # Seleccionar agente especializado
+        # Seleccionar agente especializado según régimen
         if regime == 'trending':
             return self._trend_agent_analysis(market_data, advanced_data)
         elif regime == 'reversal':
             return self._reversal_agent_analysis(market_data, advanced_data)
+        elif regime == 'ranging':
+            # v2.1: Ahora SÍ operamos en rangos con el range_agent
+            return self._range_agent_analysis(market_data, advanced_data)
 
         return None
 
@@ -939,14 +950,12 @@ Responde SOLO en JSON:
 {{
     "decision": "COMPRA" | "VENTA" | "ESPERA",
     "confidence": 0.0-1.0,
-    "razonamiento": "Checklist: EMA200[✓/✗], RSI[✓/✗], MACD[✓/✗], Vol[✓/✗]. Conclusión.",
-    "stop_loss_sugerido": precio_numérico,
-    "take_profit_sugerido": precio_numérico,
-    "tamaño_posicion_sugerido": 1-2,
+    "razonamiento": "Checklist: EMA200[✓/✗], RSI[✓/✗], MACD[✓/✗], Vol[✓/✗], ADX[✓/✗]. Conclusión.",
     "tipo_entrada": "continuacion_tendencia" | "retroceso_ema",
     "alertas": ["riesgos"]
 }}
 
+NOTA: El sistema calculará SL/TP automáticamente con ATR. NO necesitas sugerirlos.
 IMPORTANTE: Confianza > 0.75 SOLO si TODOS los criterios pasan. Mejor ESPERAR que perder.
 """
 
@@ -1007,18 +1016,103 @@ Responde SOLO en JSON:
     "decision": "COMPRA" | "VENTA" | "ESPERA",
     "confidence": 0.0-1.0,
     "razonamiento": "Análisis de divergencia y agotamiento paso a paso",
-    "stop_loss_sugerido": precio_numérico,
-    "take_profit_sugerido": precio_numérico,
-    "tamaño_posicion_sugerido": 1-2,
     "tipo_entrada": "divergencia_rsi" | "banda_bollinger" | "agotamiento",
     "divergencia_detectada": true | false,
     "alertas": ["riesgos - ALTO RIESGO por operar contra tendencia"]
 }}
 
+NOTA: El sistema calculará SL/TP automáticamente con ATR. NO necesitas sugerirlos.
+
 IMPORTANTE: Las reversiones son ALTO RIESGO. Busca múltiples confirmaciones (RSI extremo + Bollinger + MACD). Posición PEQUEÑA siempre.
 """
 
         return self._execute_agent_prompt(prompt, "reversal_agent")
+
+    def _range_agent_analysis(
+        self,
+        market_data: Dict[str, Any],
+        advanced_data: Optional[Dict[str, Any]] = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        v2.1 AGENTE DE RANGO: Opera mean reversion en mercados laterales.
+        Compra en soporte (Bollinger inferior), vende en resistencia (Bollinger superior).
+        SOLO opera cuando el precio está en extremos del rango, NO en el medio.
+        """
+        symbol = market_data.get('symbol', 'N/A')
+        current_price = market_data.get('current_price', 0)
+        rsi = market_data.get('rsi', 50)
+
+        # Obtener datos de Bollinger
+        bb = market_data.get('bollinger_bands', {})
+        bb_lower = bb.get('lower', 0) if isinstance(bb, dict) else 0
+        bb_upper = bb.get('upper', 0) if isinstance(bb, dict) else 0
+        bb_middle = bb.get('middle', 0) if isinstance(bb, dict) else 0
+
+        logger.info(f"↔️ AGENTE DE RANGO activado para {symbol}")
+
+        # Determinar zona del rango
+        if bb_lower and bb_upper:
+            bb_range = bb_upper - bb_lower
+            pct_in_range = ((current_price - bb_lower) / bb_range * 100) if bb_range > 0 else 50
+            zone = "soporte" if pct_in_range <= 25 else "resistencia" if pct_in_range >= 75 else "medio"
+        else:
+            pct_in_range = 50
+            zone = "desconocida"
+
+        # Construir contexto de datos avanzados
+        advanced_context = self._build_advanced_context(advanced_data)
+
+        # v2.1: Calcular niveles ATR para información
+        atr = market_data.get('atr', 0)
+        atr_percent = market_data.get('atr_percent', 0)
+
+        prompt = f"""
+Eres un AGENTE DE RANGO INSTITUCIONAL especializado en mean reversion.
+El mercado está en RANGO LATERAL (ADX bajo). Tu estrategia es COMPRAR en soporte y VENDER en resistencia.
+
+=== REGLAS DE ENTRADA (RANGO) ===
+1. COMPRA solo si: precio en zona INFERIOR del rango (Bollinger inferior), RSI < 40
+2. VENTA solo si: precio en zona SUPERIOR del rango (Bollinger superior), RSI > 60
+3. Si precio está en el MEDIO del rango → ESPERA (sin edge)
+4. Volumen > 0.8x para confirmar
+5. POSICIÓN PEQUEÑA siempre (rango = menor probabilidad que tendencia)
+
+=== DATOS DEL MERCADO: {symbol} ===
+Precio Actual: ${current_price:,.2f}
+Zona del Rango: {zone.upper()} ({pct_in_range:.0f}% del rango)
+
+=== BOLLINGER BANDS ===
+Superior: ${bb_upper:,.2f}
+Media: ${bb_middle:,.2f}
+Inferior: ${bb_lower:,.2f}
+
+=== INDICADORES ===
+RSI: {rsi:.1f}
+MACD: {market_data.get('macd', 0):.4f} | Signal: {market_data.get('macd_signal', 0):.4f}
+Volumen Ratio: {market_data.get('volume_ratio', 0):.2f}x
+ATR: ${atr:.2f} ({atr_percent:.2f}%)
+
+{advanced_context}
+
+=== CHECKLIST OBLIGATORIO ===
+✓ ¿Precio en extremo del rango (no en medio)?
+✓ ¿RSI confirma la dirección?
+✓ ¿Volumen > 0.8x?
+Si el precio está en el MEDIO del rango → ESPERA
+
+Responde SOLO en JSON:
+{{
+    "decision": "COMPRA" | "VENTA" | "ESPERA",
+    "confidence": 0.0-1.0,
+    "razonamiento": "Zona: {zone}, RSI: X, Vol: X. Conclusión.",
+    "tipo_entrada": "soporte_bollinger" | "resistencia_bollinger" | "sin_oportunidad",
+    "alertas": ["rango = menor probabilidad, posición pequeña"]
+}}
+
+IMPORTANTE: Rangos tienen MENOR probabilidad que tendencias. Confianza máxima 0.70. Mejor ESPERAR que forzar.
+"""
+
+        return self._execute_agent_prompt(prompt, "range_agent")
 
     def _build_advanced_context(self, advanced_data: Optional[Dict[str, Any]]) -> str:
         """Construye el contexto de datos avanzados para el prompt."""
