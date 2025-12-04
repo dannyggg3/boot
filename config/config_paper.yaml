@@ -91,14 +91,15 @@ risk_management:
     min_confidence: 0.70 # Solo opera con >70% confianza (institucional)
     max_risk_cap: 2.5 # Máximo 2.5% en señales muy fuertes
 
-  # v1.8 INSTITUCIONAL: ATR-based Stop Loss
+  # v2.0 INSTITUCIONAL SUPERIOR: ATR-based Stop Loss
+  # CRÍTICO: Stops basados en volatilidad real para evitar stop-hunts
   # Los institucionales NUNCA usan % fijo - cada activo tiene volatilidad diferente
   atr_stops:
     enabled: true
-    sl_multiplier: 2.0      # SL a 2x ATR (distancia respeta volatilidad)
-    tp_multiplier: 4.0      # TP a 4x ATR (R/R 2:1)
-    min_distance_percent: 0.5   # Mínimo 0.5% aunque ATR sea menor
-    max_distance_percent: 5.5   # Máximo 5.5% para $300
+    sl_multiplier: 2.5      # SL a 2.5x ATR (más espacio para respirar)
+    tp_multiplier: 5.0      # TP a 5x ATR (R/R 2:1 garantizado)
+    min_distance_percent: 1.8   # CRÍTICO: Mínimo 1.8% (antes 0.5% era stop-hunt)
+    max_distance_percent: 6.0   # Máximo 6% para volatilidad extrema
 
   # v1.8: Session Filter (horarios óptimos de liquidez)
   session_filter:
@@ -152,16 +153,17 @@ position_management:
     enabled: true
     check_interval_ms: 500 # Verificar cada 500ms
 
-  # Trailing Stop inteligente - v1.8 INSTITUCIONAL
+  # Trailing Stop inteligente - v2.0 INSTITUCIONAL SUPERIOR
   # CRÍTICO: Protege ganancias sin salir prematuramente
+  # AJUSTADO: Más espacio para que el trade respire
   trailing_stop:
     enabled: true
-    activation_profit_percent: 2.5  # Activar solo con 2.5% profit (más conservador)
-    trail_distance_percent: 1.2     # Trailing 1.2% - más ajustado para capturar más
-    # v1.8: Parámetros de seguridad institucional
-    min_profit_to_lock: 0.8         # Asegurar mínimo 0.8% profit al activar
-    cooldown_seconds: 5             # Más tiempo entre actualizaciones (evita whipsaws)
-    min_safety_margin_percent: 0.4  # Mayor margen de seguridad
+    activation_profit_percent: 1.5  # Activar con 1.5% profit (captura más ganancias)
+    trail_distance_percent: 1.5     # Trailing 1.5% - balance entre protección y espacio
+    # v2.0: Parámetros de seguridad institucional mejorados
+    min_profit_to_lock: 0.5         # Asegurar mínimo 0.5% profit al activar
+    cooldown_seconds: 10            # 10s entre actualizaciones (evita whipsaws)
+    min_safety_margin_percent: 0.6  # Margen de seguridad más amplio
 
   # Supervisión IA de posiciones
   supervision:
@@ -281,19 +283,20 @@ security:
     requests_per_minute: 60
     wait_on_limit: true
 
-# ===== v1.8 INSTITUCIONAL: MULTI-TIMEFRAME ANALYSIS =====
+# ===== v2.0 INSTITUCIONAL SUPERIOR: MULTI-TIMEFRAME ANALYSIS =====
 # CRÍTICO: Solo opera cuando múltiples timeframes están alineados
+# AJUSTADO: Menos estricto para capturar entradas antes del movimiento completo
 multi_timeframe:
   enabled: true
   higher_timeframe: "4h"   # Tendencia macro - DOMINANTE
   medium_timeframe: "1h"   # Confirmación de momentum
   lower_timeframe: "15m"   # Timing preciso de entrada
-  min_alignment_score: 0.75  # 75% mínimo (más estricto = menos trades, mejor calidad)
-  # Pesos institucionales: TF mayor domina la decisión
+  min_alignment_score: 0.65  # 65% mínimo (antes 75% = entradas tardías)
+  # Pesos institucionales: TF mayor domina pero menor timing importa más
   weights:
-    higher: 0.55  # 55% peso del TF mayor (tendencia principal)
+    higher: 0.50  # 50% peso del TF mayor (tendencia principal)
     medium: 0.30  # 30% peso del TF medio
-    lower: 0.15   # 15% peso del TF menor (solo timing)
+    lower: 0.20   # 20% peso del TF menor (timing más importante)
 
 # ===== v1.7+: FILTRO DE CORRELACIÓN =====
 # Evita sobreexposición a activos correlacionados

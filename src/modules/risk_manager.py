@@ -206,18 +206,41 @@ class RiskManager:
                 symbol
             )
 
-        # 4. Validar stop loss y take profit
-        if suggested_stop_loss:
+        # 4. v2.0 INSTITUCIONAL CRÍTICO: SIEMPRE recalcular SL/TP con ATR
+        # La IA sugiere stops arbitrarios - nosotros FORZAMOS stops basados en volatilidad real
+        if self.use_atr_stops and market_data and 'atr' in market_data:
+            # SIEMPRE usar ATR para calcular SL, ignorando sugerencia de IA
+            suggested_stop_loss = self._calculate_automatic_stop_loss(
+                current_price,
+                decision,
+                market_data
+            )
+
+            # SIEMPRE usar ATR para calcular TP con el R/R mínimo requerido
+            suggested_take_profit = self.calculate_atr_take_profit(
+                current_price,
+                decision,
+                market_data,
+                risk_reward_ratio=self.min_risk_reward_ratio
+            )
+
+            sl_distance_percent = abs(current_price - suggested_stop_loss) / current_price * 100
+            tp_distance_percent = abs(suggested_take_profit - current_price) / current_price * 100 if suggested_take_profit else 0
+
+            logger.info(f"🎯 v2.0 ATR FORZADO [{symbol}]: SL a {sl_distance_percent:.2f}%, TP a {tp_distance_percent:.2f}%")
+            logger.info(f"   Precio: ${current_price:.2f} | SL: ${suggested_stop_loss:.2f} | TP: ${suggested_take_profit:.2f}")
+
+        elif suggested_stop_loss:
             sl_distance = abs(current_price - suggested_stop_loss) / current_price * 100
 
-            # Stop loss muy cercano (< 0.5%) o muy lejano (> 10%)
-            if sl_distance < 0.5 or sl_distance > 10:
+            # Stop loss muy cercano (< 1.5%) o muy lejano (> 10%) - ajustar
+            if sl_distance < self.atr_min_distance_percent or sl_distance > 10:
                 suggested_stop_loss = self._adjust_stop_loss(
                     current_price,
                     decision,
                     market_data
                 )
-                logger.warning(f"Stop loss ajustado para {symbol}")
+                logger.warning(f"Stop loss ajustado para {symbol} (estaba a {sl_distance:.2f}%)")
 
         else:
             # Crear stop loss automático

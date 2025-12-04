@@ -368,48 +368,59 @@ class AIEngine:
         Returns:
             Prompt estructurado para la IA
         """
+        # v2.0: Calcular SL/TP sugeridos basados en ATR para guiar a la IA
+        atr = market_data.get('atr', 0)
+        atr_percent = market_data.get('atr_percent', 0)
+        current_price = market_data.get('current_price', 0)
+
+        # Calcular rangos sugeridos (2.5x ATR para SL, 5x ATR para TP)
+        sl_distance = atr * 2.5 if atr else current_price * 0.02
+        tp_distance = atr * 5.0 if atr else current_price * 0.04
+
         prompt = f"""
-Eres un trader institucional experto con 20 años de experiencia en gestión de riesgos y análisis cuantitativo.
-Tu tarea es analizar los siguientes datos del mercado y proporcionar una decisión de trading.
+Eres un trader institucional experto con 20 años de experiencia. Tu capital es LIMITADO ($300).
+SOLO debes operar cuando hay una señal CLARA y FUERTE. Es mejor NO operar que perder dinero.
 
 === DATOS DEL MERCADO ===
 Símbolo: {market_data.get('symbol', 'N/A')}
-Precio Actual: {market_data.get('current_price', 'N/A')}
+Precio Actual: ${current_price:,.2f}
 Tipo de Mercado: {market_data.get('market_type', 'N/A')}
+
+=== VOLATILIDAD (CRÍTICO) ===
+ATR (14): ${atr:.2f} ({atr_percent:.2f}% del precio)
+Nivel de Volatilidad: {market_data.get('volatility_level', 'N/A')}
+NOTA: SL debe estar a MÍNIMO 2.5x ATR = ${sl_distance:.2f} del precio
 
 === INDICADORES TÉCNICOS ===
 RSI (14): {market_data.get('rsi', 'N/A')}
 EMA 50: {market_data.get('ema_50', 'N/A')}
 EMA 200: {market_data.get('ema_200', 'N/A')}
-MACD: {market_data.get('macd', 'N/A')}
-Señal MACD: {market_data.get('macd_signal', 'N/A')}
-Bandas de Bollinger (Superior, Media, Inferior): {market_data.get('bollinger_bands', 'N/A')}
-ATR: {market_data.get('atr', 'N/A')}
-Volumen Actual: {market_data.get('volume_current', 'N/A')} | Promedio (20): {market_data.get('volume_mean', 'N/A')} | Ratio: {market_data.get('volume_ratio', 'N/A')}x
-Volumen (últimas 24h): {market_data.get('volume_24h', 'N/A')}
+MACD: {market_data.get('macd', 'N/A')} | Señal: {market_data.get('macd_signal', 'N/A')}
+Bandas de Bollinger: {market_data.get('bollinger_bands', 'N/A')}
+Volumen Ratio: {market_data.get('volume_ratio', 'N/A')}x (>1 = sobre promedio)
 
 === TENDENCIA ===
 {market_data.get('trend_analysis', 'No disponible')}
 
 === INSTRUCCIONES ===
-Analiza estos datos y responde ESTRICTAMENTE en el siguiente formato JSON:
+Responde SOLO en JSON:
 
 {{
     "decision": "COMPRA" | "VENTA" | "ESPERA",
     "confidence": 0.0 - 1.0,
-    "razonamiento": "Explicación breve y técnica de tu decisión",
-    "stop_loss_sugerido": "precio numérico",
-    "take_profit_sugerido": "precio numérico",
-    "tamaño_posicion_sugerido": "porcentaje del capital (1-5)",
-    "alertas": ["lista de riesgos o advertencias identificadas"]
+    "razonamiento": "Explicación técnica breve",
+    "stop_loss_sugerido": precio_numérico,
+    "take_profit_sugerido": precio_numérico,
+    "tamaño_posicion_sugerido": 1-3,
+    "alertas": ["riesgos identificados"]
 }}
 
-REGLAS IMPORTANTES:
-1. SOLO responde con el JSON, sin texto adicional
-2. Sé conservador - es mejor esperar que perder dinero
-3. Si hay señales contradictorias, siempre elige "ESPERA"
-4. El stop loss debe ser razonable (2-5% del precio)
-5. El ratio riesgo/beneficio debe ser mínimo 1:1.5
+REGLAS CRÍTICAS:
+1. Si hay CUALQUIER duda o señales mixtas → "ESPERA"
+2. Solo "COMPRA" si: precio > EMA200, RSI < 70, MACD bullish, volumen > 0.8x
+3. Solo "VENTA" si: precio < EMA200, RSI > 30, MACD bearish, volumen > 0.8x
+4. El R/R debe ser mínimo 2:1 (TP debe ser 2x la distancia del SL)
+5. NUNCA operes contra la tendencia principal (EMA 200)
 
 RESPONDE AHORA:
 """
@@ -885,50 +896,58 @@ SÉ EXTREMADAMENTE CONSERVADOR. Mejor perder una oportunidad que perder dinero.
         # Construir contexto de datos avanzados
         advanced_context = self._build_advanced_context(advanced_data)
 
-        prompt = f"""
-Eres un AGENTE DE TENDENCIA especializado. Tu ÚNICA misión es encontrar entradas de CONTINUACIÓN de tendencia en RETROCESOS.
+        # v2.0: Calcular niveles ATR para guiar a la IA
+        atr = market_data.get('atr', 0)
+        atr_percent = market_data.get('atr_percent', 0)
+        current_price = market_data.get('current_price', 0)
+        sl_distance = atr * 2.5 if atr else current_price * 0.02
+        tp_distance = atr * 5.0 if atr else current_price * 0.04
 
-=== REGLAS DE ENTRADA ===
-1. SOLO operas a FAVOR de la tendencia (precio sobre EMA 200 = COMPRA, bajo EMA 200 = VENTA)
-2. NUNCA operas contra la tendencia principal
-3. Buscas entradas en CONTINUACIÓN DE TENDENCIA:
-   - Si la tendencia es FUERTE (precio alejado de EMA 50, momentum alto): entra en BREAKOUTS o retrocesos menores
-   - Si la tendencia es moderada: espera retroceso hacia EMA 50 o EMA 20
-   - NO esperes retrocesos profundos en tendencias explosivas
-4. Si el RSI está muy sobrecomprado (>80), considera esperar un pequeño retroceso
-5. Volumen: ratio > 1.0 es ideal, pero ratio > 0.3 es ACEPTABLE. Volumen bajo NO invalida una señal técnica fuerte.
+        prompt = f"""
+Eres un AGENTE DE TENDENCIA INSTITUCIONAL. Capital LIMITADO ($300).
+SOLO operas señales de ALTA PROBABILIDAD. Es mejor NO operar que perder.
+
+=== REGLAS DE ENTRADA (ESTRICTAS) ===
+1. SOLO a FAVOR de tendencia: precio > EMA200 = COMPRA, precio < EMA200 = VENTA
+2. RSI debe estar entre 35-65 para entrar (evitar extremos)
+3. MACD debe confirmar la dirección (MACD > Signal para COMPRA)
+4. Volumen ratio > 0.7 (liquidez suficiente)
+5. Si hay CUALQUIER duda → ESPERA
 
 === DATOS DEL MERCADO: {symbol} ===
-Precio Actual: {market_data.get('current_price')}
-EMA 50: {market_data.get('ema_50')} | EMA 200: {market_data.get('ema_200')}
-RSI (14): {market_data.get('rsi')}
-MACD: {market_data.get('macd')} (Señal: {market_data.get('macd_signal')})
-ATR: {market_data.get('atr')} ({market_data.get('atr_percent', 0):.2f}%)
-Volumen Actual: {market_data.get('volume_current', 'N/A')} | Promedio (20): {market_data.get('volume_mean', 'N/A')} | Ratio: {market_data.get('volume_ratio', 'N/A')}x
-Volumen 24h: {market_data.get('volume_24h')}
-Tendencia: {market_data.get('trend_analysis')}
+Precio: ${current_price:,.2f}
+EMA 50: ${market_data.get('ema_50', 0):,.2f} | EMA 200: ${market_data.get('ema_200', 0):,.2f}
+RSI: {market_data.get('rsi', 50):.1f}
+MACD: {market_data.get('macd', 0):.4f} | Signal: {market_data.get('macd_signal', 0):.4f}
+Volumen Ratio: {market_data.get('volume_ratio', 0):.2f}x
+
+=== VOLATILIDAD (CRÍTICO) ===
+ATR: ${atr:.2f} ({atr_percent:.2f}%)
+SL mínimo recomendado: ${sl_distance:.2f} del precio (2.5x ATR)
+TP mínimo recomendado: ${tp_distance:.2f} del precio (5x ATR = R/R 2:1)
 
 {advanced_context}
 
-=== ANÁLISIS REQUERIDO ===
-1. ¿El precio está en tendencia clara? (Sobre/bajo EMA 200)
-2. ¿Es buena zona de entrada? (Retroceso a EMA 50/20, breakout, o tendencia fuerte)
-3. ¿El volumen apoya? (ratio > 1.0 ideal, > 0.3 aceptable - NO es bloqueante)
-4. ¿El RSI permite entrada? (Evitar extremos >80 o <20)
+=== CHECKLIST OBLIGATORIO ===
+✓ ¿Precio en lado correcto de EMA 200?
+✓ ¿RSI entre 35-65?
+✓ ¿MACD confirma dirección?
+✓ ¿Volumen > 0.7x?
+Si CUALQUIERA falla → ESPERA
 
 Responde SOLO en JSON:
 {{
     "decision": "COMPRA" | "VENTA" | "ESPERA",
     "confidence": 0.0-1.0,
-    "razonamiento": "Análisis paso a paso de tendencia y punto de entrada",
+    "razonamiento": "Checklist: EMA200[✓/✗], RSI[✓/✗], MACD[✓/✗], Vol[✓/✗]. Conclusión.",
     "stop_loss_sugerido": precio_numérico,
     "take_profit_sugerido": precio_numérico,
-    "tamaño_posicion_sugerido": 1-3,
-    "tipo_entrada": "continuacion_tendencia" | "retroceso_ema" | "breakout",
-    "alertas": ["riesgos identificados"]
+    "tamaño_posicion_sugerido": 1-2,
+    "tipo_entrada": "continuacion_tendencia" | "retroceso_ema",
+    "alertas": ["riesgos"]
 }}
 
-IMPORTANTE: En tendencias fuertes, NO esperes retrocesos profundos. El mercado puede subir sin ti.
+IMPORTANTE: Confianza > 0.75 SOLO si TODOS los criterios pasan. Mejor ESPERAR que perder.
 """
 
         return self._execute_agent_prompt(prompt, "trend_agent")
