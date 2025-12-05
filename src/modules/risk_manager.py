@@ -166,7 +166,39 @@ class RiskManager:
                 symbol
             )
 
-        # 3. Calcular tamaño de posición (Kelly Criterion si está habilitado)
+        # 3. v2.1 FIX CRÍTICO: Calcular ATR-based SL/TP PRIMERO
+        # El SL debe calcularse ANTES de Kelly para que el position sizing sea correcto
+        # Bug anterior: Kelly recibía SL=None y dividía capital/precio (posiciones microscópicas)
+        atr_stop_loss = suggested_stop_loss
+        atr_take_profit = suggested_take_profit
+
+        if self.use_atr_stops and market_data and 'atr' in market_data:
+            # SIEMPRE usar ATR para calcular SL, ignorando sugerencia de IA
+            atr_stop_loss = self._calculate_automatic_stop_loss(
+                current_price,
+                decision,
+                market_data
+            )
+
+            # SIEMPRE usar ATR para calcular TP con el R/R mínimo requerido
+            atr_take_profit = self.calculate_atr_take_profit(
+                current_price,
+                decision,
+                market_data,
+                risk_reward_ratio=self.min_risk_reward_ratio
+            )
+
+            sl_distance_percent = abs(current_price - atr_stop_loss) / current_price * 100
+            tp_distance_percent = abs(atr_take_profit - current_price) / current_price * 100 if atr_take_profit else 0
+
+            logger.info(f"🎯 v2.0 ATR FORZADO [{symbol}]: SL a {sl_distance_percent:.2f}%, TP a {tp_distance_percent:.2f}%")
+            logger.info(f"   Precio: ${current_price:.2f} | SL: ${atr_stop_loss:.2f} | TP: ${atr_take_profit:.2f}")
+
+        # Usar ATR SL para todos los cálculos siguientes
+        suggested_stop_loss = atr_stop_loss
+        suggested_take_profit = atr_take_profit
+
+        # 4. Calcular capital efectivo
         # v1.5: Usar balance real si se proporciona
         effective_capital = available_balance if available_balance is not None else self.current_capital
 
@@ -179,19 +211,20 @@ class RiskManager:
             if available_balance is not None:
                 logger.info(f"v1.5: COMPRA - Balance USDT: ${effective_capital_usd:.2f}")
 
+        # 5. Calcular tamaño de posición con Kelly (ahora con SL correcto de ATR)
         if self.use_kelly_criterion and confidence >= self.min_confidence_to_trade:
             position_size = self.calculate_kelly_position_size(
                 confidence=confidence,
                 current_price=current_price,
-                stop_loss=suggested_stop_loss,
-                capital_override=effective_capital_usd  # v1.5: Usar capital real
+                stop_loss=suggested_stop_loss,  # v2.1: Ahora usa ATR SL correcto
+                capital_override=effective_capital_usd
             )
             logger.info(f"Kelly Sizing: confianza={confidence:.2f}, risk={self.get_dynamic_risk_percentage(confidence):.1f}%")
         else:
             position_size = self._calculate_position_size(
                 current_price,
                 suggested_stop_loss,
-                capital_override=effective_capital_usd  # v1.5: Usar capital real
+                capital_override=effective_capital_usd
             )
 
         # v1.5: Para VENTA, limitar al balance disponible del activo
@@ -206,51 +239,27 @@ class RiskManager:
                 symbol
             )
 
-        # 4. v2.0 INSTITUCIONAL CRÍTICO: SIEMPRE recalcular SL/TP con ATR
-        # La IA sugiere stops arbitrarios - nosotros FORZAMOS stops basados en volatilidad real
-        if self.use_atr_stops and market_data and 'atr' in market_data:
-            # SIEMPRE usar ATR para calcular SL, ignorando sugerencia de IA
-            suggested_stop_loss = self._calculate_automatic_stop_loss(
-                current_price,
-                decision,
-                market_data
-            )
-
-            # SIEMPRE usar ATR para calcular TP con el R/R mínimo requerido
-            suggested_take_profit = self.calculate_atr_take_profit(
-                current_price,
-                decision,
-                market_data,
-                risk_reward_ratio=self.min_risk_reward_ratio
-            )
-
-            sl_distance_percent = abs(current_price - suggested_stop_loss) / current_price * 100
-            tp_distance_percent = abs(suggested_take_profit - current_price) / current_price * 100 if suggested_take_profit else 0
-
-            logger.info(f"🎯 v2.0 ATR FORZADO [{symbol}]: SL a {sl_distance_percent:.2f}%, TP a {tp_distance_percent:.2f}%")
-            logger.info(f"   Precio: ${current_price:.2f} | SL: ${suggested_stop_loss:.2f} | TP: ${suggested_take_profit:.2f}")
-
-        elif suggested_stop_loss:
-            sl_distance = abs(current_price - suggested_stop_loss) / current_price * 100
-
-            # Stop loss muy cercano (< 1.5%) o muy lejano (> 10%) - ajustar
-            if sl_distance < self.atr_min_distance_percent or sl_distance > 10:
-                suggested_stop_loss = self._adjust_stop_loss(
+        # 6. Validar SL secundario si no usamos ATR (fallback)
+        if not self.use_atr_stops:
+            if suggested_stop_loss:
+                sl_distance = abs(current_price - suggested_stop_loss) / current_price * 100
+                # Stop loss muy cercano (< 1.5%) o muy lejano (> 10%) - ajustar
+                if sl_distance < self.atr_min_distance_percent or sl_distance > 10:
+                    suggested_stop_loss = self._adjust_stop_loss(
+                        current_price,
+                        decision,
+                        market_data
+                    )
+                    logger.warning(f"Stop loss ajustado para {symbol} (estaba a {sl_distance:.2f}%)")
+            else:
+                # Crear stop loss automático como fallback
+                suggested_stop_loss = self._calculate_automatic_stop_loss(
                     current_price,
                     decision,
                     market_data
                 )
-                logger.warning(f"Stop loss ajustado para {symbol} (estaba a {sl_distance:.2f}%)")
 
-        else:
-            # Crear stop loss automático
-            suggested_stop_loss = self._calculate_automatic_stop_loss(
-                current_price,
-                decision,
-                market_data
-            )
-
-        # 5. Validar ratio riesgo/beneficio
+        # 7. Validar ratio riesgo/beneficio
         if suggested_take_profit:
             risk_reward = self._calculate_risk_reward(
                 current_price,
@@ -273,14 +282,14 @@ class RiskManager:
                     symbol
                 )
 
-        # 6. Verificar volatilidad extrema
+        # 8. Verificar volatilidad extrema
         if market_data and 'volatility_level' in market_data:
             if market_data['volatility_level'] == 'alta':
                 # Reducir tamaño de posición en mercados volátiles
                 position_size *= 0.5
                 logger.info(f"Posición reducida 50% por alta volatilidad en {symbol}")
 
-        # 7. v1.6: Validar rentabilidad después de comisiones
+        # 9. v1.6: Validar rentabilidad después de comisiones
         if suggested_take_profit and current_price > 0:
             position_value_usd = position_size * current_price
             expected_profit_percent = abs(suggested_take_profit - current_price) / current_price * 100
