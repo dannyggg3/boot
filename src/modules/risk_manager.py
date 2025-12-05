@@ -259,9 +259,11 @@ class RiskManager:
                 decision
             )
 
-            if risk_reward < self.min_risk_reward_ratio:
-                # v1.7 FIX CRÍTICO: RECHAZAR trades con mal R/R (antes solo warning)
-                # Un trade con R/R < 1.5 tiene expectativa matemática negativa a largo plazo
+            # v2.1 FIX: R/R debe ser ESTRICTAMENTE menor (con tolerancia para flotantes)
+            # Un R/R de 2.0 es ACEPTABLE cuando el mínimo es 2.0
+            if risk_reward < (self.min_risk_reward_ratio - 0.001):
+                # v1.7 FIX CRÍTICO: RECHAZAR trades con mal R/R
+                # Un trade con R/R < mínimo tiene expectativa matemática negativa a largo plazo
                 logger.warning(
                     f"Ratio R/R bajo ({risk_reward:.2f}) para {symbol}. "
                     f"Mínimo requerido: {self.min_risk_reward_ratio}"

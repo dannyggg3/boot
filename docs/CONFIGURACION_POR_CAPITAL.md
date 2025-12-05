@@ -187,10 +187,162 @@ RESULTADO: Un trade que activa trailing NUNCA puede ser pérdida
 
 ---
 
+## CRÍTICO: Capital Mínimo Viable
+
+### El Problema Matemático
+
+Con capital insuficiente, el bot **rechazará todas las órdenes** aunque las señales sean correctas.
+
+**Ejemplo con $300:**
+```
+Capital efectivo: $300 × 50% exposure = $150
+Kelly (pocos trades): win_prob=0.50, fraction=0.25 → kelly_adj = 6.25%
+Kelly capped por max_risk: min(6.25%, 1.5%) = 1.5%
+Capital a arriesgar: $150 × 1.5% = $2.25
+SL distance (ATR): 6% del precio = $240 en ETH $4000
+Position size: $2.25 / $240 × $4000 = $37.50
+
+PERO con alta volatilidad (ATR > 5%):
+Position size: $2.25 / $300 × $4000 = $30 → puede bajar a $1-5
+
+Mínimo exchange: $5.00
+RESULTADO: RECHAZADO ❌
+```
+
+**Solución con $1000:**
+```
+Capital efectivo: $1000 × 65% exposure = $650
+Kelly fraction aumentado: 0.40 → kelly_adj = 10%
+Kelly capped: min(10%, 2.5%) = 2.5%
+Capital a arriesgar: $650 × 2.5% = $16.25
+SL distance: 5% = $200 en ETH $4000
+Position size: $16.25 / $200 × $4000 = $325
+
+Mínimo exchange: $5.00
+RESULTADO: EJECUTADO ✅ (65x sobre el mínimo)
+```
+
+### Tabla de Capital Mínimo Viable
+
+| Capital | Posición Esperada | Estado | Recomendación |
+|---------|-------------------|--------|---------------|
+| $100    | ~$3-8             | ⚠️ Marginal | Solo para aprender |
+| $200    | ~$8-15            | ⚠️ Marginal | Muchos rechazos |
+| $300    | ~$15-40           | ⚠️ Riesgo | Puede funcionar en baja volatilidad |
+| $500    | ~$40-80           | ✅ Viable | Mínimo recomendado |
+| $800    | ~$80-150          | ✅ Bueno | Operación consistente |
+| **$1000** | ~$150-350       | ✅ **Óptimo** | **Recomendado para PAPER** |
+| $2000+  | ~$300-700         | ✅ Profesional | Live trading |
+
+---
+
+## Configuración Completa $1000 PAPER v2.1 (RECOMENDADO)
+
+```yaml
+# v2.1 INSTITUCIONAL PROFESIONAL - $1000 PAPER
+
+risk_management:
+  max_risk_per_trade: 2.5       # $25 por operación
+  max_daily_drawdown: 8.0       # $80 máximo
+  min_risk_reward_ratio: 2.0
+  initial_capital: 1000
+  leverage: 1
+
+  kelly_criterion:
+    enabled: true
+    fraction: 0.40              # 40% Kelly - posiciones viables
+    min_confidence: 0.70
+    max_risk_cap: 3.0
+
+  atr_stops:
+    enabled: true
+    sl_multiplier: 2.0          # SL más ceñido = posición más grande
+    tp_multiplier: 4.0
+    min_distance_percent: 1.5
+    max_distance_percent: 5.0   # Máximo 5% (evita posiciones micro)
+
+  session_filter:
+    enabled: true
+    optimal_hours_utc:
+      - [7, 16]
+      - [13, 22]
+    avoid_hours_utc:
+      - [0, 6]
+
+  position_sizing:
+    min_position_usd: 20.0
+    min_profit_after_fees_usd: 1.50
+    profit_to_fees_ratio: 6.0
+
+ai_agents:
+  enabled: true
+  min_volatility_percent: 0.5
+  min_volume_ratio: 1.0
+  ideal_volume_ratio: 1.3
+  min_adx_trend: 25
+
+technical_analysis:
+  min_candles: 150
+  indicators:
+    adx:
+      enabled: true
+      period: 14
+
+multi_timeframe:
+  enabled: true
+  min_alignment_score: 0.65
+  weights:
+    higher: 0.50
+    medium: 0.30
+    lower: 0.20
+
+position_management:
+  trailing_stop:
+    enabled: true
+    activation_profit_percent: 2.0
+    trail_distance_percent: 1.0
+    min_profit_to_lock: 0.8
+    cooldown_seconds: 15
+
+  portfolio:
+    max_concurrent_positions: 2
+    max_exposure_percent: 65    # $650 efectivos
+    max_per_symbol_percent: 40
+
+liquidity_validation:
+  max_slippage_percent: 0.3
+  max_spread_reject: 0.35
+  min_order_book_depth_usd: 500
+
+adaptive_parameters:
+  lookback_trades: 30
+  sensitivity: 0.15
+  ranges:
+    min_confidence: { min: 0.65, max: 0.85 }
+    max_risk_per_trade: { min: 1.5, max: 3.0 }
+
+security:
+  kill_switch:
+    max_loss_percentage: 8.0
+```
+
+**Expectativa con $1000:**
+```
+Posición promedio: ~$250
+Fees round-trip: $0.375 (0.15%)
+Ganancia esperada (4%): $10
+Ganancia neta: $9.625
+ROI por trade: ~1% del capital
+20 trades/mes × 48% win rate × $9.625 = +$92/mes (+9.2%)
+```
+
+---
+
 ## Configuración Completa $300 PAPER v2.1
 
 ```yaml
 # v2.1 INSTITUCIONAL PROFESIONAL - $300 PAPER
+# ⚠️ ADVERTENCIA: Capital marginal - posibles rechazos en alta volatilidad
 
 risk_management:
   max_risk_per_trade: 1.5
@@ -474,5 +626,6 @@ PROYECCIÓN MENSUAL ($300, 20 trades):
 ---
 
 *Documento generado para SATH v2.1 INSTITUCIONAL PROFESIONAL*
-*Última actualización: 2025-12-04*
+*Última actualización: 2025-12-05*
 *Tests: 19/19 pasados*
+*NUEVO: Sección de Capital Mínimo Viable + Config $1000 PAPER*

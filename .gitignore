@@ -40,7 +40,7 @@ env/
 .DS_Store
 
 # Logs
-logs/*.log
+logs/*
 *.log
 
 # Data
@@ -67,7 +67,4 @@ dmypy.json
 
 # Platform env (production secrets)
 .env.platform
-.claude/
-*.claude
-/.claude
-/.claude/*
+.claude/*
