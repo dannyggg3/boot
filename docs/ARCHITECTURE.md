@@ -1,6 +1,151 @@
-# Arquitectura del Sistema SATH v2.1.0 INSTITUCIONAL PROFESIONAL ★★★★★
+# Arquitectura del Sistema SATH v2.2.1 INSTITUCIONAL PROFESIONAL ★★★★★
 
 Este documento describe la arquitectura completa del Sistema Autónomo de Trading Híbrido - Nivel Institucional Profesional.
+
+## Cambios v2.2.1 (TREND AGENT OPTIMIZADO)
+
+### Problema Resuelto
+- **Síntoma**: Bot no operaba aunque el mercado tenía setup claro
+- **Causa**: IA (DeepSeek) hacía mal los cálculos matemáticos (hallucinations)
+- **Solución**: Python pre-calcula criterios, IA solo confirma casos ambiguos
+
+### Decisión Directa en Trend Agent (ai_engine.py:989-1046)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│              FLUJO DECISIÓN DIRECTA v2.2.1                  │
+└─────────────────────────────────────────────────────────────┘
+
+                    Datos Técnicos
+                          │
+                          ▼
+               ┌────────────────────┐
+               │  Python Pre-Calc   │
+               │  (NO la IA)        │
+               └──────────┬─────────┘
+                          │
+              ┌───────────┼───────────┐
+              │           │           │
+              ▼           ▼           ▼
+     ┌─────────────┐ ┌─────────────┐ ┌─────────────┐
+     │   4/4       │ │   3/4       │ │   <3/4      │
+     │  Criterios  │ │  Criterios  │ │  Criterios  │
+     └──────┬──────┘ └──────┬──────┘ └──────┬──────┘
+            │               │               │
+            ▼               ▼               ▼
+     ┌─────────────┐ ┌─────────────┐ ┌─────────────┐
+     │  DECISIÓN   │ │  Consulta   │ │  ESPERA     │
+     │  DIRECTA    │ │  IA (API)   │ │  DIRECTA    │
+     │  $0 API     │ │  $0.001     │ │  $0 API     │
+     └─────────────┘ └─────────────┘ └─────────────┘
+```
+
+### Criterios Pre-Calculados en Python
+
+| Criterio | COMPRA | VENTA |
+|----------|--------|-------|
+| Precio vs EMA200 | > EMA200 | < EMA200 |
+| RSI | 35-65 | 35-65 |
+| MACD | > Signal | < Signal |
+| Volumen | > 0.7x | > 0.7x |
+
+### Archivos Modificados v2.2.1
+
+| Archivo | Cambios |
+|---------|---------|
+| `src/engines/ai_engine.py` | Trend agent con decisión directa |
+| `src/modules/adaptive_parameters.py` | Rangos desde config YAML |
+| `config/config_paper.yaml` | MTF 50%, confidence 55% |
+
+### Configuración Adaptativa desde YAML
+
+```yaml
+adaptive_parameters:
+  default_min_confidence: 0.55
+  ranges:
+    min_confidence: { min: 0.50, max: 0.75 }
+    max_risk_per_trade: { min: 1.5, max: 3.0 }
+```
+
+---
+
+## Cambios v2.2.0 (SQLite ATÓMICO)
+
+### Persistencia SQLite Atómica (risk_manager.py:694-825)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│              PERSISTENCIA ATÓMICA v2.2.0                    │
+└─────────────────────────────────────────────────────────────┘
+
+         Antes (JSON)                     Ahora (SQLite)
+              │                                 │
+              ▼                                 ▼
+     ┌─────────────────┐            ┌─────────────────┐
+     │  Escribir JSON  │            │  BEGIN TRANS    │
+     │  (no atómico)   │            │  (ACID)         │
+     └────────┬────────┘            └────────┬────────┘
+              │                              │
+              ▼                              ▼
+     ┌─────────────────┐            ┌─────────────────┐
+     │  Si crash aquí  │            │  COMMIT o       │
+     │  → Corrupción   │            │  ROLLBACK       │
+     └─────────────────┘            └─────────────────┘
+```
+
+### Tablas SQLite Risk Manager
+
+| Tabla | Contenido |
+|-------|-----------|
+| `risk_state` | Capital, PnL, kill switch |
+| `trade_history_kelly` | Historial para Kelly Criterion |
+| `recent_results` | Últimos 50 resultados (rachas) |
+| `open_trades` | Trades abiertos |
+
+### Fallback Parser (ai_engine.py:569-611)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                 FALLBACK PARSER v2.2.0                      │
+└─────────────────────────────────────────────────────────────┘
+
+         Respuesta IA
+              │
+              ▼
+     ┌─────────────────┐
+     │  Parse JSON     │
+     └────────┬────────┘
+              │
+      ¿JSON válido?
+              │
+     ┌────────┴────────┐
+     │                 │
+     ▼                 ▼
+    SÍ                NO
+     │                 │
+     ▼                 ▼
+  ┌──────┐      ┌─────────────┐
+  │ Usar │      │ Fallback    │
+  │ JSON │      │ Text Parser │
+  └──────┘      └──────┬──────┘
+                       │
+                       ▼
+              ┌─────────────────┐
+              │ Buscar palabras │
+              │ clave en texto  │
+              │ BUY/SELL/HOLD   │
+              └─────────────────┘
+```
+
+### Mapeo de Sinónimos
+
+| Input | Output |
+|-------|--------|
+| BUY, LONG | COMPRA |
+| SELL, SHORT | VENTA |
+| HOLD, WAIT, NEUTRAL | ESPERA |
+
+---
 
 ## Cambios v2.1.0 (INSTITUCIONAL PROFESIONAL)
 
@@ -864,6 +1009,6 @@ bot/
 
 ---
 
-**Última actualización**: Diciembre 2025 - v2.1.0 INSTITUCIONAL PROFESIONAL ★★★★★
+**Última actualización**: Diciembre 2025 - v2.2.1 INSTITUCIONAL PROFESIONAL ★★★★★
 
-**Tests v2.1**: 19/19 pasados ✓
+**Tests v2.2**: 31/31 pasados ✓ (12 tests nuevos v2.2.0 + 19 tests v2.1.0)

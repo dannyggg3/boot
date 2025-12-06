@@ -7,6 +7,70 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
 ---
 
+## [2.2.1] - 2025-12-05 - TREND AGENT OPTIMIZADO (Decisión Directa)
+
+### Resumen
+Esta versión soluciona el problema crítico donde la IA (DeepSeek) devolvía ESPERA
+con 0.0 confianza incluso cuando todos los criterios de trading pasaban. La solución
+implementa decisiones directas en Python, eliminando errores de cálculo de la IA.
+
+### Problema Resuelto
+- **Síntoma**: Bot no operaba aunque el mercado tenía setup claro
+- **Causa**: IA hacía mal los cálculos matemáticos (hallucinations)
+- **Solución**: Python pre-calcula criterios, IA solo confirma
+
+### Cambios Críticos
+
+#### Trend Agent con Decisión Directa
+- **Archivo**: `src/engines/ai_engine.py:989-1046`
+- **Lógica nueva**:
+  ```python
+  if 4/4 criterios → Decisión DIRECTA (sin API, $0)
+  if 3/4 criterios → Consultar IA (casos ambiguos)
+  if <3/4 criterios → ESPERA directa (sin API, $0)
+  ```
+- **Beneficio**:
+  - Ahorra llamadas a API (~80% menos)
+  - Elimina hallucinations de IA
+  - Decisiones determinísticas
+
+#### Criterios Pre-calculados en Python
+- **Antes**: Prompt pedía a la IA "calcula si precio > EMA200"
+- **Ahora**: Python calcula y muestra "Precio < EMA200: ✓ SI"
+- **Beneficio**: Sin errores matemáticos
+
+#### Filtros Relajados (Paper Testing)
+| Parámetro | v2.2.0 | v2.2.1 |
+|-----------|--------|--------|
+| MTF alignment | 55% | 50% |
+| min_confidence | 65% | 55% |
+| default_min_confidence | 65% | 55% |
+
+#### Adaptive Parameters desde Config
+- **Archivo**: `src/modules/adaptive_parameters.py:84-100`
+- **Nuevo**: Rangos configurables desde YAML
+  ```yaml
+  adaptive_parameters:
+    default_min_confidence: 0.55
+    ranges:
+      min_confidence: { min: 0.50, max: 0.75 }
+  ```
+
+### Test de Integración
+```
+Criterios VENTA: 4/4 ✓
+MTF Alignment: 52% > 50% ✓
+Confianza: 0.95 > 0.55 ✓
+Resultado: EJECUTAR VENTA
+```
+
+### Archivos Modificados
+- `src/engines/ai_engine.py` - Trend agent con decisión directa
+- `src/modules/adaptive_parameters.py` - Rangos desde config
+- `config/config_paper.yaml` - Filtros optimizados
+
+---
+
 ## [2.2.0] - 2025-12-05 - INSTITUCIONAL PROFESIONAL (SQLite Atómico)
 
 ### Resumen

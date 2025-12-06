@@ -1,3 +1,35 @@
+# Guía de Consultas y Comandos - SATH v2.2.1
+
+## Consultas SQLite (v2.2.0+)
+
+```bash
+# Ver estado del Risk Manager (SQLite)
+sqlite3 data/risk_manager_state.db "SELECT * FROM risk_state;"
+
+# Ver historial Kelly Criterion
+sqlite3 data/risk_manager_state.db "SELECT * FROM trade_history_kelly ORDER BY timestamp DESC LIMIT 20;"
+
+# Ver resultados recientes (rachas)
+sqlite3 data/risk_manager_state.db "SELECT * FROM recent_results ORDER BY timestamp DESC LIMIT 10;"
+
+# Ver trades abiertos
+sqlite3 data/risk_manager_state.db "SELECT * FROM open_trades;"
+
+# Ver posiciones (positions.db)
+sqlite3 data/positions.db "SELECT id, symbol, side, status, entry_price, realized_pnl FROM positions ORDER BY entry_time DESC LIMIT 20;"
+
+# Ver win rate calculado
+sqlite3 data/risk_manager_state.db "
+SELECT
+  COUNT(*) as total_trades,
+  SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END) as wins,
+  ROUND(SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 1) as win_rate
+FROM trade_history_kelly;
+"
+```
+
+## Consultas InfluxDB
+
   # Consultar decisiones de las últimas 2 horas
   docker exec sath_influxdb influx query '
   from(bucket:"trading_decisions") 
@@ -109,7 +141,8 @@
   docker compose -p paper -f docker-compose.paper.yml down
 
   # 2. Resetear el estado del risk_manager (ESTO BORRARÁ EL HISTORIAL)
-  rm -f data/risk_manager_state.json
+  # v2.2.0+: Ahora es SQLite en lugar de JSON
+  rm -f data/risk_manager_state.db
 
   # 3. OPCIONAL: Si quieres borrar también la posición abierta
   rm -f data/positions.db

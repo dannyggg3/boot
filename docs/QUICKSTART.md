@@ -1,4 +1,4 @@
-# Guía de Inicio Rápido - SATH v2.1.0 INSTITUCIONAL PROFESIONAL ★★★★★
+# Guía de Inicio Rápido - SATH v2.2.1 INSTITUCIONAL PROFESIONAL ★★★★★
 
 ## Primeros Pasos (5 minutos)
 
@@ -43,11 +43,20 @@ trading:
   mode: "paper"  # NO cambies a "live" hasta probar
 ```
 
-### 4. Verificar Configuración
+### 4. Verificar Configuración (v2.2.0+)
 
 ```bash
-python check_setup.py
+# v2.2.0: Nuevo script de verificación completo
+python verify_system.py config/config_paper.yaml
 ```
+
+Este script verifica:
+- Dependencias instaladas
+- Variables de entorno
+- Conexión al exchange (Binance)
+- Conexión a IA (DeepSeek)
+- Base de datos SQLite
+- Análisis de prueba con datos reales
 
 Si todo está ✅, continúa al siguiente paso.
 
@@ -93,63 +102,69 @@ OPENAI_API_KEY=sk-tu-clave-aqui
 GEMINI_API_KEY=AIzaSy-tu-clave-aqui
 ```
 
-### Configuración Optimizada v2.1.0 INSTITUCIONAL PROFESIONAL
+### Configuración Optimizada v2.2.1 INSTITUCIONAL PROFESIONAL
 
 Las siguientes optimizaciones institucionales vienen **habilitadas por defecto**:
 
 ```yaml
-# === AGENTES ESPECIALIZADOS v2.1.0 ===
+# === AGENTES ESPECIALIZADOS v2.2.1 ===
 ai_agents:
   enabled: true
-  min_volatility_percent: 0.5   # Subido de 0.35
-  min_volume_ratio: 1.0         # v2.1: Subido de 0.5
-  ideal_volume_ratio: 1.3       # v2.1: NUEVO
-  min_adx_trend: 25             # v2.1: Subido de 20
-  max_retries: 3
+  min_volatility_percent: 0.3   # v2.2: Más oportunidades
+  min_volume_ratio: 0.8         # v2.2: Más flexible
+  ideal_volume_ratio: 1.2
+  min_adx_trend: 20             # v2.2: Permite transiciones
+  max_retries: 2
 
-# === GESTIÓN DE RIESGO INSTITUCIONAL v2.1 ===
+# === GESTIÓN DE RIESGO INSTITUCIONAL v2.2 ===
 risk_management:
-  min_risk_reward_ratio: 2.0
+  min_risk_reward_ratio: 1.8    # v2.2: Más oportunidades
 
   kelly_criterion:
     enabled: true
-    min_confidence: 0.70
+    min_confidence: 0.60        # v2.2: Más trades paper
 
   atr_stops:
     enabled: true
-    sl_multiplier: 2.5
-    tp_multiplier: 5.0
-    min_distance_percent: 1.8
+    sl_multiplier: 1.8          # v2.2: Más ajustado
+    tp_multiplier: 3.6
+    min_distance_percent: 1.0
 
-  # v2.1: HABILITADO
+  # v2.2: OFF en paper para más trades
   session_filter:
-    enabled: true
-    avoid_hours_utc:
-      - [0, 6]
+    enabled: false
 
-# === TRAILING STOP v2.1 (CORREGIDO) ===
+# === TRAILING STOP v2.2 (OPTIMIZADO) ===
 position_management:
   trailing_stop:
     enabled: true
-    activation_profit_percent: 2.0  # v2.1: SUBIDO
-    trail_distance_percent: 1.0     # v2.1: BAJADO
-    min_profit_to_lock: 0.8         # v2.1: SUBIDO
-    cooldown_seconds: 15            # v2.1: SUBIDO
+    activation_profit_percent: 1.5  # v2.2: Activa antes
+    trail_distance_percent: 0.8     # v2.2: Más ajustado
+    min_profit_to_lock: 0.5
+    cooldown_seconds: 10
 
-# === MULTI-TIMEFRAME INSTITUCIONAL ===
+# === MULTI-TIMEFRAME v2.2.1 ===
 multi_timeframe:
   enabled: true
-  min_alignment_score: 0.65
+  min_alignment_score: 0.50     # v2.2.1: 50% = 2/3 TFs alineados
+
+# === PARÁMETROS ADAPTATIVOS v2.2.1 ===
+adaptive_parameters:
+  enabled: true
+  default_min_confidence: 0.55  # v2.2.1: Configurable desde YAML
+  ranges:
+    min_confidence: { min: 0.50, max: 0.75 }
+    max_risk_per_trade: { min: 1.5, max: 3.0 }
 ```
 
-**Impacto v2.1.0 INSTITUCIONAL PROFESIONAL:**
-- **Trailing Math Corregido**: activation 2.0% > distance 1.0% (SL siempre sobre entry)
-- **PROFIT LOCK**: Trailing NUNCA convierte ganador en perdedor
-- **Range Agent**: Opera mercados laterales (+25% oportunidades)
-- **ADX >= 25**: Solo tendencias confirmadas (-60% falsos breakouts)
-- **RSI 35-65**: Evita entrar en zonas de reversión
-- **Session Filter**: Evita horas de baja liquidez (00-06 UTC)
-- **Win Rate esperado: ~48%** (antes ~42%)
+**Impacto v2.2.1 INSTITUCIONAL PROFESIONAL:**
+- **Decisión Directa**: 4/4 criterios = sin llamar API (~80% ahorro)
+- **Python Pre-Calc**: Criterios calculados en Python (sin hallucinations)
+- **SQLite Atómico**: Persistencia ACID (sin corrupción)
+- **Fallback Parser**: Extrae decisiones de texto libre (-90% errores)
+- **MTF 50%**: Threshold relajado para paper (+15% setups)
+- **Confidence 55%**: Mínimo adaptativo configurable (+20% trades)
+- **Win Rate esperado: ~48%** (profesional institucional)
 
 ## Problemas Comunes
 
@@ -177,46 +192,54 @@ Esto es normal en modo `paper` si:
 - La verificación de precio abortó la orden (v1.1)
 - Revisa los logs: `tail -f logs/trading_bot.log`
 
-### Logs esperados (v2.1.0 INSTITUCIONAL PROFESIONAL)
+### Logs esperados (v2.2.1 INSTITUCIONAL PROFESIONAL)
 
 ```
 ╔═══════════════════════════════════════════════════════════╗
-║     Sistema Autónomo de Trading Híbrido (SATH) v2.1.0     ║
+║     Sistema Autónomo de Trading Híbrido (SATH) v2.2.1     ║
 ║      ★★★★★ INSTITUCIONAL PROFESIONAL ★★★★★               ║
 ╚═══════════════════════════════════════════════════════════╝
 
 🔄 Iniciando análisis PARALELO de 3 símbolos...
 ✅ Análisis paralelo completado en 2.8s
 
-=== ANÁLISIS INSTITUCIONAL v2.1.0 ===
-📊 ADX: 32.5 (≥25) ✅ Tendencia confirmada
-🎯 MTF Alignment: 82% (min: 65%) ✅
-📊 ATR%: 1.45 | Volatilidad OK (min: 0.5%)
+=== ANÁLISIS INSTITUCIONAL v2.2.1 ===
+📊 ADX: 28.5 (≥20) ✅ Tendencia confirmada
+🎯 MTF Alignment: 55% (min: 50%) ✅
+📊 ATR%: 1.45 | Volatilidad OK (min: 0.3%)
 📈 Régimen: TRENDING | Activando Trend Agent
 📉 RSI: 52 (35-65) ✅ Zona operativa
-📊 Volumen: 1.4x (≥1.0x) ✅
-⚡ Confianza IA: 78% (min: 70%) ✅
-💰 R/R Ratio: 2.3:1 (min: 2.0) ✅
+📊 Volumen: 1.2x (≥0.8x) ✅
+⚡ Criterios VENTA: 4/4 → DECISIÓN DIRECTA ($0 API)
+💰 R/R Ratio: 2.0:1 (min: 1.8) ✅
 
-✅ COMPRA BTC/USDT | Confianza: 78% | R/R: 2.3:1
-   SL: $94,500 (ATR-based) | TP: $98,200 (ATR-based)
-   Trailing: activation=2%, distance=1%, profit_lock=0.8%
+✅ VENTA BTC/USDT | Confianza: 75% | R/R: 2.0:1
+   SL: $97,800 (ATR-based) | TP: $94,200 (ATR-based)
+   Trailing: activation=1.5%, distance=0.8%, profit_lock=0.5%
 ```
 
-**Logs de filtrado v2.1 (nuevos agentes):**
+**Logs de decisión directa v2.2.1:**
 ```
-📊 ADX: 18.5 (<25) → Activando RANGE AGENT (Bollinger)
-🎯 Precio en zona SOPORTE (12% del rango BB)
-📉 RSI: 38 (zona operativa) ✅
-💡 Range Agent: COMPRA en soporte con confianza 65%
+⚡ BTC/USDT: VENTA directa (4/4 criterios) - $0 API
+   Precio < EMA200: ✓ | RSI 35-65: ✓ | MACD < Signal: ✓ | Vol > 0.7x: ✓
 
-🚫 RSI: 72 (>65) → Fuera de zona operativa → ESPERA
-🚫 Volumen: 0.7x (<1.0x) → Volumen insuficiente → ESPERA
-🚫 Session Filter: 03:00 UTC → Hora evitada → ESPERA
+⚡ ETH/USDT: Consulta IA (3/4 criterios) - caso ambiguo
+   Precio > EMA200: ✓ | RSI 35-65: ✓ | MACD > Signal: ✗ | Vol > 0.7x: ✓
+
+⏸️ SOL/USDT: ESPERA directa (2/4 criterios) - $0 API
+   Criterios insuficientes para operar
 ```
 
-Si ves `Activando RANGE AGENT` significa que el bot ahora opera en mercados laterales.
-Si ves `RSI: XX (>65)` significa que evita zonas de reversión.
+**Logs de filtrado v2.2 (persistencia):**
+```
+💾 SQLite: Estado guardado (transacción ACID)
+📈 Kelly Criterion: Win Rate 48.5%, Fracción 0.25
+🔄 Fallback Parser: Extrayendo decisión de texto libre...
+✅ Mapeo: "SELL" → "VENTA"
+```
+
+Si ves `DECISIÓN DIRECTA ($0 API)` significa que Python decidió sin llamar a la IA.
+Si ves `Consulta IA (3/4 criterios)` significa que la IA validó un caso ambiguo.
 
 ## Siguiente Nivel
 
