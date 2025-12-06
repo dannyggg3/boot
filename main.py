@@ -6,7 +6,7 @@ Bot de trading profesional que combina análisis técnico cuantitativo
 con razonamiento de IA para trading autónomo en crypto y mercados tradicionales.
 
 Autor: Trading Bot System
-Versión: 2.2.0 INSTITUCIONAL PROFESIONAL
+Versión: 2.2.2 INSTITUCIONAL PROFESIONAL
 
 ================================================================================
 Changelog v2.2.0 (INSTITUCIONAL PROFESIONAL - SQLite Atómico):

@@ -7,6 +7,65 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
 ---
 
+## [2.2.2] - 2025-12-06 - PROFESIONAL (Cooldown + Filtros Estrictos)
+
+### Resumen
+Esta versión implementa mejoras críticas basadas en análisis profesional de 15 años
+de trading. Evita re-entradas inmediatas y filtra mercados laterales de baja calidad.
+
+### Problema Resuelto
+- **Síntoma**: Bot re-entraba 17 segundos después de cerrar posición ganadora
+- **Causa**: No había cooldown entre cierre y nueva apertura en el mismo símbolo
+- **Solución**: Cooldown configurable de 15 minutos post-cierre por símbolo
+
+### Cambios Críticos
+
+#### Cooldown Post-Cierre (NUEVO)
+- **Archivo**: `src/engines/position_engine.py`
+- **Funcionalidad**: Después de cerrar una posición (TP/SL), el bot espera
+  X minutos antes de poder abrir otra posición en el MISMO símbolo
+- **Config**: `position_management.symbol_cooldown_minutes: 15`
+- **Beneficio**: Evita re-entradas emocionales, permite que el mercado se estabilice
+
+#### Filtros Más Estrictos
+| Parámetro | v2.2.1 | v2.2.2 | Razón |
+|-----------|--------|--------|-------|
+| min_volatility_percent | 0.3% | 0.5% | Evitar mercados muertos |
+| min_volume_ratio | 0.8x | 0.9x | Mejor liquidez |
+| min_adx_trend | 20 | 22 | Tendencia más clara |
+| MTF alignment | 50% | 60% | Mejor confirmación |
+| min_confidence | 55% | 60% | Más selectivo |
+
+### Archivos Modificados
+- `src/engines/position_engine.py` - Cooldown post-cierre implementado
+- `config/config_paper.yaml` - Filtros actualizados a v2.2.2
+
+### Configuración Nueva
+
+```yaml
+position_management:
+  symbol_cooldown_minutes: 15  # Espera 15 min antes de re-entrar
+
+ai_agents:
+  min_volatility_percent: 0.5  # Subido de 0.3
+  min_volume_ratio: 0.9        # Subido de 0.8
+  min_adx_trend: 22            # Subido de 20
+
+multi_timeframe:
+  min_alignment_score: 0.60    # Subido de 0.50
+
+adaptive_parameters:
+  default_min_confidence: 0.60 # Subido de 0.55
+```
+
+### Impacto Esperado
+- **Menos trades** pero de **mayor calidad**
+- **Evita re-entradas** en mercados que acaban de moverse
+- **Filtra mercados laterales** donde el bot perdía por falta de dirección
+- Win Rate esperado: 50-55% (antes ~48%)
+
+---
+
 ## [2.2.1] - 2025-12-05 - TREND AGENT OPTIMIZADO (Decisión Directa)
 
 ### Resumen

@@ -260,9 +260,9 @@ class TestConfigPaperOptimization:
         with open(config_path, 'r') as f:
             config = yaml.safe_load(f)
 
-        # Verificar thresholds optimizados
+        # Verificar thresholds optimizados (v2.2.2: mas estrictos para calidad)
         ai_agents = config.get('ai_agents', {})
-        assert ai_agents.get('min_adx_trend', 25) <= 20  # Reducido para mas trades
+        assert ai_agents.get('min_adx_trend', 25) <= 25  # v2.2.2: 22 es profesional
 
         risk = config.get('risk_management', {})
         assert risk.get('min_risk_reward_ratio', 2.0) <= 1.8  # Mas flexible

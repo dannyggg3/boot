@@ -8,6 +8,10 @@ Coordinador central del ciclo de vida de posiciones:
 - Trailing stop inteligente
 - Cierre de posiciones y registro de resultados
 
+v2.2.2 Mejoras Profesionales:
+- NUEVO: Cooldown post-cierre por símbolo (evita re-entradas inmediatas)
+- Configurable: symbol_cooldown_minutes en config
+
 v1.7 Mejoras Institucionales:
 - Fix race condition en trailing stop
 - Validación pre-trigger para evitar SL inmediatos
@@ -15,7 +19,7 @@ v1.7 Mejoras Institucionales:
 - Margen de seguridad mínimo de 0.3%
 
 Autor: Trading Bot System
-Versión: 1.7
+Versión: 2.2.2
 """
 
 import logging
@@ -93,6 +97,10 @@ class PositionEngine:
         self.monitoring_active = False
         self.monitor_thread: Optional[threading.Thread] = None
 
+        # v2.2.2: Cooldown post-cierre por símbolo
+        self.symbol_cooldown_minutes = pm_config.get('symbol_cooldown_minutes', 15)
+        self.symbol_last_close: Dict[str, datetime] = {}  # symbol -> last_close_time
+
         # Callbacks
         self.on_position_closed: Optional[Callable] = None
         self.on_sl_triggered: Optional[Callable] = None
@@ -102,6 +110,7 @@ class PositionEngine:
         logger.info(f"  Modo protección: {self.protection_mode}")
         logger.info(f"  Trailing stop: {'ON' if self.trailing_enabled else 'OFF'}")
         logger.info(f"  Max posiciones: {self.max_positions}")
+        logger.info(f"  Symbol cooldown: {self.symbol_cooldown_minutes} min")
 
     # =========================================================================
     # CICLO DE VIDA DE POSICIONES
@@ -279,6 +288,10 @@ class PositionEngine:
 
                 # v1.7: Registrar en métricas institucionales
                 self._record_institutional_metrics(position, exit_price, exit_reason, pnl, pnl_pct)
+
+                # v2.2.2: Guardar timestamp de cierre para cooldown
+                self.symbol_last_close[position['symbol']] = datetime.now()
+                logger.info(f"   ⏰ Cooldown activado: {position['symbol']} ({self.symbol_cooldown_minutes} min)")
 
                 # Remover de memoria
                 self.positions.pop(position_id, None)
@@ -669,6 +682,18 @@ class PositionEngine:
             if pos['symbol'] == symbol:
                 logger.warning(f"Ya existe posición abierta en {symbol}")
                 return False
+
+        # v2.2.2: Verificar cooldown post-cierre
+        if symbol in self.symbol_last_close:
+            last_close = self.symbol_last_close[symbol]
+            elapsed_minutes = (datetime.now() - last_close).total_seconds() / 60
+            if elapsed_minutes < self.symbol_cooldown_minutes:
+                remaining = self.symbol_cooldown_minutes - elapsed_minutes
+                logger.warning(f"⏰ {symbol} en cooldown: {remaining:.1f} min restantes (cerrado hace {elapsed_minutes:.1f} min)")
+                return False
+            else:
+                # Cooldown expirado, limpiar
+                del self.symbol_last_close[symbol]
 
         return True
 

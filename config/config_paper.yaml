@@ -1,9 +1,9 @@
 # ============================================
-# CONFIGURACION PAPER (TESTNET) - SATH v2.2 OPTIMIZADO
+# CONFIGURACION PAPER (TESTNET) - SATH v2.2.2 PROFESIONAL
 # Capital: $1000 USD
-# Nivel: Institucional (filtros balanceados)
-# Filosofia: Trades de calidad + frecuencia suficiente para validar
-# OPTIMIZADO: Para generar trades y validar rentabilidad
+# Nivel: Institucional Profesional (filtros optimizados)
+# Filosofia: Calidad > Cantidad - Solo operar setups claros
+# v2.2.2: Cooldown post-cierre + filtros mas estrictos
 # ============================================
 
 # ===== SELECCION DE PROVEEDOR DE IA =====
@@ -16,16 +16,16 @@ ai_use_hybrid_analysis: true
 ai_model_fast: "deepseek-chat"      # Rapido y economico
 ai_model_deep: "deepseek-chat"      # CAMBIO: Usar chat tambien para evitar latencia de 40s
 
-# ===== AGENTES ESPECIALIZADOS v2.2 =====
+# ===== AGENTES ESPECIALIZADOS v2.2.2 PROFESIONAL =====
 ai_agents:
   enabled: true
-  # v2.2 OPTIMIZADO: Thresholds mas permisivos para generar trades
-  min_volatility_percent: 0.3    # De 0.5 a 0.3 - mas oportunidades
-  min_volume_ratio: 0.8          # De 1.0 a 0.8 - mas flexible
+  # v2.2.2 PROFESIONAL: Filtros mas estrictos para evitar mercados laterales
+  min_volatility_percent: 0.5    # v2.2.2: Subido de 0.3 a 0.5 - evita mercados muertos
+  min_volume_ratio: 0.9          # v2.2.2: Subido de 0.8 a 0.9 - mejor liquidez
   ideal_volume_ratio: 1.2        # Ideal para trades de alta probabilidad
   max_retries: 2                 # Menos reintentos = mas rapido
   retry_delay_seconds: 1         # Delay reducido
-  min_adx_trend: 20              # v2.2: De 25 a 20 - permite transiciones
+  min_adx_trend: 22              # v2.2.2: Subido de 20 a 22 - tendencia mas clara
 
 # ===== SELECCION DE MERCADO =====
 market_type: "crypto"
@@ -118,10 +118,11 @@ risk_management:
     SOL_USDT: 5.0
     default: 10.0
 
-# ===== GESTION DE POSICIONES v2.2 =====
+# ===== GESTION DE POSICIONES v2.2.2 =====
 position_management:
   enabled: true
   protection_mode: "oco"
+  symbol_cooldown_minutes: 15    # v2.2.2: NUEVO - espera 15 min antes de re-entrar al mismo simbolo
 
   oco_settings:
     enabled: true
@@ -245,13 +246,13 @@ security:
     requests_per_minute: 60
     wait_on_limit: true
 
-# ===== MULTI-TIMEFRAME v2.2 - PROFESIONAL =====
+# ===== MULTI-TIMEFRAME v2.2.2 - PROFESIONAL =====
 multi_timeframe:
   enabled: true
   higher_timeframe: "4h"
   medium_timeframe: "1h"
   lower_timeframe: "15m"
-  min_alignment_score: 0.50        # v2.2.1: 50% = al menos 2/3 TFs alineados
+  min_alignment_score: 0.60        # v2.2.2: Subido de 0.50 a 0.60 - mejor alineacion
   weights:
     higher: 0.40                   # TF alto importante para direccion
     medium: 0.35
@@ -266,14 +267,14 @@ correlation_filter:
     "BTC/USDT,SOL/USDT": 0.78
     "ETH/USDT,SOL/USDT": 0.82
 
-# ===== PARAMETROS ADAPTATIVOS v2.2.1 - PROFESIONAL =====
+# ===== PARAMETROS ADAPTATIVOS v2.2.2 - PROFESIONAL =====
 adaptive_parameters:
   enabled: true
   lookback_trades: 15              # Balance entre reaccion y estabilidad
   sensitivity: 0.20                # Conservador - no sobreajustar
-  default_min_confidence: 0.55     # v2.2.1: Profesional pero permite paper testing
+  default_min_confidence: 0.60     # v2.2.2: Subido de 0.55 a 0.60 - mas selectivo
   ranges:
-    min_confidence: { min: 0.50, max: 0.75 }   # No operar bajo 50% confianza
+    min_confidence: { min: 0.55, max: 0.80 }   # v2.2.2: No operar bajo 55% confianza
     max_risk_per_trade: { min: 1.5, max: 3.0 } # Riesgo controlado
     trailing_activation: { min: 1.0, max: 3.0 }
 
