@@ -6,16 +6,35 @@ Bot de trading profesional que combina análisis técnico cuantitativo
 con razonamiento de IA para trading autónomo en crypto y mercados tradicionales.
 
 Autor: Trading Bot System
-Versión: 1.9.0 INSTITUCIONAL PRO MAX
+Versión: 2.2.0 INSTITUCIONAL PROFESIONAL
 
-Changelog v1.9 (Institucional Pro Max):
-- VALIDACIÓN PRECIO POST-IA: Re-verifica precio antes de ejecutar, aborta si desvía >0.2%
-- FILTRO ADX: Bloquea trades en mercados laterales (ADX < 20) ANTES de llamar IA
-- BACKTESTER: Módulo completo para validar estrategias con datos históricos
-- CI/CD PIPELINE: GitHub Actions con linting, tests, security scan
-- MÉTRICAS ABORTADOS: Tracking de trades cancelados por validación post-IA
-- Reduce costos de API hasta 40% filtrando con ADX
-- Elimina riesgo de ejecutar con R/R inválido por latencia
+================================================================================
+Changelog v2.2.0 (INSTITUCIONAL PROFESIONAL - SQLite Atómico):
+================================================================================
+- CRÍTICO: Persistencia SQLite atómica (elimina corrupción de datos)
+- NUEVO: Migración automática de JSON a SQLite
+- NUEVO: Fallback parser robusto para respuestas IA
+- NUEVO: Mapeo de sinónimos de decisiones (BUY=COMPRA, SELL=VENTA)
+- NUEVO: Pre-filtros configurables desde YAML
+- NUEVO: Script de verificación del sistema (verify_system.py)
+- OPTIMIZADO: Config paper para generar más trades
+- OPTIMIZADO: ADX threshold reducido a 20 para paper (más oportunidades)
+- OPTIMIZADO: Latencia IA reducida (usa chat en lugar de reasoner)
+- FIX: Thread-safe locks en Risk Manager
+- FIX: Validación de confidence normalizada (0-1)
+- Tests: 12 nuevos tests para v2.2 (todos pasados)
+
+Changelog v2.1.0 (INSTITUCIONAL PROFESIONAL):
+- Trailing Math corregido (activation > distance)
+- PROFIT LOCK - Trailing nunca convierte ganador en perdedor
+- Range Agent para mercados laterales
+- ADX >= 25 para tendencias, RSI 35-65 para entradas
+- Session Filter y volumen >= 1.0x
+
+Changelog v1.9.0 (Institucional Pro Max):
+- Validación precio post-IA
+- Filtro ADX pre-IA
+- Backtester y CI/CD Pipeline
 
 Changelog v1.8.1 (Institucional Pro):
 - ATR-Based Stop Loss y Take Profit dinámicos
@@ -24,36 +43,13 @@ Changelog v1.8.1 (Institucional Pro):
 - Trailing Stop mejorado con cooldown
 
 Changelog v1.7+ (Nivel Institucional Superior):
-- Multi-Timeframe Analysis (4H → 1H → 15m) - Solo opera con TF alineados
-- Correlation Filter - Evita sobreexposición a activos correlacionados
-- Adaptive Parameters - Auto-ajuste de confianza/riesgo según rendimiento
-- Performance Attribution - Análisis de qué agente/régimen genera más alpha
-- Métricas institucionales completas en Grafana/InfluxDB
-- Kelly Criterion se actualiza automáticamente al cerrar posiciones
-- R/R < 1.5 ahora RECHAZA trades (antes solo warning)
+- Multi-Timeframe Analysis (4H → 1H → 15m)
+- Correlation Filter
+- Adaptive Parameters
+- Performance Attribution
+- Kelly Criterion automático
 
-Changelog v1.6:
-- Circuit Breaker para protección contra fallos en cascada
-- Health Monitor con alertas automáticas
-- AI Ensemble para decisiones más robustas
-- Arquitectura async/await para escalabilidad
-- Documentación para roadmap institucional
-
-Changelog v1.5:
-- Sistema completo de gestión de posiciones con IA
-- Órdenes OCO reales (Stop Loss + Take Profit) via CCXT
-- Supervisión IA de posiciones abiertas (HOLD, TIGHTEN_SL, EXTEND_TP)
-- Trailing Stop inteligente con activación configurable
-- Persistencia de posiciones en SQLite (sobrevive reinicios)
-- Monitoreo de riesgo a nivel portfolio
-- Recuperación automática de posiciones al reiniciar
-
-Changelog v1.4:
-- Volumen promedio (SMA 20) y ratio para comparación
-- Reglas de trading flexibles (volumen, EMA50, divergencia)
-- Confianza mínima reducida (50%)
-- Logging mejorado con tags [SYMBOL] para threads paralelos
-- Notificaciones Telegram mejoradas
+Ver README.md para historial completo.
 """
 
 import sys

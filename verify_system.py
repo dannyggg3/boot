@@ -175,7 +175,8 @@ def check_exchange_connection(config: dict):
 
         # Verificar conexion
         if engine.connection:
-            print_result("Conexion exchange", True, engine.exchange_name)
+            exchange_name = getattr(engine, 'exchange_name', engine.connection.name if engine.connection else 'Unknown')
+            print_result("Conexion exchange", True, exchange_name)
 
             # Obtener balance
             try:
