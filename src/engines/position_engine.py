@@ -1001,48 +1001,42 @@ class PositionEngine:
 
     def _update_risk_manager_history(self, pnl: float):
         """
-        v1.7: Actualiza el historial del Risk Manager para Kelly Criterion.
+        v2.2.2: Actualiza el historial del Risk Manager para Kelly Criterion.
         CRÍTICO: Sin esto, Kelly usa probabilidad base 0.45 forever.
+
+        Usa SQLite atómico en lugar de JSON legacy.
         """
         try:
-            # Intentar obtener el singleton de RiskManager
-            # Método 1: Buscar en el config path estándar
+            from modules.risk_manager import RiskManager
+            import yaml
             import os
-            import json
 
-            state_file = 'data/risk_manager_state.json'
-            if os.path.exists(state_file):
-                with open(state_file, 'r') as f:
-                    state = json.load(f)
+            # Cargar config para inicializar RiskManager si es necesario
+            config_path = os.path.join(os.path.dirname(__file__), '..', '..', 'config', 'config_paper.yaml')
+            if not os.path.exists(config_path):
+                config_path = os.path.join(os.path.dirname(__file__), '..', '..', 'config', 'config.yaml')
 
-                trade_history = state.get('trade_history', {
-                    'wins': 0,
-                    'losses': 0,
-                    'total_win_amount': 0.0,
-                    'total_loss_amount': 0.0
-                })
+            if os.path.exists(config_path):
+                with open(config_path, 'r') as f:
+                    config = yaml.safe_load(f)
 
-                # Actualizar historial
+                # Crear instancia temporal de RiskManager (usa singleton interno)
+                rm = RiskManager(config)
+
+                # Registrar resultado del trade
                 is_win = pnl > 0
-                if is_win:
-                    trade_history['wins'] += 1
-                    trade_history['total_win_amount'] += abs(pnl)
-                else:
-                    trade_history['losses'] += 1
-                    trade_history['total_loss_amount'] += abs(pnl)
+                rm.record_trade_result(is_win, pnl)
 
-                state['trade_history'] = trade_history
-
-                # Guardar estado actualizado
-                with open(state_file, 'w') as f:
-                    json.dump(state, f, indent=2)
-
-                total_trades = trade_history['wins'] + trade_history['losses']
-                win_rate = trade_history['wins'] / total_trades if total_trades > 0 else 0
-                logger.info(f"📈 Kelly History Updated: {trade_history['wins']}W/{trade_history['losses']}L = {win_rate*100:.1f}%")
+                # Log del estado actualizado
+                total_trades = rm.trade_history['wins'] + rm.trade_history['losses']
+                if total_trades > 0:
+                    win_rate = rm.trade_history['wins'] / total_trades
+                    logger.info(f"📈 Kelly History Updated (SQLite): {rm.trade_history['wins']}W/{rm.trade_history['losses']}L = {win_rate*100:.1f}%")
+            else:
+                logger.warning("No se encontró archivo de configuración para RiskManager")
 
         except Exception as e:
-            logger.debug(f"No se pudo actualizar historial de Kelly: {e}")
+            logger.error(f"Error actualizando historial de Kelly: {e}")
 
     def _record_performance_attribution(
         self,

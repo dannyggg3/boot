@@ -1157,11 +1157,17 @@ class RiskManager:
 
     def record_trade_result(self, is_win: bool, pnl: float = 0):
         """
-        v2.2: Registra resultado de trade en SQLite para tracking de rachas.
+        v2.2.2: Registra resultado de trade en SQLite para Kelly Criterion.
 
         Args:
             is_win: True si el trade fue ganador
-            pnl: PnL del trade (opcional)
+            pnl: PnL del trade (en USD)
+
+        Actualiza:
+            - current_capital: suma/resta PnL
+            - trade_history: wins/losses counter
+            - recent_results: lista de resultados recientes
+            - SQLite: todas las tablas relevantes
         """
         if not hasattr(self, 'recent_results'):
             self.recent_results = []
@@ -1173,14 +1179,44 @@ class RiskManager:
         if len(self.recent_results) > 20:
             self.recent_results = self.recent_results[-20:]
 
-        # v2.2: Guardar en SQLite
+        # v2.2.2: Actualizar capital
+        self.current_capital += pnl
+        self.daily_pnl += pnl
+
+        # v2.2.2: Actualizar trade_history para Kelly
+        if is_win:
+            self.trade_history['wins'] += 1
+            self.trade_history['total_win_amount'] += abs(pnl)
+        else:
+            self.trade_history['losses'] += 1
+            self.trade_history['total_loss_amount'] += abs(pnl)
+
+        # v2.2.2: Guardar en SQLite
         with self._db_lock:
             try:
                 with self._get_connection() as conn:
                     cursor = conn.cursor()
+
+                    # Insertar en recent_results
                     cursor.execute("""
                         INSERT INTO recent_results (result, pnl) VALUES (?, ?)
                     """, (result, pnl))
+
+                    # Actualizar trade_history_kelly
+                    cursor.execute("""
+                        UPDATE trade_history_kelly SET
+                            wins = ?,
+                            losses = ?,
+                            total_win_amount = ?,
+                            total_loss_amount = ?,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE id = 1
+                    """, (
+                        self.trade_history['wins'],
+                        self.trade_history['losses'],
+                        self.trade_history['total_win_amount'],
+                        self.trade_history['total_loss_amount']
+                    ))
 
                     # Limpiar resultados antiguos (mantener solo últimos 50)
                     cursor.execute("""
@@ -1188,6 +1224,15 @@ class RiskManager:
                             SELECT id FROM recent_results ORDER BY created_at DESC LIMIT 50
                         )
                     """)
+
+                # Guardar estado completo
+                self._save_state()
+
+                total = self.trade_history['wins'] + self.trade_history['losses']
+                if total > 0:
+                    wr = self.trade_history['wins'] / total
+                    logger.info(f"📊 Trade registrado: {'WIN' if is_win else 'LOSS'} ${pnl:+.2f} | Capital: ${self.current_capital:.2f} | WR: {wr*100:.1f}%")
+
             except Exception as e:
                 logger.error(f"Error guardando resultado en SQLite: {e}")
 

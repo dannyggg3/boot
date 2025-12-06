@@ -68,3 +68,4 @@ dmypy.json
 # Platform env (production secrets)
 .env.platform
 .claude/*
+data/*
