@@ -358,7 +358,8 @@ class TradingBot:
             self.use_adaptive_params = self.config.get('adaptive_parameters', {}).get('enabled', False)
             if self.use_adaptive_params and ADAPTIVE_PARAMS_AVAILABLE:
                 try:
-                    self.adaptive_manager = AdaptiveParameterManager(self.config)
+                    # v2.2.2: Usar singleton para que PositionEngine pueda acceder
+                    self.adaptive_manager = get_adaptive_manager(self.config)
                     logger.info("v1.7+ Adaptive Parameters: ACTIVO")
                 except Exception as e:
                     logger.warning(f"No se pudieron inicializar parámetros adaptativos: {e}")
