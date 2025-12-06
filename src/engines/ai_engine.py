@@ -130,11 +130,11 @@ class AIEngine:
 
     def _local_pre_filter(self, market_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
-        v1.9 INSTITUCIONAL: Pre-filtro LOCAL antes de llamar a cualquier API.
+        v2.2 INSTITUCIONAL: Pre-filtro LOCAL CONFIGURABLE antes de llamar a cualquier API.
         Filtra mercados "aburridos" sin gastar créditos de IA.
 
         Filtros aplicados (en orden):
-        1. ADX < 20 = Mercado lateral (CRÍTICO - ahorra más tokens)
+        1. ADX < min_adx_trend = Mercado lateral (configurable)
         2. RSI neutral + volumen bajo
         3. MACD plano
         4. Volatilidad muy baja
@@ -157,19 +157,18 @@ class AIEngine:
         adx_trend_strength = market_data.get('adx_trend_strength', 'unknown')
 
         # ========================================
-        # FILTRO 1 (v2.1 CRÍTICO): ADX < 25 = Sin tendencia operable
+        # FILTRO 1 (v2.2 CONFIGURABLE): ADX < min_adx_trend
         # ========================================
-        # ADX es el MEJOR indicador para detectar mercados sin tendencia
-        # ADX < 20 = lateral, ADX 20-25 = transición (PELIGROSO), ADX > 25 = tendencia
-        # Los institucionales SOLO operan con ADX >= 25 (tendencia confirmada)
-        if adx > 0 and adx < 25:
-            trend_type = "lateral" if adx < 20 else "débil/transición"
-            logger.info(f"🚫 PRE-FILTRO ADX [{symbol}]: ADX={adx:.1f} < 25 (tendencia {trend_type})")
+        # v2.2: Usa el threshold de configuración (default 20, institucional 25)
+        min_adx = self.min_adx_trend
+        if adx > 0 and adx < min_adx:
+            trend_type = "lateral" if adx < 15 else "débil/transición"
+            logger.info(f"🚫 PRE-FILTRO ADX [{symbol}]: ADX={adx:.1f} < {min_adx} (tendencia {trend_type})")
             return {
                 "decision": "ESPERA",
                 "confidence": 0.0,
-                "razonamiento": f"Pre-filtro ADX: Tendencia {trend_type} (ADX {adx:.1f} < 25). "
-                               f"Los institucionales esperan ADX >= 25 para confirmar tendencia.",
+                "razonamiento": f"Pre-filtro ADX: Tendencia {trend_type} (ADX {adx:.1f} < {min_adx}). "
+                               f"Configurado para ADX >= {min_adx} para confirmar tendencia.",
                 "analysis_type": "local_pre_filter",
                 "filtered_reason": "adx_weak_trend",
                 "adx_value": adx,
@@ -179,9 +178,9 @@ class AIEngine:
         # ========================================
         # FILTRO 2: RSI neutral + volumen bajo promedio
         # ========================================
-        # v2.1: Volumen mínimo 1.0x para confirmar movimientos
-        if 45 < rsi < 55 and volume_ratio < 1.0:
-            logger.info(f"🚫 PRE-FILTRO LOCAL [{symbol}]: RSI neutral ({rsi:.1f}) + volumen bajo ({volume_ratio:.2f}x)")
+        # v2.2: Usa min_volume_ratio de configuración
+        if 45 < rsi < 55 and volume_ratio < self.min_volume_ratio:
+            logger.info(f"🚫 PRE-FILTRO LOCAL [{symbol}]: RSI neutral ({rsi:.1f}) + volumen bajo ({volume_ratio:.2f}x < {self.min_volume_ratio}x)")
             return {
                 "decision": "ESPERA",
                 "confidence": 0.0,
@@ -193,8 +192,8 @@ class AIEngine:
         # ========================================
         # FILTRO 3: MACD plano (sin momentum)
         # ========================================
-        # v2.1: Threshold más realista - 0.05% del precio (antes 0.01% era inútil)
-        macd_threshold = current_price * 0.0005  # 0.05% del precio
+        # v2.2: Threshold más realista - 0.03% del precio (reducido para más oportunidades)
+        macd_threshold = current_price * 0.0003  # 0.03% del precio
         if abs(macd) < macd_threshold and abs(macd - macd_signal) < macd_threshold:
             logger.info(f"🚫 PRE-FILTRO LOCAL [{symbol}]: MACD plano (sin momentum significativo)")
             return {
@@ -218,9 +217,9 @@ class AIEngine:
                 "filtered_reason": "very_low_volatility"
             }
 
-        # v1.9: Log cuando ADX confirma tendencia operativa
-        if adx >= 25:
-            logger.info(f"✅ PRE-FILTRO ADX [{symbol}]: ADX={adx:.1f} >= 25 (tendencia confirmada)")
+        # v2.2: Log cuando ADX confirma tendencia operativa
+        if adx >= min_adx:
+            logger.info(f"✅ PRE-FILTRO ADX [{symbol}]: ADX={adx:.1f} >= {min_adx} (tendencia confirmada)")
 
         # Pasó el pre-filtro, continuar al análisis de IA
         return None
@@ -460,8 +459,15 @@ RESPONDE:
 
     def _parse_ai_response(self, response_text: str) -> Dict[str, Any]:
         """
-        Parsea la respuesta de la IA y extrae el JSON.
-        v1.4: Usa Pydantic para validación robusta si está disponible.
+        v2.2: Parsea la respuesta de la IA con manejo ROBUSTO de JSON.
+        Usa Pydantic para validación si está disponible.
+
+        Soporta:
+        - JSON directo
+        - JSON dentro de bloques ```json
+        - JSON con texto adicional antes/después
+        - Modelos "reasoner" que ponen JSON al final de su razonamiento
+        - v2.2 NUEVO: Fallback inteligente para extraer decisiones de texto
 
         Args:
             response_text: Texto de respuesta de la IA
@@ -472,9 +478,15 @@ RESPONDE:
         # v1.4: Usar Pydantic si está disponible (más robusto)
         if PYDANTIC_AVAILABLE and parse_ai_response_safe:
             logger.debug("Usando parseo Pydantic para validación robusta")
-            return parse_ai_response_safe(response_text, TradingDecision, "ESPERA")
+            result = parse_ai_response_safe(response_text, TradingDecision, "ESPERA")
+            # v2.2: Si Pydantic falló, intentar fallback
+            if result.get('decision') == 'ESPERA' and result.get('confidence', 0) == 0:
+                fallback = self._fallback_text_parser(response_text)
+                if fallback.get('confidence', 0) > 0:
+                    return fallback
+            return result
 
-        # Fallback: método original con regex
+        # Fallback: método original con regex mejorado v2.2
         import re
 
         try:
@@ -516,15 +528,10 @@ RESPONDE:
                 if start_idx != -1 and end_idx > start_idx:
                     json_str = response_text[start_idx:end_idx]
 
+            # 4. v2.2 NUEVO: Fallback inteligente - extraer decisión de texto
             if not json_str:
-                logger.warning("No se encontró JSON en la respuesta de la IA")
-                logger.warning(f"Respuesta completa ({len(response_text)} chars): {response_text[:1000]}...")
-                return {
-                    "decision": "ESPERA",
-                    "confidence": 0.0,
-                    "razonamiento": "Error parseando respuesta de IA",
-                    "alertas": ["Formato de respuesta inválido"]
-                }
+                logger.warning("No se encontró JSON - Intentando fallback de texto")
+                return self._fallback_text_parser(response_text)
 
             decision_data = json.loads(json_str)
 
@@ -535,23 +542,73 @@ RESPONDE:
                     logger.warning(f"Campo requerido '{field}' no encontrado en respuesta")
                     decision_data[field] = "N/A"
 
-            # Normalizar la decisión
-            decision_data['decision'] = decision_data['decision'].upper()
-            if decision_data['decision'] not in ['COMPRA', 'VENTA', 'ESPERA']:
-                logger.warning(f"Decisión inválida: {decision_data['decision']}")
-                decision_data['decision'] = 'ESPERA'
+            # v2.2: Normalizar la decisión con mapeo de sinónimos
+            decision_data['decision'] = str(decision_data['decision']).upper()
+            decision_map = {
+                'COMPRA': 'COMPRA', 'BUY': 'COMPRA', 'LONG': 'COMPRA',
+                'VENTA': 'VENTA', 'SELL': 'VENTA', 'SHORT': 'VENTA',
+                'ESPERA': 'ESPERA', 'HOLD': 'ESPERA', 'WAIT': 'ESPERA', 'NEUTRAL': 'ESPERA'
+            }
+            decision_data['decision'] = decision_map.get(decision_data['decision'], 'ESPERA')
+
+            # v2.2: Validar y normalizar confidence
+            if 'confidence' in decision_data:
+                try:
+                    conf = float(decision_data['confidence'])
+                    decision_data['confidence'] = max(0.0, min(1.0, conf))
+                except (ValueError, TypeError):
+                    decision_data['confidence'] = 0.5
 
             return decision_data
 
         except json.JSONDecodeError as e:
             logger.error(f"Error parseando JSON de IA: {e}")
             logger.debug(f"Respuesta completa: {response_text}")
-            return {
-                "decision": "ESPERA",
-                "confidence": 0.0,
-                "razonamiento": "Error parseando respuesta JSON",
-                "alertas": [f"JSONDecodeError: {str(e)}"]
-            }
+            return self._fallback_text_parser(response_text)
+
+    def _fallback_text_parser(self, text: str) -> Dict[str, Any]:
+        """
+        v2.2: Fallback inteligente para extraer decisiones de texto libre.
+        Usa cuando el parsing JSON falla completamente.
+        """
+        text_lower = text.lower()
+
+        # Detectar decisión por palabras clave
+        decision = 'ESPERA'
+        confidence = 0.5
+
+        # Buscar señales de COMPRA
+        buy_keywords = ['compra', 'buy', 'long', 'bullish', 'alcista', 'subir', 'up', 'comprar']
+        sell_keywords = ['venta', 'sell', 'short', 'bearish', 'bajista', 'bajar', 'down', 'vender']
+        wait_keywords = ['espera', 'wait', 'hold', 'neutral', 'lateral', 'no operar', 'esperar']
+
+        buy_score = sum(1 for kw in buy_keywords if kw in text_lower)
+        sell_score = sum(1 for kw in sell_keywords if kw in text_lower)
+        wait_score = sum(1 for kw in wait_keywords if kw in text_lower)
+
+        if buy_score > sell_score and buy_score > wait_score:
+            decision = 'COMPRA'
+            confidence = min(0.7, 0.4 + buy_score * 0.1)
+        elif sell_score > buy_score and sell_score > wait_score:
+            decision = 'VENTA'
+            confidence = min(0.7, 0.4 + sell_score * 0.1)
+        else:
+            decision = 'ESPERA'
+            confidence = 0.3
+
+        # Extraer razonamiento (primeras 500 chars del texto)
+        razonamiento = text[:500] if len(text) > 500 else text
+        razonamiento = razonamiento.replace('\n', ' ').strip()
+
+        logger.info(f"🔄 Fallback parser: {decision} (conf: {confidence:.2f}) - buy:{buy_score} sell:{sell_score} wait:{wait_score}")
+
+        return {
+            "decision": decision,
+            "confidence": confidence,
+            "razonamiento": f"[Fallback] {razonamiento}",
+            "alertas": ["Respuesta parseada con fallback - confianza reducida"],
+            "analysis_type": "fallback_parser"
+        }
 
     def analyze_market_hybrid(self, market_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """

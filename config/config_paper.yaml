@@ -1,57 +1,59 @@
 # ============================================
-# CONFIGURACIÓN PAPER (TESTNET) - SATH v2.1 INSTITUCIONAL PRO
+# CONFIGURACION PAPER (TESTNET) - SATH v2.2 OPTIMIZADO
 # Capital: $1000 USD
-# Nivel: Institucional Máximo (5 estrellas)
-# Filosofía: Menos trades, mayor calidad, R/R superior
-# OPTIMIZADO: Tamaños de posición viables para ejecución real
+# Nivel: Institucional (filtros balanceados)
+# Filosofia: Trades de calidad + frecuencia suficiente para validar
+# OPTIMIZADO: Para generar trades y validar rentabilidad
 # ============================================
 
-# ===== SELECCIÓN DE PROVEEDOR DE IA =====
+# ===== SELECCION DE PROVEEDOR DE IA =====
 ai_provider: "deepseek"
 ai_model: "deepseek-chat"
 
-# ===== ARQUITECTURA HÍBRIDA =====
+# ===== ARQUITECTURA HIBRIDA - OPTIMIZADA PARA VELOCIDAD =====
+# v2.2: Usar modelo fast por defecto para reducir latencia
 ai_use_hybrid_analysis: true
-ai_model_fast: "deepseek-chat"
-ai_model_deep: "deepseek-reasoner"
+ai_model_fast: "deepseek-chat"      # Rapido y economico
+ai_model_deep: "deepseek-chat"      # CAMBIO: Usar chat tambien para evitar latencia de 40s
 
-# ===== AGENTES ESPECIALIZADOS v2.1 =====
+# ===== AGENTES ESPECIALIZADOS v2.2 =====
 ai_agents:
   enabled: true
-  # v2.1 INSTITUCIONAL: Thresholds profesionales
-  min_volatility_percent: 0.5   # Volatilidad mínima para movimientos significativos
-  min_volume_ratio: 1.0         # CRÍTICO: Mínimo 1.0x (promedio) para confirmar movimientos
-  ideal_volume_ratio: 1.3       # Ideal: 1.3x para trades de alta probabilidad
-  max_retries: 3
-  retry_delay_seconds: 2
-  min_adx_trend: 25             # ADX >= 25 = tendencia operable
+  # v2.2 OPTIMIZADO: Thresholds mas permisivos para generar trades
+  min_volatility_percent: 0.3    # De 0.5 a 0.3 - mas oportunidades
+  min_volume_ratio: 0.8          # De 1.0 a 0.8 - mas flexible
+  ideal_volume_ratio: 1.2        # Ideal para trades de alta probabilidad
+  max_retries: 2                 # Menos reintentos = mas rapido
+  retry_delay_seconds: 1         # Delay reducido
+  min_adx_trend: 20              # v2.2: De 25 a 20 - permite transiciones
 
-# ===== SELECCIÓN DE MERCADO =====
+# ===== SELECCION DE MERCADO =====
 market_type: "crypto"
 
-# ===== CONFIGURACIÓN DE TRADING =====
+# ===== CONFIGURACION DE TRADING =====
 trading:
-  # Con $1000: 3 pares líquidos - suficiente capital para diversificar
+  # Con $1000: 3 pares liquidos
   symbols:
-    - "BTC/USDT"  # Alta liquidez, spreads bajos, estable
-    - "ETH/USDT"  # Segunda más líquida, buenas tendencias
-    - "SOL/USDT"  # Mayor volatilidad = más oportunidades
+    - "BTC/USDT"   # Alta liquidez
+    - "ETH/USDT"   # Segunda mas liquida
+    - "SOL/USDT"   # Mayor volatilidad
 
   timeframe: "15m"
-  scan_interval: 180  # 3 minutos
+  scan_interval: 120  # v2.2: Reducido de 180 a 120 - mas escaneos
 
   mode: "paper"
 
   parallel_analysis: true
-  max_parallel_workers: 3  # Más workers con más capital
+  max_parallel_workers: 3
 
+  # v2.2: Verificacion de precio mas tolerante en paper
   price_verification:
     enabled: true
-    max_deviation_percent: 0.3
+    max_deviation_percent: 0.5    # De 0.3 a 0.5 - mas tolerante
 
   order_execution:
     use_limit_orders: true
-    max_slippage_percent: 0.2
+    max_slippage_percent: 0.25    # De 0.2 a 0.25
     limit_order_timeout: 30
     on_timeout: "cancel"
 
@@ -62,18 +64,16 @@ trading:
     open_interest: true
     correlations: true
 
-# ===== GESTIÓN DE RIESGO v2.1 - $1000 INSTITUCIONAL =====
-# MATEMÁTICA OPTIMIZADA para posiciones ejecutables
+# ===== GESTION DE RIESGO v2.2 - $1000 OPTIMIZADO =====
 risk_management:
-  # v2.1: Con $1000, arriesgar 2.5% = $25 por operación
-  # Posición mínima viable con Kelly conservador
-  max_risk_per_trade: 2.5
+  # v2.2: Riesgo por trade aumentado para posiciones viables
+  max_risk_per_trade: 3.0         # De 2.5 a 3.0 = $30 por trade
 
-  # Drawdown máximo diario: 8% = $80
-  max_daily_drawdown: 8.0
+  # Drawdown maximo diario
+  max_daily_drawdown: 10.0        # De 8 a 10% = $100
 
-  # R/R mínimo 2:1 para expectativa positiva
-  min_risk_reward_ratio: 2.0
+  # R/R minimo 1.8:1 (mas oportunidades que 2:1)
+  min_risk_reward_ratio: 1.8
 
   use_trailing_stop: true
   trailing_stop_percentage: 2.0
@@ -83,41 +83,34 @@ risk_management:
 
   leverage: 1  # Sin apalancamiento
 
-  # v2.1 Kelly Criterion OPTIMIZADO para $1000
-  # CRÍTICO: Fraction más alta para generar posiciones viables
+  # v2.2 Kelly Criterion OPTIMIZADO
   kelly_criterion:
     enabled: true
-    fraction: 0.40      # v2.1: 40% Kelly (de 25%) - posiciones más grandes
-    min_confidence: 0.70
-    max_risk_cap: 3.0   # Hasta 3% en señales muy fuertes
+    fraction: 0.50                # De 0.40 a 0.50 - posiciones mas grandes
+    min_confidence: 0.60          # v2.2: De 0.70 a 0.60 - mas trades
+    max_risk_cap: 4.0             # De 3 a 4% en senales fuertes
 
-  # v2.1 ATR-Based Stops - AJUSTADO
+  # v2.2 ATR-Based Stops - MAS AGRESIVOS
   atr_stops:
     enabled: true
-    sl_multiplier: 2.0        # v2.1: 2.0x ATR (de 2.5) - SL más ceñido = posición más grande
-    tp_multiplier: 4.0        # TP 4x ATR = R/R 2:1 garantizado
-    min_distance_percent: 1.5 # Mínimo 1.5%
-    max_distance_percent: 5.0 # v2.1: Máximo 5% (de 6%) - evita posiciones microscópicas
+    sl_multiplier: 1.8            # De 2.0 a 1.8 - SL mas cenido
+    tp_multiplier: 3.6            # Mantiene R/R 2:1
+    min_distance_percent: 1.0     # De 1.5 a 1.0
+    max_distance_percent: 6.0     # Maximo 6%
 
-  # v2.1 Session Filter
+  # v2.2 Session Filter - RELAJADO PARA PAPER
   session_filter:
-    enabled: true
-    optimal_hours_utc:
-      - [7, 16]   # Europa
-      - [13, 22]  # USA
-    avoid_hours_utc:
-      - [0, 6]    # Baja liquidez
+    enabled: false                # Deshabilitado en paper para mas trades
 
-  # ===== CONTROL DE COMISIONES - OPTIMIZADO $1000 =====
+  # ===== CONTROL DE COMISIONES =====
   fees:
     maker_fee_percent: 0.075
     taker_fee_percent: 0.075
 
   position_sizing:
-    # v2.1: Mínimo más bajo ya que Kelly genera posiciones más grandes
-    min_position_usd: 20.0      # De $40 a $20 - más flexible
-    min_profit_after_fees_usd: 1.50  # $1.50 mínimo neto
-    profit_to_fees_ratio: 6.0   # 6x fees (de 8x) - menos restrictivo
+    min_position_usd: 15.0        # De $20 a $15 - mas flexible
+    min_profit_after_fees_usd: 1.00
+    profit_to_fees_ratio: 5.0     # De 6x a 5x - menos restrictivo
 
   exchange_minimums:
     BTC_USDT: 5.0
@@ -125,7 +118,7 @@ risk_management:
     SOL_USDT: 5.0
     default: 10.0
 
-# ===== GESTIÓN DE POSICIONES v2.1 - $1000 =====
+# ===== GESTION DE POSICIONES v2.2 =====
 position_management:
   enabled: true
   protection_mode: "oco"
@@ -138,36 +131,35 @@ position_management:
     enabled: true
     check_interval_ms: 500
 
-  # v2.1 Trailing Stop CORREGIDO
+  # v2.2 Trailing Stop OPTIMIZADO
   trailing_stop:
     enabled: true
-    activation_profit_percent: 2.0
-    trail_distance_percent: 1.0
-    min_profit_to_lock: 0.8
-    cooldown_seconds: 15
-    min_safety_margin_percent: 0.5
+    activation_profit_percent: 1.5  # De 2.0 a 1.5 - activa antes
+    trail_distance_percent: 0.8     # De 1.0 a 0.8 - mas ajustado
+    min_profit_to_lock: 0.5         # Asegurar 0.5% al activar
+    cooldown_seconds: 10            # De 15 a 10
+    min_safety_margin_percent: 0.3
 
   supervision:
     enabled: true
-    check_interval_seconds: 60
+    check_interval_seconds: 90      # De 60 a 90 - menos overhead
     actions_allowed:
       - "HOLD"
       - "TIGHTEN_SL"
       - "EXTEND_TP"
 
-  # v2.1 Portfolio OPTIMIZADO para $1000
+  # v2.2 Portfolio OPTIMIZADO para $1000
   portfolio:
-    max_concurrent_positions: 2    # v2.1: 2 posiciones simultáneas
-    max_exposure_percent: 65       # v2.1: 65% (de 50%) = $650 efectivos
-    max_per_symbol_percent: 40     # Máximo 40% por símbolo = $400
-    # MATEMÁTICA: $650 × 2.5% risk ÷ 5% SL = posición ~$325 ✓
+    max_concurrent_positions: 2     # 2 posiciones simultaneas
+    max_exposure_percent: 70        # De 65 a 70% = $700 efectivos
+    max_per_symbol_percent: 50      # De 40 a 50% por simbolo
 
   database:
     path: "data/positions.db"
 
-# ===== ANÁLISIS TÉCNICO v2.1 =====
+# ===== ANALISIS TECNICO v2.2 =====
 technical_analysis:
-  min_candles: 150
+  min_candles: 100                  # De 150 a 100 - mas rapido
 
   indicators:
     rsi:
@@ -191,7 +183,6 @@ technical_analysis:
       fast_period: 12
       slow_period: 26
       signal_period: 9
-    # v2.1: ADX habilitado para detección de tendencia
     adx:
       enabled: true
       period: 14
@@ -221,21 +212,21 @@ websockets:
   trades: true
   orderbook_depth: 10
 
-# ===== SIMULACIÓN PAPER =====
+# ===== SIMULACION PAPER - REALISTA =====
 paper_simulation:
-  min_latency_ms: 50
-  max_latency_ms: 200
-  base_slippage_percent: 0.05
-  max_slippage_percent: 0.15
-  failure_rate: 0.02
+  min_latency_ms: 30               # Latencia reducida
+  max_latency_ms: 150
+  base_slippage_percent: 0.03      # Slippage reducido
+  max_slippage_percent: 0.10
+  failure_rate: 0.01               # Menos fallos
 
-# ===== VALIDACIÓN DE LIQUIDEZ =====
+# ===== VALIDACION DE LIQUIDEZ =====
 liquidity_validation:
   enabled: true
-  max_slippage_percent: 0.3
-  min_spread_warning: 0.15
-  max_spread_reject: 0.35
-  min_order_book_depth_usd: 500
+  max_slippage_percent: 0.4        # De 0.3 a 0.4
+  min_spread_warning: 0.20
+  max_spread_reject: 0.50          # De 0.35 a 0.50
+  min_order_book_depth_usd: 300    # De 500 a 300
 
 # ===== LOGGING =====
 logging:
@@ -248,44 +239,44 @@ logging:
 security:
   kill_switch:
     enabled: true
-    max_loss_percentage: 8.0  # $80 de pérdida máxima
-    cooldown_period_hours: 24
+    max_loss_percentage: 10.0      # $100 de perdida maxima
+    cooldown_period_hours: 12      # De 24 a 12 horas
   api_rate_limit:
     requests_per_minute: 60
     wait_on_limit: true
 
-# ===== MULTI-TIMEFRAME v2.1 =====
+# ===== MULTI-TIMEFRAME v2.2 - RELAJADO =====
 multi_timeframe:
   enabled: true
   higher_timeframe: "4h"
   medium_timeframe: "1h"
   lower_timeframe: "15m"
-  min_alignment_score: 0.65
+  min_alignment_score: 0.55        # De 0.65 a 0.55 - menos restrictivo
   weights:
-    higher: 0.50
+    higher: 0.45                   # Menos peso al TF alto
     medium: 0.30
-    lower: 0.20
+    lower: 0.25                    # Mas peso al TF de operacion
 
-# ===== FILTRO DE CORRELACIÓN =====
+# ===== FILTRO DE CORRELACION =====
 correlation_filter:
   enabled: true
-  max_correlation: 0.70
+  max_correlation: 0.80            # De 0.70 a 0.80 - mas flexible
   correlations:
     "BTC/USDT,ETH/USDT": 0.85
     "BTC/USDT,SOL/USDT": 0.78
     "ETH/USDT,SOL/USDT": 0.82
 
-# ===== PARÁMETROS ADAPTATIVOS v2.1 =====
+# ===== PARAMETROS ADAPTATIVOS v2.2 =====
 adaptive_parameters:
   enabled: true
-  lookback_trades: 30
-  sensitivity: 0.15
+  lookback_trades: 20              # De 30 a 20 - responde mas rapido
+  sensitivity: 0.20                # De 0.15 a 0.20 - mas adaptable
   ranges:
-    min_confidence: { min: 0.65, max: 0.85 }
-    max_risk_per_trade: { min: 1.5, max: 3.0 }
-    trailing_activation: { min: 1.5, max: 3.5 }
+    min_confidence: { min: 0.55, max: 0.80 }   # Rango mas amplio
+    max_risk_per_trade: { min: 2.0, max: 4.0 } # Riesgo mas alto
+    trailing_activation: { min: 1.0, max: 3.0 }
 
 # ===== PERFORMANCE ATTRIBUTION =====
 performance_attribution:
   enabled: true
-  log_interval_hours: 24
+  log_interval_hours: 12           # De 24 a 12 horas

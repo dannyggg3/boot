@@ -25,6 +25,9 @@ from typing import Dict, Any, Optional
 from datetime import datetime
 import json
 import os
+import sqlite3
+from contextlib import contextmanager
+import threading
 
 logger = logging.getLogger(__name__)
 
@@ -113,10 +116,15 @@ class RiskManager:
         self.use_session_filter = session_config.get('enabled', False)
         self.optimal_hours_utc = session_config.get('optimal_hours_utc', [[7, 16], [13, 22]])  # Europa y USA
 
+        # v2.2: Inicializar base de datos SQLite para persistencia atómica
+        self.db_path = 'data/risk_manager.db'
+        self._db_lock = threading.Lock()
+        self._init_database()
+
         # Cargar estado si existe
         self._load_state()
 
-        logger.info(f"Risk Manager v1.8 INSTITUCIONAL inicializado")
+        logger.info(f"Risk Manager v2.2 INSTITUCIONAL inicializado (SQLite atómico)")
         logger.info(f"  Capital: ${self.current_capital}")
         logger.info(f"  ATR Stops: {'ON' if self.use_atr_stops else 'OFF'} (SL: {self.atr_sl_multiplier}x ATR, TP: {self.atr_tp_multiplier}x ATR)")
         logger.info(f"  Kelly Criterion: {'ON' if self.use_kelly_criterion else 'OFF'} (fraction: {self.kelly_fraction})")
@@ -683,91 +691,285 @@ class RiskManager:
                 return min(new_stop, initial_stop_loss)
             return initial_stop_loss
 
+    # ==================== v2.2: PERSISTENCIA SQLITE ATÓMICA ====================
+
+    @contextmanager
+    def _get_connection(self):
+        """
+        v2.2: Context manager para conexiones SQLite thread-safe.
+        Garantiza transacciones atómicas - si algo falla, se hace rollback.
+        """
+        conn = sqlite3.connect(self.db_path, timeout=30)
+        conn.row_factory = sqlite3.Row
+        try:
+            yield conn
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            raise e
+        finally:
+            conn.close()
+
+    def _init_database(self):
+        """
+        v2.2: Inicializa la base de datos SQLite para persistencia atómica.
+        Reemplaza el archivo JSON que era vulnerable a corrupción.
+        """
+        os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
+
+        with self._db_lock:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+
+                # Tabla principal de estado
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS risk_state (
+                        id INTEGER PRIMARY KEY CHECK (id = 1),
+                        current_capital REAL NOT NULL,
+                        initial_capital REAL NOT NULL,
+                        daily_pnl REAL DEFAULT 0,
+                        today TEXT NOT NULL,
+                        kill_switch_active INTEGER DEFAULT 0,
+                        high_water_mark REAL DEFAULT 0,
+                        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+
+                # Tabla de historial para Kelly Criterion
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS trade_history_kelly (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        wins INTEGER DEFAULT 0,
+                        losses INTEGER DEFAULT 0,
+                        total_win_amount REAL DEFAULT 0,
+                        total_loss_amount REAL DEFAULT 0,
+                        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+
+                # Tabla de resultados recientes (para tracking de rachas)
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS recent_results (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        result TEXT NOT NULL,
+                        pnl REAL DEFAULT 0,
+                        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+
+                # Tabla de trades abiertos
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS open_trades (
+                        id TEXT PRIMARY KEY,
+                        symbol TEXT NOT NULL,
+                        data TEXT,
+                        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+
+                # Crear índice para resultados recientes
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_recent_results_created
+                    ON recent_results(created_at DESC)
+                """)
+
+                logger.debug("Base de datos SQLite para Risk Manager inicializada")
+
     def _save_state(self):
         """
-        v1.8 INSTITUCIONAL: Guarda el estado completo del risk manager.
+        v2.2 INSTITUCIONAL: Guarda el estado en SQLite con transacción atómica.
 
-        CRÍTICO: Incluye historial de trades y resultados recientes para:
-        - Kelly Criterion con probabilidades reales
-        - Tracking de rachas para ajustes adaptativos
+        CRÍTICO: A diferencia del JSON, esto es ATÓMICO:
+        - Si el bot crashea durante la escritura, el estado anterior se mantiene
+        - No hay riesgo de corrupción de datos
+        - El historial de Kelly se preserva siempre
         """
-        state = {
-            'current_capital': self.current_capital,
-            'daily_pnl': self.daily_pnl,
-            'today': str(self.today),
-            'kill_switch_active': self.kill_switch_active,
-            'open_trades': self.open_trades,
-            'trade_history': self.trade_history,  # v1.4: Persistir historial para Kelly
-            'recent_results': getattr(self, 'recent_results', [])[-20:]  # v1.8: Últimos 20 resultados
-        }
+        with self._db_lock:
+            try:
+                with self._get_connection() as conn:
+                    cursor = conn.cursor()
 
-        state_file = 'data/risk_manager_state.json'
-        os.makedirs('data', exist_ok=True)
+                    # Upsert estado principal (INSERT OR REPLACE)
+                    cursor.execute("""
+                        INSERT OR REPLACE INTO risk_state
+                        (id, current_capital, initial_capital, daily_pnl, today,
+                         kill_switch_active, high_water_mark, updated_at)
+                        VALUES (1, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        self.current_capital,
+                        self.initial_capital,
+                        self.daily_pnl,
+                        str(self.today),
+                        1 if self.kill_switch_active else 0,
+                        getattr(self, 'high_water_mark', self.current_capital),
+                        datetime.now().isoformat()
+                    ))
 
-        try:
-            with open(state_file, 'w') as f:
-                json.dump(state, f, indent=2)
-            logger.debug("Estado del risk manager guardado (incluyendo Kelly historial)")
-        except Exception as e:
-            logger.error(f"Error guardando estado: {e}")
+                    # Upsert historial de Kelly
+                    cursor.execute("""
+                        INSERT OR REPLACE INTO trade_history_kelly
+                        (id, wins, losses, total_win_amount, total_loss_amount, updated_at)
+                        VALUES (1, ?, ?, ?, ?, ?)
+                    """, (
+                        self.trade_history['wins'],
+                        self.trade_history['losses'],
+                        self.trade_history['total_win_amount'],
+                        self.trade_history['total_loss_amount'],
+                        datetime.now().isoformat()
+                    ))
+
+                logger.debug("Estado guardado en SQLite (atómico)")
+
+            except Exception as e:
+                logger.error(f"Error guardando estado en SQLite: {e}")
 
     def _load_state(self):
         """
-        v1.8 INSTITUCIONAL: Carga el estado del risk manager incluyendo historial completo.
+        v2.2 INSTITUCIONAL: Carga el estado del risk manager desde SQLite.
 
         CRÍTICO para Kelly Criterion: El historial de trades debe persistir entre reinicios
         para que Kelly pueda calcular probabilidades reales basadas en rendimiento histórico.
-        """
-        state_file = 'data/risk_manager_state.json'
 
-        if not os.path.exists(state_file):
-            logger.info("No se encontró estado previo - Usando valores por defecto")
-            # Inicializar recent_results para tracking de rachas
-            self.recent_results = []
+        También intenta migrar datos del JSON antiguo si existe.
+        """
+        self.recent_results = []
+        self.high_water_mark = self.initial_capital
+
+        # Primero intentar migrar JSON antiguo si existe
+        self._migrate_from_json()
+
+        with self._db_lock:
+            try:
+                with self._get_connection() as conn:
+                    cursor = conn.cursor()
+
+                    # Cargar estado principal
+                    cursor.execute("SELECT * FROM risk_state WHERE id = 1")
+                    state_row = cursor.fetchone()
+
+                    if state_row:
+                        self.current_capital = state_row['current_capital']
+                        self.daily_pnl = state_row['daily_pnl']
+                        self.kill_switch_active = bool(state_row['kill_switch_active'])
+                        self.high_water_mark = state_row['high_water_mark'] or self.current_capital
+
+                        # Verificar si es un nuevo día
+                        saved_date = datetime.strptime(state_row['today'], '%Y-%m-%d').date()
+                        if saved_date != self.today:
+                            self.daily_pnl = 0.0
+                            self.kill_switch_active = False
+                    else:
+                        logger.info("No se encontró estado previo - Usando valores por defecto")
+
+                    # Cargar historial de Kelly
+                    cursor.execute("SELECT * FROM trade_history_kelly WHERE id = 1")
+                    kelly_row = cursor.fetchone()
+
+                    if kelly_row:
+                        self.trade_history = {
+                            'wins': kelly_row['wins'],
+                            'losses': kelly_row['losses'],
+                            'total_win_amount': kelly_row['total_win_amount'],
+                            'total_loss_amount': kelly_row['total_loss_amount']
+                        }
+
+                    # Cargar resultados recientes (últimos 20)
+                    cursor.execute("""
+                        SELECT result FROM recent_results
+                        ORDER BY created_at DESC LIMIT 20
+                    """)
+                    self.recent_results = [row['result'] for row in cursor.fetchall()]
+                    self.recent_results.reverse()  # Orden cronológico
+
+                # Log del estado cargado
+                total_trades = self.trade_history['wins'] + self.trade_history['losses']
+                win_rate = self._get_win_rate()
+                logger.info(f"📊 Estado cargado (SQLite) - Capital: ${self.current_capital:.2f}")
+                logger.info(f"📊 Kelly Historial: {total_trades} trades ({self.trade_history['wins']}W/{self.trade_history['losses']}L = {win_rate*100:.1f}%)")
+
+                if total_trades > 0:
+                    avg_win = self.trade_history['total_win_amount'] / max(1, self.trade_history['wins'])
+                    avg_loss = self.trade_history['total_loss_amount'] / max(1, self.trade_history['losses'])
+                    if avg_loss > 0:
+                        actual_rr = avg_win / avg_loss
+                        logger.info(f"📊 Kelly Stats: Avg Win ${avg_win:.2f}, Avg Loss ${avg_loss:.2f}, R/R Real {actual_rr:.2f}")
+
+            except Exception as e:
+                logger.error(f"Error cargando estado desde SQLite: {e}")
+
+    def _migrate_from_json(self):
+        """
+        v2.2: Migra datos del archivo JSON antiguo a SQLite (una sola vez).
+        Preserva el historial de Kelly y capital existente.
+        """
+        json_file = 'data/risk_manager_state.json'
+        migrated_flag = 'data/.risk_manager_migrated'
+
+        # Si ya migramos, no hacer nada
+        if os.path.exists(migrated_flag):
+            return
+
+        if not os.path.exists(json_file):
             return
 
         try:
-            with open(state_file, 'r') as f:
-                state = json.load(f)
+            with open(json_file, 'r') as f:
+                old_state = json.load(f)
 
-            self.current_capital = state.get('current_capital', self.initial_capital)
-            self.daily_pnl = state.get('daily_pnl', 0.0)
-            self.kill_switch_active = state.get('kill_switch_active', False)
-            self.open_trades = state.get('open_trades', [])
+            logger.info("🔄 Migrando datos de JSON a SQLite...")
 
-            # v1.8 CRÍTICO: Cargar historial COMPLETO para Kelly Criterion
-            self.trade_history = state.get('trade_history', {
-                'wins': 0,
-                'losses': 0,
-                'total_win_amount': 0.0,
-                'total_loss_amount': 0.0
-            })
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
 
-            # v1.8: Cargar resultados recientes para tracking de rachas
-            self.recent_results = state.get('recent_results', [])
+                # Migrar estado principal
+                cursor.execute("""
+                    INSERT OR REPLACE INTO risk_state
+                    (id, current_capital, initial_capital, daily_pnl, today,
+                     kill_switch_active, high_water_mark, updated_at)
+                    VALUES (1, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    old_state.get('current_capital', self.initial_capital),
+                    self.initial_capital,
+                    old_state.get('daily_pnl', 0),
+                    old_state.get('today', str(self.today)),
+                    1 if old_state.get('kill_switch_active') else 0,
+                    old_state.get('current_capital', self.initial_capital),
+                    datetime.now().isoformat()
+                ))
 
-            # Verificar si es un nuevo día
-            saved_date = datetime.strptime(state.get('today', str(self.today)), '%Y-%m-%d').date()
-            if saved_date != self.today:
-                self.daily_pnl = 0.0
-                self.kill_switch_active = False
+                # Migrar historial de Kelly
+                trade_hist = old_state.get('trade_history', {})
+                cursor.execute("""
+                    INSERT OR REPLACE INTO trade_history_kelly
+                    (id, wins, losses, total_win_amount, total_loss_amount, updated_at)
+                    VALUES (1, ?, ?, ?, ?, ?)
+                """, (
+                    trade_hist.get('wins', 0),
+                    trade_hist.get('losses', 0),
+                    trade_hist.get('total_win_amount', 0),
+                    trade_hist.get('total_loss_amount', 0),
+                    datetime.now().isoformat()
+                ))
 
-            # v1.8: Log detallado del historial cargado
-            total_trades = self.trade_history['wins'] + self.trade_history['losses']
-            win_rate = self._get_win_rate()
-            logger.info(f"📊 Estado cargado - Capital: ${self.current_capital:.2f}")
-            logger.info(f"📊 Kelly Historial: {total_trades} trades ({self.trade_history['wins']}W/{self.trade_history['losses']}L = {win_rate*100:.1f}%)")
+                # Migrar resultados recientes
+                recent = old_state.get('recent_results', [])
+                for result in recent[-20:]:
+                    cursor.execute("""
+                        INSERT INTO recent_results (result) VALUES (?)
+                    """, (result,))
 
-            if total_trades > 0:
-                avg_win = self.trade_history['total_win_amount'] / max(1, self.trade_history['wins'])
-                avg_loss = self.trade_history['total_loss_amount'] / max(1, self.trade_history['losses'])
-                if avg_loss > 0:
-                    actual_rr = avg_win / avg_loss
-                    logger.info(f"📊 Kelly Stats: Avg Win ${avg_win:.2f}, Avg Loss ${avg_loss:.2f}, R/R Real {actual_rr:.2f}")
+            # Marcar como migrado
+            with open(migrated_flag, 'w') as f:
+                f.write(datetime.now().isoformat())
+
+            # Renombrar JSON antiguo como backup
+            backup_file = json_file + '.backup'
+            os.rename(json_file, backup_file)
+
+            logger.info(f"✅ Migración completada. JSON movido a {backup_file}")
 
         except Exception as e:
-            logger.error(f"Error cargando estado: {e}")
-            self.recent_results = []
+            logger.error(f"Error en migración JSON→SQLite: {e}")
 
     def get_status(self) -> Dict[str, Any]:
         """
@@ -953,21 +1155,41 @@ class RiskManager:
 
         return streak
 
-    def record_trade_result(self, is_win: bool):
+    def record_trade_result(self, is_win: bool, pnl: float = 0):
         """
-        v1.7: Registra resultado de trade para tracking de rachas.
+        v2.2: Registra resultado de trade en SQLite para tracking de rachas.
 
         Args:
             is_win: True si el trade fue ganador
+            pnl: PnL del trade (opcional)
         """
         if not hasattr(self, 'recent_results'):
             self.recent_results = []
 
-        self.recent_results.append('win' if is_win else 'loss')
+        result = 'win' if is_win else 'loss'
+        self.recent_results.append(result)
 
-        # Mantener solo los últimos 20 resultados
+        # Mantener solo los últimos 20 resultados en memoria
         if len(self.recent_results) > 20:
             self.recent_results = self.recent_results[-20:]
+
+        # v2.2: Guardar en SQLite
+        with self._db_lock:
+            try:
+                with self._get_connection() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("""
+                        INSERT INTO recent_results (result, pnl) VALUES (?, ?)
+                    """, (result, pnl))
+
+                    # Limpiar resultados antiguos (mantener solo últimos 50)
+                    cursor.execute("""
+                        DELETE FROM recent_results WHERE id NOT IN (
+                            SELECT id FROM recent_results ORDER BY created_at DESC LIMIT 50
+                        )
+                    """)
+            except Exception as e:
+                logger.error(f"Error guardando resultado en SQLite: {e}")
 
     def _get_win_rate(self) -> float:
         """Calcula el win rate histórico."""
