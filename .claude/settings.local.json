@@ -27,7 +27,8 @@
       "Bash(git commit:*)",
       "Bash(ssh root@vps-e29bf455 \"docker ps -a --format ''table {{.Names}}\\t{{.Status}}\\t{{.Ports}}''\")",
       "Bash(ssh root@vps-e29bf455:*)",
-      "Bash(pip install:*)"
+      "Bash(pip install:*)",
+      "Bash(grep:*)"
     ],
     "deny": [],
     "ask": []

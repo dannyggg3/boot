@@ -1,7 +1,7 @@
 # Diccionario Completo de Trading - SATH Bot
 
 > **Guía educativa completa** para entender trading algorítmico desde cero.
-> Documento creado para el proyecto SATH (Smart Adaptive Trading Helper) v1.7+
+> Documento creado para el proyecto SATH (Smart Adaptive Trading Helper) v2.2+
 
 ---
 

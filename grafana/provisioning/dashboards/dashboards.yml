@@ -1,10 +1,10 @@
 apiVersion: 1
 
 providers:
-  # SATH v1.7+ - Dashboards Institucionales Separados
+  # SATH v2.2 - Dashboards Institucionales Separados
   - name: 'SATH Institutional Dashboards'
     orgId: 1
-    folder: 'SATH Trading v1.7+'
+    folder: 'SATH Trading v2.2'
     folderUid: 'sath-institutional'
     type: file
     disableDeletion: false

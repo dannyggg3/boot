@@ -59,8 +59,8 @@ class AdaptiveParameterManager:
     4. Drawdown actual
     """
 
-    # Rangos permitidos para cada parámetro
-    PARAMETER_RANGES = {
+    # Rangos permitidos por defecto (pueden ser sobreescritos por config)
+    DEFAULT_RANGES = {
         'min_confidence': {'min': 0.50, 'max': 0.80, 'default': 0.65},
         'trailing_activation': {'min': 1.0, 'max': 4.0, 'default': 2.0},
         'max_risk_per_trade': {'min': 0.5, 'max': 2.0, 'default': 1.0},
@@ -81,6 +81,24 @@ class AdaptiveParameterManager:
         adaptive_config = config.get('adaptive_parameters', {})
         self.enabled = adaptive_config.get('enabled', True)
 
+        # v2.2.1: Cargar rangos desde config o usar defaults
+        config_ranges = adaptive_config.get('ranges', {})
+        self.PARAMETER_RANGES = {}
+        for param, defaults in self.DEFAULT_RANGES.items():
+            if param in config_ranges:
+                self.PARAMETER_RANGES[param] = {
+                    'min': config_ranges[param].get('min', defaults['min']),
+                    'max': config_ranges[param].get('max', defaults['max']),
+                    'default': defaults['default']
+                }
+            else:
+                self.PARAMETER_RANGES[param] = defaults.copy()
+
+        # v2.2.1: Default min_confidence configurable
+        default_conf = adaptive_config.get('default_min_confidence',
+                                           self.PARAMETER_RANGES['min_confidence']['default'])
+        self.PARAMETER_RANGES['min_confidence']['default'] = default_conf
+
         # Número de trades para calcular métricas
         self.lookback_trades = adaptive_config.get('lookback_trades', 20)
 
@@ -90,15 +108,16 @@ class AdaptiveParameterManager:
         # Historial de trades recientes
         self.trade_history: List[Dict[str, Any]] = []
 
-        # Estado actual
-        self.state = AdaptiveState()
+        # Estado actual con min_confidence desde config
+        self.state = AdaptiveState(min_confidence=default_conf)
 
-        # Cargar estado persistido
+        # Cargar estado persistido (si existe, sobreescribe el default)
         self._load_state()
 
         logger.info(f"Adaptive Parameters: enabled={self.enabled}")
         logger.info(f"  Lookback: {self.lookback_trades} trades")
         logger.info(f"  Sensitivity: {self.adjustment_sensitivity}")
+        logger.info(f"  Min confidence range: {self.PARAMETER_RANGES['min_confidence']}")
 
     def record_trade_result(
         self,

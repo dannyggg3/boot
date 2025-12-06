@@ -1,4 +1,4 @@
-# Guía de Despliegue - SATH v1.3 Live Trading
+# Guía de Despliegue - SATH v2.2 Live Trading
 
 ## Pre-requisitos
 

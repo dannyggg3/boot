@@ -1,5 +1,5 @@
 # ============================================
-# SATH v1.6 - Docker Compose DEFAULT
+# SATH v2.2 - Docker Compose DEFAULT
 # Usa config_live.yaml por defecto
 # Para paper trading: docker-compose.paper.yml
 # ============================================

@@ -955,68 +955,95 @@ SÉ EXTREMADAMENTE CONSERVADOR. Mejor perder una oportunidad que perder dinero.
         advanced_data: Optional[Dict[str, Any]] = None
     ) -> Optional[Dict[str, Any]]:
         """
-        AGENTE DE TENDENCIA: Busca entradas de continuación en retrocesos.
-        Solo opera cuando el precio está en tendencia clara (sobre/bajo EMA 200).
+        AGENTE DE TENDENCIA v2.2.1: Pre-calcula criterios para evitar errores de IA.
         """
         symbol = market_data.get('symbol', 'N/A')
         logger.info(f"🚀 AGENTE DE TENDENCIA activado para {symbol}")
 
-        # Construir contexto de datos avanzados
-        advanced_context = self._build_advanced_context(advanced_data)
-
-        # v2.0: Calcular niveles ATR para guiar a la IA
-        atr = market_data.get('atr', 0)
-        atr_percent = market_data.get('atr_percent', 0)
+        # Extraer datos
         current_price = market_data.get('current_price', 0)
-        sl_distance = atr * 2.5 if atr else current_price * 0.02
-        tp_distance = atr * 5.0 if atr else current_price * 0.04
+        ema_200 = market_data.get('ema_200', 0)
+        rsi = market_data.get('rsi', 50)
+        macd = market_data.get('macd', 0)
+        macd_signal = market_data.get('macd_signal', 0)
+        volume_ratio = market_data.get('volume_ratio', 0)
 
-        prompt = f"""
-Eres un AGENTE DE TENDENCIA INSTITUCIONAL. Capital LIMITADO ($300).
-SOLO operas señales de ALTA PROBABILIDAD. Es mejor NO operar que perder.
+        # v2.2.1: PRE-CALCULAR criterios (evita errores de la IA)
+        price_above_ema = current_price > ema_200
+        price_below_ema = current_price < ema_200
+        rsi_in_range = 35 <= rsi <= 65
+        macd_bullish = macd > macd_signal
+        macd_bearish = macd < macd_signal
+        volume_ok = volume_ratio > 0.7
 
-=== REGLAS DE ENTRADA (ESTRICTAS) ===
-1. SOLO a FAVOR de tendencia: precio > EMA200 = COMPRA, precio < EMA200 = VENTA
-2. RSI debe estar entre 35-65 para entrar (evitar extremos)
-3. MACD debe confirmar la dirección (MACD > Signal para COMPRA)
-4. Volumen ratio > 0.7 (liquidez suficiente)
-5. Si hay CUALQUIER duda → ESPERA
+        # Evaluar COMPRA
+        buy_criteria = [price_above_ema, rsi_in_range, macd_bullish, volume_ok]
+        buy_score = sum(buy_criteria)
+        all_buy = all(buy_criteria)
 
-=== DATOS DEL MERCADO: {symbol} ===
-Precio: ${current_price:,.2f}
-EMA 50: ${market_data.get('ema_50', 0):,.2f} | EMA 200: ${market_data.get('ema_200', 0):,.2f}
-RSI: {market_data.get('rsi', 50):.1f}
-MACD: {market_data.get('macd', 0):.4f} | Signal: {market_data.get('macd_signal', 0):.4f}
-Volumen Ratio: {market_data.get('volume_ratio', 0):.2f}x
+        # Evaluar VENTA
+        sell_criteria = [price_below_ema, rsi_in_range, macd_bearish, volume_ok]
+        sell_score = sum(sell_criteria)
+        all_sell = all(sell_criteria)
 
-=== VOLATILIDAD (CRÍTICO) ===
-ATR: ${atr:.2f} ({atr_percent:.2f}%)
-SL mínimo recomendado: ${sl_distance:.2f} del precio (2.5x ATR)
-TP mínimo recomendado: ${tp_distance:.2f} del precio (5x ATR = R/R 2:1)
+        # v2.2.1: DECISIÓN DIRECTA si criterios son claros (ahorra llamada a API)
+        if all_buy:
+            decision = "COMPRA"
+            confidence = 0.75
+            razonamiento = f"4/4 criterios COMPRA: Precio>${ema_200:.0f}, RSI={rsi:.0f}, MACD>{macd_signal:.2f}, Vol={volume_ratio:.1f}x"
+            logger.info(f"⚡ {symbol}: COMPRA directa (4/4 criterios) - $0 API")
+            return {
+                "decision": decision,
+                "confidence": confidence,
+                "razonamiento": razonamiento,
+                "alertas": [],
+                "analysis_type": "trend_agent_direct",
+                "agent_type": "trend_agent"
+            }
+
+        if all_sell:
+            decision = "VENTA"
+            confidence = 0.75
+            razonamiento = f"4/4 criterios VENTA: Precio<${ema_200:.0f}, RSI={rsi:.0f}, MACD<{macd_signal:.2f}, Vol={volume_ratio:.1f}x"
+            logger.info(f"⚡ {symbol}: VENTA directa (4/4 criterios) - $0 API")
+            return {
+                "decision": decision,
+                "confidence": confidence,
+                "razonamiento": razonamiento,
+                "alertas": [],
+                "analysis_type": "trend_agent_direct",
+                "agent_type": "trend_agent"
+            }
+
+        # Si no hay setup claro (< 4/4), consultar IA para casos ambiguos
+        # Solo llama a IA cuando hay 3/4 criterios (casi listo)
+        if buy_score >= 3 or sell_score >= 3:
+            advanced_context = self._build_advanced_context(advanced_data)
+
+            prompt = f"""
+{symbol}: Evalúa si hay oportunidad con criterios casi completos.
+
+COMPRA ({buy_score}/4): P>EMA200:{"✓" if price_above_ema else "✗"} RSI:{"✓" if rsi_in_range else "✗"} MACD:{"✓" if macd_bullish else "✗"} Vol:{"✓" if volume_ok else "✗"}
+VENTA ({sell_score}/4): P<EMA200:{"✓" if price_below_ema else "✗"} RSI:{"✓" if rsi_in_range else "✗"} MACD:{"✓" if macd_bearish else "✗"} Vol:{"✓" if volume_ok else "✗"}
 
 {advanced_context}
 
-=== CHECKLIST OBLIGATORIO ===
-✓ ¿Precio en lado correcto de EMA 200?
-✓ ¿RSI entre 35-65?
-✓ ¿MACD confirma dirección?
-✓ ¿Volumen > 0.7x?
-Si CUALQUIERA falla → ESPERA
+Si 3/4 criterios y contexto avanzado es favorable, dar 0.60 confianza. Si no, ESPERA.
 
-Responde SOLO en JSON:
-{{
-    "decision": "COMPRA" | "VENTA" | "ESPERA",
-    "confidence": 0.0-1.0,
-    "razonamiento": "Checklist: EMA200[✓/✗], RSI[✓/✗], MACD[✓/✗], Vol[✓/✗], ADX[✓/✗]. Conclusión.",
-    "tipo_entrada": "continuacion_tendencia" | "retroceso_ema",
-    "alertas": ["riesgos"]
-}}
-
-NOTA: El sistema calculará SL/TP automáticamente con ATR. NO necesitas sugerirlos.
-IMPORTANTE: Confianza > 0.75 SOLO si TODOS los criterios pasan. Mejor ESPERAR que perder.
+JSON: {{"decision":"COMPRA|VENTA|ESPERA","confidence":0.0-1.0,"razonamiento":"breve","alertas":[]}}
 """
+            return self._execute_agent_prompt(prompt, "trend_agent")
 
-        return self._execute_agent_prompt(prompt, "trend_agent")
+        # < 3/4 criterios = ESPERA directa (sin gastar en API)
+        logger.info(f"⏸️ {symbol}: ESPERA directa ({buy_score}/4 buy, {sell_score}/4 sell) - $0 API")
+        return {
+            "decision": "ESPERA",
+            "confidence": 0.2,
+            "razonamiento": f"Criterios insuficientes: COMPRA {buy_score}/4, VENTA {sell_score}/4",
+            "alertas": ["Esperando alineación de indicadores"],
+            "analysis_type": "trend_agent_direct",
+            "agent_type": "trend_agent"
+        }
 
     def _reversal_agent_analysis(
         self,

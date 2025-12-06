@@ -1,6 +1,6 @@
 apiVersion: 1
 
-# SATH v1.7+ - InfluxDB Datasource Configuration
+# SATH v2.2 - InfluxDB Datasource Configuration
 
 deleteDatasources:
   - name: InfluxDB
